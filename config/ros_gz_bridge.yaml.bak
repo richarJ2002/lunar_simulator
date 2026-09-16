@@ -1,0 +1,14 @@
+# Alpha Rover bridges
+/alpha/imu@sensor_msgs/msg/Imu[gz.msgs.IMU]
+/alpha/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model]
+/alpha/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry]
+
+# Beta Rover bridges
+/beta/imu@sensor_msgs/msg/Imu[gz.msgs.IMU]
+/beta/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model]
+/beta/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry]
+
+# Exo Mars Rover bridges
+/exo/imu@sensor_msgs/msg/Imu[gz.msgs.IMU]
+/exo/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model]
+/exo/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry]

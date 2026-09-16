@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<model name="alpha_rover">
+  <name>alpha_rover</name>
+  <version>1.0</version>
+  <sdf version="1.6">
+    <author>
+      <name>richar-j</name>
+    </author>
+    <description>Alpha rover model for lunar simulator</description>
+  </name>
+
+  <link name="alpha/base_link">
+    <pose>0 0 0.1 0 0 0</pose>
+    <collision name="collision">
+      <pose>0 0 0.1 0 0 0</pose>
+      <geometry>
+        <cylinder>
+          <radius>0.2</radius>
+          <length>0.2</length>
+        </cylinder>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <pose>0 0 0.1 0 0 0</pose>
+      <geometry>
+        <cylinder>
+          <radius>0.2</radius>
+          <length>0.2</length>
+        </cylinder>
+      </geometry>
+      <material>
+        <script>
+          <name>Blue</name>
+          <ambient>0.2 0.2 0.6 1</ambient>
+          <diffuse>0.4 0.4 0.8 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </script>
+      </material>
+    </visual>
+  </link>
+
+  <link name="alpha/wheel_link">
+    <pose>0 0 0.05 0 0 0</pose>
+    <collision name="wheel_collision">
+      <pose>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder>
+          <radius>0.05</radius>
+          <length>0.1</length>
+        </cylinder>
+      </geometry>
+    </collision>
+    <visual name="wheel_visual">
+      <pose>0 0 0.05 0 0 0</pose>
+      <geometry>
+        <cylinder>
+          <radius>0.05</radius>
+          <length>0.1</length>
+        </cylinder>
+      </geometry>
+      <material>
+        <script>
+          <name>Black</name>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.2 0.2 0.2 1</diffuse>
+          <specular>0.0 0.0 0.0 1</specular>
+        </script>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="alpha_wheel_joint">
+    <parent>alpha/base_link</parent>
+    <child>alpha/wheel_link</child>
+    <pose>0 0 0.05 0 0 0</pose>
+    <type>revolute>
+      <axis>0 0 1</axis>
+    </type>
+  </joint>
+
+  <sensor name="imu" type="imu">
+    <always_on>true</always_on>
+    <update_rate>10</update_rate>
+    <frame>alpha/base_link</frame>
+    <noise>
+      <angular_velocity>
+        <noise_type>gaussian</noise_type>
+        <mean>0.0</mean>
+        <persistence>0.01</persistence>
+        <random>0.001</random>
+      </angular_velocity>
+      <linear_acceleration>
+        <noise_type>gaussian</noise_type>
+        <mean>0.0</mean>
+        <persistence>0.01</persistence>
+        <random>0.01</random>
+      </linear_acceleration>
+    </noise>
+  </sensor>
+
+  <sensor name="gps" type="gps">
+    <always_on>true</always_on>
+    <update_rate>1</update_rate>
+    <frame>alpha/base_link</frame>
+  </sensor>
+</model>

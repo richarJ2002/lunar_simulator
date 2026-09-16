@@ -1,0 +1,3 @@
+ament_add_gtest(test_kalman_math test_kalman_math.cpp)
+target_compile_features(test_kalman_math PUBLIC cxx_std_17)
+target_link_libraries(test_kalman_math alpha_kalman_filter Eigen3::Eigen)

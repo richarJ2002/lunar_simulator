@@ -1,0 +1,20 @@
+# Git ignore file which ignores changes to files that follow the convention below
+
+# Ignore .VSCodeCounter Extension Outputs
+**.VSCodeCounter
+
+# Ignore .vscode setting files
+**.vscode
+
+# Ignore the virtual python environment
+.venv/
+
+# ROS build ignore
+# build/*
+# install/*
+# log/*
+
+# ROS general ignores
+rosbag**/*
+*.log
+

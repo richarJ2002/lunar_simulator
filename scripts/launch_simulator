@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+# @File:         launch_simulator
+#
+# @Brief:        Launch Gazebo, Alpha, localisation, and the ROS bridge.
+#
+# @Date:         15/09/2026
+#
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: $(basename "$0") [--system alpha] [--headless] [--help]"
+  echo "  --system     rover system to spawn (default: alpha)"
+  echo "  --headless   run Gazebo server without the GUI window"
+  echo "  --help       show this help"
+  echo "Env: HEADLESS=1 is equivalent to --headless"
+}
+
+HEADLESS="${HEADLESS:-0}"
+SYSTEM="alpha"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --headless) HEADLESS=1; shift ;;
+    --system)
+      if [ $# -lt 2 ]; then
+        echo "Missing value for --system" >&2
+        usage
+        exit 1
+      fi
+      SYSTEM="$2"
+      shift 2
+      ;;
+    --system=*) SYSTEM="${1#*=}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+# Source ROS2 Jazzy
+set +u
+source /opt/ros/jazzy/setup.bash
+# Source workspace overlay if built
+if [ -f "$(dirname "$0")/../install/setup.bash" ]; then
+  source "$(dirname "$0")/../install/setup.bash"
+fi
+set -u
+
+# Resolve paths relative to this script so it runs from any directory.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")"
+WORLD_FILE="$ROOT/worlds/lunar_surface.sdf"
+WORLD_NAME="lunar_surface"
+
+case "$SYSTEM" in
+  alpha)
+    MODEL_FILE="$ROOT/src/systems/alpha_system/alpha_model/model.sdf"
+    MODEL_NAME="alpha_rover"
+    ALPHA_PARAMETERS="$ROOT/config/alpha.yaml"
+    ROS_EXECUTABLES="alpha_node alpha_sensor_node inertial_odometry_node visual_odometry_node wheel_odometry_node kalman_filter_node ground_truth_node"
+    BRIDGE_CONFIG="$ROOT/config/ros_gz_bridge.yaml"
+    SPAWN_Z="0.02"
+    ;;
+  *)
+    echo "Unknown system: $SYSTEM (expected alpha)" >&2
+    usage
+    exit 1
+    ;;
+esac
+
+# Materialize Alpha's camera noise in the SDF so Gazebo applies it before the
+# ROS bridge. SDF camera noise uses normalized intensity; Alpha exposes the
+# friendlier 8-bit intensity standard deviation in alpha.yaml.
+NOISE_ENABLED="$(awk '$1 == "noise_enabled:" {print $2; exit}' "$ALPHA_PARAMETERS")"
+CAMERA_PIXEL_STDDEV="$(awk '$1 == "camera_pixel_stddev:" {print $2; exit}' "$ALPHA_PARAMETERS")"
+case "$NOISE_ENABLED" in
+  true) ;;
+  false) CAMERA_PIXEL_STDDEV="0.0" ;;
+  *) echo "Invalid noise_enabled in $ALPHA_PARAMETERS" >&2; exit 1 ;;
+esac
+if ! awk -v value="$CAMERA_PIXEL_STDDEV" \
+    'BEGIN {exit !(value ~ /^[+]?[0-9]+([.][0-9]+)?$/ && value >= 0.0)}'; then
+  echo "camera_pixel_stddev must be nonnegative" >&2
+  exit 1
+fi
+CAMERA_NORMALIZED_STDDEV="$(awk -v value="$CAMERA_PIXEL_STDDEV" 'BEGIN {printf "%.10f", value / 255.0}')"
+GENERATED_MODEL_FILE="$(mktemp --tmpdir alpha_rover.XXXXXX.sdf)"
+sed "s#<stddev>0.0235294118</stddev><!-- ALPHA_CAMERA_NOISE_STDDEV -->#<stddev>$CAMERA_NORMALIZED_STDDEV</stddev><!-- ALPHA_CAMERA_NOISE_STDDEV -->#g" \
+  "$MODEL_FILE" > "$GENERATED_MODEL_FILE"
+MODEL_FILE="$GENERATED_MODEL_FILE"
+
+# Set gazebo resource paths (source tree layout)
+export GZ_SIM_RESOURCE_PATH="$ROOT/worlds:$ROOT/src/systems/alpha_system/alpha_model"
+export GZ_SIM_SYSTEM_PLUGIN_PATH="${LD_LIBRARY_PATH:-}"
+
+model_present() {
+  gz model --list 2>/dev/null \
+    | sed -n 's/^[[:space:]]*-[[:space:]]*//p' \
+    | grep -Fxq "$MODEL_NAME"
+}
+
+simulation_is_paused() {
+  gz topic -e -t "/world/$WORLD_NAME/stats" -n 1 2>/dev/null \
+    | grep -q "paused: true"
+}
+
+simulation_is_running() {
+  local stats
+  stats="$(gz topic -e -t "/world/$WORLD_NAME/stats" -n 1 2>/dev/null)"
+  [ -n "$stats" ] && ! grep -q "paused: true" <<<"$stats"
+}
+
+cleanup() {
+  kill "$GAZEBO_PID" $NODE_PIDS 2>/dev/null || true
+  if [ -n "${GENERATED_MODEL_FILE:-}" ] && [ -f "$GENERATED_MODEL_FILE" ]; then
+    rm -f -- "$GENERATED_MODEL_FILE"
+  fi
+}
+trap cleanup EXIT
+NODE_PIDS=""
+
+# 1. Launch gazebo with lunar world in background
+if [ "$HEADLESS" = "1" ]; then
+  echo "[launch] starting Gazebo server (headless)..."
+  gz sim -s -v4 "$WORLD_FILE" &
+else
+  echo "[launch] starting Gazebo with GUI..."
+  gz sim -v4 "$WORLD_FILE" &
+fi
+GAZEBO_PID=$!
+
+# 2. Wait until the world creation service is ready (Gazebo is up)
+echo "[launch] waiting for Gazebo world '$WORLD_NAME'..."
+READY=0
+for _ in $(seq 1 30); do
+  if gz service -l 2>/dev/null | grep -q "/world/$WORLD_NAME/create"; then
+    READY=1
+    break
+  fi
+  sleep 1
+done
+if [ "$READY" != "1" ]; then
+  echo "[launch] ERROR: Gazebo world '$WORLD_NAME' did not become ready" >&2
+  exit 1
+fi
+
+# Keep physics stopped while the rover is being inserted. This also makes the
+# sequence deterministic if a GUI configuration starts Gazebo automatically.
+echo "[launch] pausing simulation while the model loads..."
+if ! gz service -s "/world/$WORLD_NAME/control" \
+    --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
+    -r "pause: true" | grep -q "data: true"; then
+  echo "[launch] ERROR: could not pause Gazebo before model load" >&2
+  exit 1
+fi
+PAUSED=0
+for _ in $(seq 1 5); do
+  if simulation_is_paused; then
+    PAUSED=1
+    break
+  fi
+done
+if [ "$PAUSED" != "1" ]; then
+  echo "[launch] ERROR: Gazebo did not pause before model load" >&2
+  exit 1
+fi
+
+# 3. Spawn the selected rover model (skip if already present)
+if model_present; then
+  echo "[launch] model '$MODEL_NAME' already present, skipping spawn"
+else
+  echo "[launch] spawning model '$MODEL_NAME'..."
+  gz service -s "/world/$WORLD_NAME/create" \
+    --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 5000 \
+    -r "sdf_filename: \"$MODEL_FILE\", name: \"$MODEL_NAME\", allow_renaming: false, pose: {position: {x: 0.0, y: 0.0, z: $SPAWN_Z}}"
+fi
+
+# 4. Verify the model exists before starting the rest
+SPAWNED=0
+for _ in $(seq 1 15); do
+  if model_present; then
+    SPAWNED=1
+    break
+  fi
+  sleep 1
+done
+if [ "$SPAWNED" != "1" ]; then
+  echo "[launch] ERROR: model '$MODEL_NAME' not found after spawn" >&2
+  exit 1
+fi
+echo "[launch] model '$MODEL_NAME' present"
+
+# 5. Start the simulation only after the selected model is fully registered.
+echo "[launch] starting simulation..."
+STARTED=0
+for _ in $(seq 1 5); do
+  gz service -s "/world/$WORLD_NAME/control" \
+    --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
+    -r "pause: false" >/dev/null || true
+  if simulation_is_running; then
+    STARTED=1
+    break
+  fi
+done
+if [ "$STARTED" != "1" ]; then
+  echo "[launch] ERROR: Gazebo did not begin advancing after model load" >&2
+  exit 1
+fi
+echo "[launch] simulation running"
+
+# 6. Launch the ROS node belonging to the selected rover, when available.
+if [ -n "$ROS_EXECUTABLES" ]; then
+  echo "[launch] starting ROS node(s) for '$SYSTEM'..."
+  for executable in $ROS_EXECUTABLES; do
+    ros2 run lunar_simulator "$executable" --ros-args \
+      --params-file "$ROOT/config/alpha.yaml" \
+      --params-file "$ROOT/config/localisation.yaml" \
+      -p use_sim_time:=true &
+    NODE_PIDS="$NODE_PIDS $!"
+  done
+else
+  echo "[launch] no ROS wrapper node is defined for '$SYSTEM'; continuing"
+fi
+
+# 7. Launch ros-gz bridge in foreground (Jazzy config_file form)
+echo "[launch] starting ros-gz bridge..."
+ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:="$BRIDGE_CONFIG"
+
+wait "$GAZEBO_PID"
