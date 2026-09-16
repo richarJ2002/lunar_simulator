@@ -10,9 +10,9 @@
 .venv/
 
 # ROS build ignore
-# build/*
-# install/*
-# log/*
+build/*
+install/*
+log/*
 
 # ROS general ignores
 rosbag**/*
