@@ -1,0 +1,14 @@
+inertial_odometry:
+  ros__parameters:
+    imu_topic: /alpha/imu
+    odometry_topic: /localisation/inertial/odometry
+    filtered_imu_topic: /localisation/inertial/filtered_imu
+    odom_frame: map
+    base_frame: alpha/base_link
+    low_pass_cutoff_hz: 5.0
+    gravity_mps2: 1.62
+    remove_gravity: true
+    maximum_dt_s: 0.25
+    calibration_samples: 100
+    acceleration_deadband_mps2: 0.02
+    angular_rate_deadband_radps: 0.002

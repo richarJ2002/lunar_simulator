@@ -1,0 +1,46 @@
+wheel_odometry:
+  ros__parameters:
+    joint_state_topic: /alpha/joint_states
+    odometry_topic: /localisation/wheel/odometry
+    visual_odometry_topic: /localisation/visual/odometry
+    slip_ratio_topic: /localisation/wheel/slip_ratios
+    odom_frame: map
+    base_frame: alpha/base_link
+    wheel_radius_m: 0.1425
+    maximum_integration_dt_s: 5.0
+    estimate_slip_from_visual: true
+    slip_estimation_gain: 0.15
+    slip_recovery_gain: 0.05
+    slip_ratio_deadband: 0.05
+    minimum_wheel_speed_mps: 0.005
+    visual_odometry_timeout_s: 0.25
+    maximum_visual_twist_variance: 0.08
+    maximum_slip_ratio: 0.3
+    slip_ratios:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    drive_direction_multipliers:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    wheel_x_m:
+    - 0.64
+    - 0.64
+    - 0.0
+    - 0.0
+    - -0.72
+    - -0.72
+    wheel_y_m:
+    - 0.6
+    - -0.6
+    - 0.6
+    - -0.6
+    - 0.6
+    - -0.6

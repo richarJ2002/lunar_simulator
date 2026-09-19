@@ -1,0 +1,24 @@
+continuous_ekf:
+  ros__parameters:
+    inertial_odometry_topic: /localisation/inertial/odometry
+    visual_odometry_topic: /localisation/visual/odometry
+    wheel_odometry_topic: /localisation/wheel/odometry
+    output_topic: /localisation/kalman_filter/odometry
+    odom_frame: map
+    base_frame: alpha/base_link
+    initial_position_x_m: 0.0
+    initial_position_y_m: 0.0
+    initial_position_z_m: 0.72
+    initial_roll_rad: 0.0
+    initial_pitch_rad: 0.0
+    initial_yaw_rad: 0.0
+    prediction_rate_hz: 100.0
+    publish_tf: false
+    maximum_visual_measurement_age_s: 0.5
+    process_noise_position: 0.002
+    process_noise_orientation: 0.002
+    process_noise_linear_velocity: 0.05
+    process_noise_angular_velocity: 0.02
+    inertial_measurement_variance: 0.02
+    visual_measurement_variance: 0.04
+    wheel_measurement_variance: 0.02

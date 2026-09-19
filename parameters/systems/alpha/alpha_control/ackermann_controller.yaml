@@ -1,0 +1,17 @@
+# Alpha Ackermann controller runtime tuning.
+# Mirrors src/control/ackermann_controller/ (see AckermannControllerNode.h);
+# loaded by launch/alpha_launch.py as part of the alpha system's 7-file
+# parameter set under parameters/systems/alpha/.
+# Wheel geometry (wheel_x_m, wheel_y_m, drive_direction_multipliers) matches
+# wheel_odometry.yaml and src/systems/alpha/alpha_model/model.sdf; keep them
+# in sync if the rover wheel layout ever changes.
+# Topics default under the owning system's namespace via system_name.
+ackermann_controller:
+  ros__parameters:
+    velocity_topic: /alpha/control/cmd/velocity
+    wheel_joint_states_topic: /alpha/control/cmd/wheel_joint_states
+    wheel_radius_m: 0.1425
+    maximum_wheel_speed_radps: 0.14
+    wheel_x_m: [0.64, 0.64, 0.0, 0.0, -0.72, -0.72]
+    wheel_y_m: [0.60, -0.60, 0.60, -0.60, 0.60, -0.60]
+    drive_direction_multipliers: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]

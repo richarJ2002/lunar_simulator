@@ -1,0 +1,8 @@
+ground_truth:
+  ros__parameters:
+    odometry_topic: /alpha/localisation/ground_truth/odometry
+    path_topic: /localisation/ground_truth/path
+    map_frame: map
+    ground_truth_base_frame: alpha/ground_truth_base_link
+    path_maximum_poses: 5000
+    path_sample_period_s: 0.1

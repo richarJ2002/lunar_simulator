@@ -1,0 +1,22 @@
+visual_odometry:
+  ros__parameters:
+    left_image_topic: /alpha/loccam/left
+    right_image_topic: /alpha/loccam/right
+    odometry_topic: /localisation/visual/odometry
+    odom_frame: map
+    base_frame: alpha/base_link
+    point_cloud_topic: /localisation/visual/point_cloud
+    feature_image_topic: /localisation/visual/features
+    fx_px: 800.0
+    fy_px: 800.0
+    cx_px: 512.0
+    cy_px: 512.0
+    stereo_baseline_m: 0.15
+    camera_x_m: 0.932
+    camera_z_m: 0.6
+    camera_pitch_rad: 0.174533
+    num_disparities: 128
+    block_size: 15
+    maximum_features: 500
+    minimum_correspondences: 20
+    maximum_depth_m: 25.0
