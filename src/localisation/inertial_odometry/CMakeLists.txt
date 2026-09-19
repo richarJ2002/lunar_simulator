@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
-add_executable(inertial_odometry_node src/inertial_odometry_node.cpp)
-target_compile_features(inertial_odometry_node PUBLIC cxx_std_17)
-ament_target_dependencies(inertial_odometry_node
+add_library(inertial_odometry STATIC
+  src/methods/handleImuCallBack.cc
+  src/methods/publishFilteredImu.cc
+  src/methods/publishOdometry.cc
+  src/methods/stampToSeconds.cc
+  src/methods/toMessage.cc
+)
+target_compile_features(inertial_odometry PUBLIC cxx_std_17)
+target_include_directories(inertial_odometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+ament_target_dependencies(inertial_odometry
   geometry_msgs
   nav_msgs
   rclcpp
@@ -10,4 +17,4 @@ ament_target_dependencies(inertial_odometry_node
   tf2
   tf2_geometry_msgs
 )
-install(TARGETS inertial_odometry_node DESTINATION lib/${PROJECT_NAME})
+install(TARGETS inertial_odometry ARCHIVE DESTINATION lib)
