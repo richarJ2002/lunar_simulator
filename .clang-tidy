@@ -1,0 +1,51 @@
+# clang-tidy configuration for lunar_simulator.
+#
+# This is a real static-analysis pass, not a certification claim: per
+# CPP_CODING_STANDARD.md Section 15.4, clang-tidy is NOT a certified MISRA
+# C++ checker. Any compliance document that cites a clang-tidy run must
+# state that distinction explicitly rather than imply certified coverage.
+#
+# Scope: report-only (WarningsAsErrors is empty) across the whole repo.
+# Magic-number checks are disabled because the pre-existing
+# test_kalman_math.cpp style already uses bare numeric literals in
+# assertions, and modernize-use-trailing-return-type is disabled as a
+# stylistic choice this repo does not follow.
+#
+# cppcoreguidelines-pro-bounds-constant-array-index is disabled
+# repo-wide, not suppressed per-site, because it fires ~38 times across
+# feature_tracking/ on the exact same structural pattern: a runtime
+# std::array index already bounded by an initialize()-time-validated
+# range or a fixed loop limit (e.g. a pyramid level index, a window
+# offset). Switching every one of those hot-loop accesses to .at() would
+# add a bounds check per pixel/iteration, undermining the real-time
+# margin restored by CMakeLists.txt's RelWithDebInfo default (see
+# CLAUDE.md) for no safety benefit the surrounding loop structure doesn't
+# already provide -- and 38 near-identical NOLINT comments would be
+# noise, not an auditable trail. Raw-pointer-arithmetic checks are
+# treated differently and deliberately left ENABLED (not
+# blanket-suppressed): ImageView::at() (feature_tracking/objects/
+# ImageView.h) is the ONE site in this codebase using unchecked pointer
+# arithmetic by design (see docs/compliance/feature_tracking/
+# DEVIATION_LOG.md DEV-FT-003), so it is suppressed per-site with a
+# justified `// NOLINT(...)` instead, keeping that checker maximally
+# strict everywhere else.
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-pro-bounds-constant-array-index
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: 'src/.*'
+
+FormatStyle: none

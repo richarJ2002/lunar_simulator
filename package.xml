@@ -1,32 +1,30 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>lunar_simulator</name>
-  <version>0.0.0</version>
-  <description>Lunar rover simulator C++ ROS2 nodes</description>
-  <maintainer email="richar-j@todo.com">richar-j</maintainer>
-  <license>Apache License 2.0</license>
+    <name>lunar_simulator</name>
+    <version>0.0.0</version>
+    <description>Lunar rover simulator C++ ROS2 nodes</description>
+    <maintainer email="jason2richards@gmail.com">richar-j</maintainer>
+    <license>GPL-3.0</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>actuator_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
-  <depend>rosgraph_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>message_filters</depend>
-  <depend>tf2_geometry_msgs</depend>
-  <depend>eigen</depend>
-  <depend>opencv</depend>
-  <!-- staged for Phase 5 TF -->
-  <depend>tf2</depend>
-  <depend>tf2_ros</depend>
-  <!-- staged for Phase 9 portable launch -->
-  <depend>ros_gz_sim</depend>
+    <depend>rclcpp</depend>
+    <depend>sensor_msgs</depend>
+    <depend>std_msgs</depend>
+    <depend>actuator_msgs</depend>
+    <depend>geometry_msgs</depend>
+    <depend>nav_msgs</depend>
+    <depend>rosgraph_msgs</depend>
+    <depend>cv_bridge</depend>
+    <depend>message_filters</depend>
+    <depend>tf2_geometry_msgs</depend>
+    <depend>eigen</depend>
+    <depend>opencv</depend>
+    <depend>tf2</depend>
+    <depend>tf2_ros</depend>
+    <depend>ros_gz_sim</depend>
 
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
 </package>

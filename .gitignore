@@ -14,7 +14,14 @@ build/*
 install/*
 log/*
 
+# Blender ignores
+*.blend
+
 # ROS general ignores
 rosbag**/*
 *.log
+
+# Python bytecode (launch/__pycache__/ was previously tracked)
+__pycache__/
+*.pyc
 
