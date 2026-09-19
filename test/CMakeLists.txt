@@ -1,3 +1,11 @@
 ament_add_gtest(test_kalman_math test_kalman_math.cpp)
 target_compile_features(test_kalman_math PUBLIC cxx_std_17)
-target_link_libraries(test_kalman_math alpha_kalman_filter Eigen3::Eigen)
+target_link_libraries(test_kalman_math ekf_continuous_kalman_filter Eigen3::Eigen)
+
+ament_add_gtest(test_corner_detector test_corner_detector.cpp)
+target_compile_features(test_corner_detector PUBLIC cxx_std_17)
+target_link_libraries(test_corner_detector alpha_feature_tracking)
+
+ament_add_gtest(test_optical_flow_tracker test_optical_flow_tracker.cpp)
+target_compile_features(test_optical_flow_tracker PUBLIC cxx_std_17)
+target_link_libraries(test_optical_flow_tracker alpha_feature_tracking)
