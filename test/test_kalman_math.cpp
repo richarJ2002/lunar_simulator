@@ -1,9 +1,10 @@
 /*!
  * @File:         test_kalman_math.cpp
  *
- * @Brief:        Tests the reusable continuous extended Kalman filter.
+ * @Brief:        Tests the reusable, model-agnostic continuous extended
+ *                Kalman filter engine.
  *
- * @Date:         15/09/2026
+ * @Date:         17/09/2026
  *
  */
 
@@ -11,7 +12,7 @@
 #include <gtest/gtest.h>
 
 /* Object Include */
-#include "kalman_filter/objects/ContinuousExtendedKalmanFilter.h"
+#include "objects/ContinuousExtendedKalmanFilter.h"
 
 /* Data include */
 #include <Eigen/Dense>
@@ -23,171 +24,150 @@
 namespace
 {
 
-using Filter = lunar_simulator::localisation::kalman_filter::
+using Filter = localisation::kalman_filter::ekf_continuous_kalman_filter::
     ContinuousExtendedKalmanFilter;
-using FilterStatus = lunar_simulator::localisation::kalman_filter::FilterStatus;
+using FilterStatus =
+    localisation::kalman_filter::ekf_continuous_kalman_filter::FilterStatus;
 
-Filter::StateVector uniformVariance(double variance_in)
-{
-    return Filter::StateVector::Constant(variance_in);
-}
-
-TEST(KalmanMath, RequiresInitBeforeStep)
+TEST(KalmanMath, PredictAndUpdateRequireInitializeFirst)
 {
     Filter filter;
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    const Filter::MeasurementMask mask{};
+    const Eigen::VectorXd derivative = Eigen::VectorXd::Zero(2);
+    const Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(2, 2);
+    const Eigen::MatrixXd noise = Eigen::MatrixXd::Identity(2, 2);
 
-    EXPECT_EQ(filter.step(0.0, nullptr, mask, uniformVariance(1.0), state,
-                          covariance),
+    EXPECT_EQ(filter.predict(0.1, derivative, jacobian, noise),
+              FilterStatus::FILTER_STATUS_NOT_INITIALIZED);
+
+    const Eigen::VectorXd innovation = Eigen::VectorXd::Zero(2);
+    const Eigen::MatrixXd observation = Eigen::MatrixXd::Identity(2, 2);
+
+    EXPECT_EQ(filter.update(innovation, observation, noise),
+              FilterStatus::FILTER_STATUS_NOT_INITIALIZED);
+}
+
+TEST(KalmanMath, TerminateReturnsToUninitializedState)
+{
+    Filter filter;
+    ASSERT_EQ(filter.initialize(2, Eigen::VectorXd::Zero(2),
+                                Eigen::MatrixXd::Identity(2, 2)),
+              FilterStatus::FILTER_STATUS_SUCCESS);
+    ASSERT_EQ(filter.terminate(), FilterStatus::FILTER_STATUS_SUCCESS);
+
+    const Eigen::VectorXd derivative = Eigen::VectorXd::Zero(2);
+    const Eigen::MatrixXd jacobian = Eigen::MatrixXd::Zero(2, 2);
+    const Eigen::MatrixXd noise = Eigen::MatrixXd::Identity(2, 2);
+    EXPECT_EQ(filter.predict(0.1, derivative, jacobian, noise),
               FilterStatus::FILTER_STATUS_NOT_INITIALIZED);
 }
 
 TEST(KalmanMath, PredictsConstantLinearVelocity)
 {
     Filter filter;
-    Filter::StateMatrix processNoise = Filter::StateMatrix::Zero();
-    ASSERT_EQ(filter.init(processNoise, Filter::StateMatrix::Identity()),
+
+    /* A two-state [position, velocity] constant-velocity model: the
+     * caller (not the engine) evaluates f(x) = [velocity, 0] and its
+     * Jacobian F = [[0, 1], [0, 0]] at the current state. */
+    Eigen::VectorXd initialState(2);
+    initialState << 1.0, 2.0;
+    ASSERT_EQ(filter.initialize(2, initialState,
+                                Eigen::MatrixXd::Identity(2, 2)),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    Filter::StateVector measurement = Filter::StateVector::Zero();
-    measurement(0) = 1.0;
-    measurement(6) = 2.0;
-    Filter::MeasurementMask fullMask{};
-    fullMask.fill(true);
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    ASSERT_EQ(filter.step(0.0, &measurement, fullMask, uniformVariance(0.1),
-                          state, covariance),
+    Eigen::VectorXd stateDerivative(2);
+    stateDerivative << 2.0, 0.0;
+    Eigen::MatrixXd processJacobian = Eigen::MatrixXd::Zero(2, 2);
+    processJacobian(0, 1) = 1.0;
+    const Eigen::MatrixXd processNoise = Eigen::MatrixXd::Zero(2, 2);
+
+    ASSERT_EQ(filter.predict(0.5, stateDerivative, processJacobian,
+                             processNoise),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    const Filter::MeasurementMask emptyMask{};
-    ASSERT_EQ(filter.step(0.5, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    EXPECT_NEAR(state(0), 2.0, 1.0e-10);
-    EXPECT_NEAR(state(6), 2.0, 1.0e-10);
-    EXPECT_TRUE(covariance.isApprox(covariance.transpose(), 1.0e-12));
-}
-
-TEST(KalmanMath, TerminateReturnsToUninitializedState)
-{
-    Filter filter;
-    ASSERT_EQ(filter.init(Filter::StateMatrix::Zero(),
-                          Filter::StateMatrix::Identity()),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    ASSERT_EQ(filter.terminate(), FilterStatus::FILTER_STATUS_SUCCESS);
-
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    const Filter::MeasurementMask mask{};
-    EXPECT_EQ(filter.step(0.0, nullptr, mask, uniformVariance(1.0), state,
-                          covariance),
-              FilterStatus::FILTER_STATUS_NOT_INITIALIZED);
+    EXPECT_NEAR(filter.getState()(0), 2.0, 1.0e-10);
+    EXPECT_NEAR(filter.getState()(1), 2.0, 1.0e-10);
+    EXPECT_TRUE(
+        filter.getCovariance().isApprox(filter.getCovariance().transpose(),
+                                        1.0e-12));
 }
 
 TEST(KalmanMath, CorrectsOnlySelectedMeasurementStates)
 {
     Filter filter;
-    ASSERT_EQ(filter.init(Filter::StateMatrix::Zero(),
-                          Filter::StateMatrix::Identity()),
+    ASSERT_EQ(filter.initialize(3, Eigen::VectorXd::Zero(3),
+                                Eigen::MatrixXd::Identity(3, 3)),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    const Filter::MeasurementMask emptyMask{};
-    ASSERT_EQ(filter.step(0.0, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
+    /* Observation matrix selecting only states 0 and 1, leaving state 2
+     * entirely unobserved -- matching the old MeasurementMask{0,1}
+     * behaviour without needing a dummy zero-effect measurement channel
+     * for the unobserved state. */
+    Eigen::MatrixXd observation = Eigen::MatrixXd::Zero(2, 3);
+    observation(0, 0) = 1.0;
+    observation(1, 1) = 1.0;
+
+    Eigen::VectorXd innovation(2);
+    innovation << 10.0, -4.0;
+    const Eigen::MatrixXd measurementNoise = Eigen::MatrixXd::Identity(2, 2);
+
+    ASSERT_EQ(filter.update(innovation, observation, measurementNoise),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    Filter::StateVector measurement = Filter::StateVector::Zero();
-    measurement(0) = 10.0;
-    measurement(1) = -4.0;
-    measurement(2) = 99.0;
-    Filter::MeasurementMask planarMask{};
-    planarMask[0] = true;
-    planarMask[1] = true;
-    ASSERT_EQ(
-        filter.step(0.0, &measurement, planarMask, uniformVariance(1.0), state,
-                    covariance),
-        FilterStatus::FILTER_STATUS_SUCCESS);
-
-    EXPECT_NEAR(state(0), 5.0, 1.0e-12);
-    EXPECT_NEAR(state(1), -2.0, 1.0e-12);
-    EXPECT_DOUBLE_EQ(state(2), 0.0);
-    EXPECT_LT(covariance(0, 0), 1.0);
-    EXPECT_DOUBLE_EQ(covariance(2, 2), 1.0);
-}
-
-TEST(KalmanMath, RejectsNonMonotonicTimestamp)
-{
-    Filter filter;
-    ASSERT_EQ(filter.init(Filter::StateMatrix::Zero(),
-                          Filter::StateMatrix::Identity()),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    const Filter::MeasurementMask emptyMask{};
-    ASSERT_EQ(filter.step(2.0, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    EXPECT_EQ(filter.step(1.0, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
-              FilterStatus::FILTER_STATUS_INVALID_INPUT);
+    EXPECT_NEAR(filter.getState()(0), 5.0, 1.0e-12);
+    EXPECT_NEAR(filter.getState()(1), -2.0, 1.0e-12);
+    EXPECT_DOUBLE_EQ(filter.getState()(2), 0.0);
+    EXPECT_LT(filter.getCovariance()(0, 0), 1.0);
+    EXPECT_DOUBLE_EQ(filter.getCovariance()(2, 2), 1.0);
 }
 
 TEST(KalmanMath, UsesIndependentMeasurementVariances)
 {
     Filter filter;
-    ASSERT_EQ(filter.init(Filter::StateMatrix::Zero(),
-                          Filter::StateMatrix::Identity()),
+    ASSERT_EQ(filter.initialize(2, Eigen::VectorXd::Zero(2),
+                                Eigen::MatrixXd::Identity(2, 2)),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    Filter::StateVector measurement = Filter::StateVector::Zero();
-    measurement(0) = 10.0;
-    measurement(1) = 10.0;
-    Filter::MeasurementMask mask{};
-    mask[0] = true;
-    mask[1] = true;
-    Filter::StateVector variances = Filter::StateVector::Ones();
-    variances(0) = 0.01;
-    variances(1) = 100.0;
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    const Filter::MeasurementMask emptyMask{};
-    ASSERT_EQ(filter.step(0.0, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
+    const Eigen::MatrixXd observation = Eigen::MatrixXd::Identity(2, 2);
+    Eigen::VectorXd innovation(2);
+    innovation << 10.0, 10.0;
+    Eigen::MatrixXd measurementNoise = Eigen::MatrixXd::Zero(2, 2);
+    measurementNoise(0, 0) = 0.01;
+    measurementNoise(1, 1) = 100.0;
+
+    ASSERT_EQ(filter.update(innovation, observation, measurementNoise),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    ASSERT_EQ(filter.step(0.0, &measurement, mask, variances, state, covariance),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    EXPECT_GT(state(0), 9.0);
-    EXPECT_LT(state(1), 0.2);
+    EXPECT_GT(filter.getState()(0), 9.0);
+    EXPECT_LT(filter.getState()(1), 0.2);
 }
 
-TEST(KalmanMath, PredictsAcrossLongTimestampGap)
+TEST(KalmanMath, RejectsMismatchedMatrixDimensions)
 {
     Filter filter;
-    ASSERT_EQ(filter.init(Filter::StateMatrix::Zero(),
-                          Filter::StateMatrix::Identity()),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    Filter::StateVector measurement = Filter::StateVector::Zero();
-    measurement(6) = 1.0;
-    Filter::MeasurementMask fullMask{};
-    fullMask.fill(true);
-    Filter::StateVector state;
-    Filter::StateMatrix covariance;
-    ASSERT_EQ(filter.step(0.0, &measurement, fullMask, uniformVariance(0.01),
-                          state, covariance),
+    ASSERT_EQ(filter.initialize(3, Eigen::VectorXd::Zero(3),
+                                Eigen::MatrixXd::Identity(3, 3)),
               FilterStatus::FILTER_STATUS_SUCCESS);
 
-    const Filter::MeasurementMask emptyMask{};
-    ASSERT_EQ(filter.step(1.5, nullptr, emptyMask, uniformVariance(1.0), state,
-                          covariance),
-              FilterStatus::FILTER_STATUS_SUCCESS);
-    EXPECT_NEAR(state(0), 1.5, 1.0e-10);
+    /*!
+     * With fixed-size Eigen types this class of error used to be caught
+     * at compile time; dynamic sizing makes it a real runtime failure
+     * mode the engine must now detect itself.
+     */
+    const Eigen::VectorXd wrongSizeDerivative = Eigen::VectorXd::Zero(2);
+    const Eigen::MatrixXd rightSizeJacobian = Eigen::MatrixXd::Zero(3, 3);
+    const Eigen::MatrixXd rightSizeNoise = Eigen::MatrixXd::Identity(3, 3);
+    EXPECT_EQ(filter.predict(0.1, wrongSizeDerivative, rightSizeJacobian,
+                             rightSizeNoise),
+              FilterStatus::FILTER_STATUS_INVALID_INPUT);
+
+    const Eigen::VectorXd innovation = Eigen::VectorXd::Zero(2);
+    const Eigen::MatrixXd wrongColumnsObservation =
+        Eigen::MatrixXd::Zero(2, 4);
+    const Eigen::MatrixXd rightSizeMeasurementNoise =
+        Eigen::MatrixXd::Identity(2, 2);
+    EXPECT_EQ(filter.update(innovation, wrongColumnsObservation,
+                            rightSizeMeasurementNoise),
+              FilterStatus::FILTER_STATUS_INVALID_INPUT);
 }
 
 TEST(KalmanMath, SixWheelRollingSystemRecoversPlanarTwist)

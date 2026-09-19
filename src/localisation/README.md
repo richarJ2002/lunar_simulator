@@ -7,24 +7,45 @@ children of `map` and can therefore be compared directly. Linear and angular
 twist components in `nav_msgs/Odometry` follow ROS convention and are expressed
 in the child (base) frame.
 
+Each package below (`ground_truth`, `inertial_odometry`, `visual_odometry`,
+`wheel_odometry`) builds as a static library, not a standalone executable —
+the owning system decides which ones it wants and constructs/spins them
+itself. For Alpha, that composing class is `AlphaNode`
+(`src/systems/alpha/alpha_node/objects/AlphaNode.h`, spun from
+`alpha_node/main.cpp` — the single executable this whole system runs),
+which links all four alongside its own estimate node and Gazebo driver
+interface.
+The fusing Kalman filter (`continuous_ekf` in the table below) follows the
+same static-library pattern but is not one of these packages: its
+rover-specific EKF model is `alpha_kalman_filter`
+(`src/systems/alpha/alpha_localisation/alpha_kalman_filter/`), which wraps the
+model-agnostic engine at `src/localisation/kalman_filter/
+ekf_continuous_kalman_filter/` — see the "System/node layout" section of the
+repo-root `CLAUDE.md` for the full split.
+
 | Node | Input | Output |
 |---|---|---|
-| `alpha_sensor_node` | `/alpha/raw/imu`, `/alpha/raw/joint_states` | `/alpha/imu`, `/alpha/joint_states` |
-| `inertial_odometry_node` | `/alpha/imu` | `/localisation/inertial/odometry`, `/localisation/inertial/filtered_imu` |
-| `visual_odometry_node` | `/alpha/loccam/left`, `/alpha/loccam/right` | `/localisation/visual/odometry`, `/localisation/visual/point_cloud`, `/localisation/visual/features` |
-| `wheel_odometry_node` | `/alpha/joint_states`, `/localisation/visual/odometry` | `/localisation/wheel/odometry`, `/localisation/wheel/slip_ratios` |
-| `kalman_filter_node` | the three odometry topics above | `/localisation/kalman_filter/odometry` |
-| `ground_truth_node` | `/localisation/ground_truth/odometry` | `/localisation/ground_truth/path` and the truth TF |
-| `alpha_node` | EKF odometry | `/localisation/kalman_filter/path` and the estimate TF |
+| `alpha_driver_node` | `/alpha/raw/imu`, `/alpha/raw/joint_states` | `/alpha/imu`, `/alpha/joint_states` |
+| `inertial_odometry` | `/alpha/imu` | `/alpha/localisation/inertial/odometry`, `/alpha/localisation/inertial/filtered_imu` |
+| `visual_odometry` | `/alpha/loccam/left`, `/alpha/loccam/right` | `/alpha/localisation/visual/odometry`, `/alpha/localisation/visual/point_cloud`, `/alpha/localisation/visual/features` |
+| `wheel_odometry` | `/alpha/joint_states`, `/alpha/localisation/visual/odometry`, `/alpha/localisation/kalman_filter/wheel_slip_ratio` | `/alpha/localisation/wheel/odometry`, `/alpha/localisation/wheel/slip_ratios`, `/alpha/localisation/wheel/slip_observation` |
+| `continuous_ekf` | the three odometry topics above, plus `/alpha/localisation/wheel/slip_observation` | `/alpha/localisation/kalman_filter/{odometry,path,wheel_slip_ratio}` and the estimate TF |
+| `ground_truth` | `/alpha/localisation/ground_truth/odometry` | `/alpha/localisation/ground_truth/path` and the truth TF |
 
-Alpha's simulated sensor errors are configured in `config/alpha.yaml`.
-`alpha_sensor_node` adds repeatable Gaussian noise and constant bias to the
+Alpha's simulated sensor and actuator-command errors are configured in
+`parameters/systems/alpha/alpha_drivers/alpha_drivers.yaml`, and the
+fusing Kalman filter's tuning is in
+`parameters/systems/alpha/alpha_localisation/alpha_kalman_filter.yaml`.
+`alpha_driver_node` adds repeatable Gaussian noise and constant bias to the
 IMU, adds Gaussian encoder noise to joint position and velocity, and updates
-the IMU covariance fields. The random sequence is controlled by
-`random_seed`. LocCam and NavCam Gaussian pixel noise is applied natively by
+the IMU covariance fields; it also adds Gaussian noise to the outgoing wheel
+command before forwarding it to the raw Gazebo actuator bridge. The random
+sequence for all of this is controlled by one shared `random_seed`. LocCam
+and NavCam Gaussian pixel noise is applied natively by
 Gazebo to avoid relaying the large images through another ROS node;
-`launch_simulator` converts `camera_pixel_stddev` from 8-bit intensity units to
-Gazebo's normalized intensity units when it creates the temporary spawn SDF.
+`scripts/launch_simulator.sh` converts `camera_pixel_stddev` from 8-bit
+intensity units to Gazebo's normalized intensity units when it creates the
+temporary spawn SDF.
 Camera-noise changes therefore take effect on the next simulator launch. Set
 `noise_enabled: false` to disable all Alpha sensor noise. Simulator ground
 truth bypasses this sensor path and remains noise-free.
@@ -48,30 +69,54 @@ flow, and magenta rings are stereo-valid motion correspondences. The estimator
 still withholds odometry corrections when there are too few reliable matches.
 
 Wheel odometry solves all six rolling constraints in least squares, so it
-supports arbitrary per-wheel Ackermann steering angles. Each wheel speed is
-scaled by `(1 - slip_ratio)` before integration. For every reliable visual
-odometry update, the node projects the visual body twist onto each wheel's
-rolling direction and compares it with that wheel's circumferential speed.
-The resulting six slip observations are bounded and low-pass filtered before
-being applied to later wheel updates. `/localisation/wheel/slip_ratios`
-publishes the current values in front-left, front-right, centre-left,
-centre-right, rear-left, rear-right order. The configured values are the
-startup priors used before reliable visual motion is available.
+supports arbitrary per-wheel Ackermann steering angles; the solve's lateral
+(vy) channel is unobservable whenever all six wheels are near-parallel
+(steering angle 0), which `lateral_observability_threshold` correctly floors
+to zero instead of amplifying steering-encoder noise into a spurious
+velocity (see `CLAUDE.md`'s "Key invariants"). Each wheel speed is scaled by
+`(1 - slip_ratio)` before integration. For every reliable visual odometry
+update, the node projects the visual body twist onto each wheel's rolling
+direction and compares it with that wheel's circumferential speed, and
+publishes the resulting median-of-six observation on
+`/alpha/localisation/wheel/slip_observation` for `continuous_ekf` to fuse
+as an EKF state, rather than blending it into a local estimate itself.
+`continuous_ekf` republishes the fused result on
+`/alpha/localisation/kalman_filter/wheel_slip_ratio`, which `wheel_odometry`
+reads back and applies to all six wheels before its next solve.
+`/alpha/localisation/wheel/slip_ratios` publishes the currently-applied
+values in front-left, front-right, centre-left, centre-right, rear-left,
+rear-right order. The configured `slip_ratios` values are only the startup
+prior used until the first fused estimate arrives.
 
 The EKF state is `[position(3), roll/pitch/yaw, linear_velocity(3),
-angular_rate(3)]`. Its nonlinear Euler-rate process model and covariance are
-propagated continuously in steps no larger than 20 ms. Inertial, visual, and
-wheel messages cause discrete Joseph-form covariance updates. The IMU observes
-roll, pitch, and angular rates rather than its drift-prone integrated position.
-Wheel updates observe planar velocity and yaw rate; visual odometry provides
-the relative pose correction. All relative measurements are aligned to the
-configured initial Alpha pose in `map`. Parameters are in
-`config/localisation.yaml`.
+angular_rate(3), wheel_slip_ratio(1)]`. Its nonlinear Euler-rate process
+model and covariance are propagated continuously in steps no larger than
+20 ms; the slip state is the one exception, mean-reverting toward zero at
+`slip_decay_time_constant_s` absent a fresh observation rather than
+following pose/twist's kinematics. Inertial, visual, wheel, and slip
+messages cause discrete Joseph-form covariance updates. The IMU observes
+roll, pitch, and angular rates rather than its drift-prone integrated
+position. Wheel updates observe planar velocity and yaw rate; visual
+odometry provides the relative pose correction and, deliberately loosely
+weighted (`visual_attitude_measurement_variance`), also corrects roll and
+pitch: the IMU still dominates moment-to-moment, but its own open-loop
+attitude integration drifts slowly and indefinitely absent an independent
+check (see above), and stereo VO's per-frame PnP attitude estimate
+provides exactly that, anchoring long-run drift without fighting the IMU's
+better short-term estimate. This anchor works, but inertial_odometry's own
+drift rate is inconsistent run to run and can occasionally outpace it (see
+`CLAUDE.md`'s Key Invariants for the current suspected cause and open
+follow-ups). All relative measurements are aligned to the configured
+initial Alpha pose in `map`. Parameters are in
+`parameters/systems/alpha/alpha_localisation/alpha_kalman_filter.yaml`.
 
 The EKF output is a `nav_msgs/msg/Odometry`: `pose` carries position and
-attitude, while `twist` carries their linear and angular derivatives. For TF
-comparison, `alpha_node` publishes the estimated rover pose and
-`ground_truth_node` publishes the true pose beneath the common `map` frame.
+attitude, while `twist` carries their linear and angular derivatives. Every
+published estimate is also validated and unconditionally re-exposed by the
+same node as a retained path and TF (`AlphaKalmanFilterNode::
+publishEstimatedPath()`). For TF comparison, `continuous_ekf` publishes the
+estimated rover pose and `ground_truth` publishes the true pose beneath the
+common `map` frame.
 Ground-truth and estimated odometry and paths all retain that frame.
 Both trajectories are sampled into bounded `nav_msgs/msg/Path` histories at
 10 Hz.
