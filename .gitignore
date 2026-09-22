@@ -13,6 +13,7 @@
 build/*
 install/*
 log/*
+test_runs/
 
 # Blender ignores
 *.blend
@@ -24,4 +25,3 @@ rosbag**/*
 # Python bytecode (launch/__pycache__/ was previously tracked)
 __pycache__/
 *.pyc
-

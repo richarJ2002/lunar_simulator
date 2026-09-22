@@ -2,7 +2,7 @@
 #
 # @File:         launch_test.sh
 #
-# @Brief:        Static-only checks for the multisystem launcher refactor.
+# @Brief:        Checks for the multisystem launcher and run artifact layout.
 #                Never starts Gazebo, never requires a build to exist.
 #
 # @Date:         19/09/2026
@@ -83,16 +83,21 @@ bridge = yaml.safe_load(open(root / "config/alpha_ros_gz_bridge.yaml"))
 names = sorted(e["ros_topic_name"] for e in bridge)
 expected = sorted([
     "/clock",
-    "/alpha/cmd_wheel_joint_states",
-    "/alpha/raw/imu",
-    "/alpha/raw/joint_states",
-    "/alpha/localisation/ground_truth/odometry",
-    "/alpha/loccam/left",
-    "/alpha/loccam/right",
-    "/alpha/navcam/left",
-    "/alpha/navcam/right",
+    "/alpha/drivers/cmd/wheel_joint_states",
+    "/alpha/drivers/imu",
+    "/alpha/drivers/joint_states",
+    "/alpha/drivers/ground_truth/odometry",
+    "/alpha/drivers/loccam/left",
+    "/alpha/drivers/loccam/right",
+    "/alpha/drivers/navcam/left",
+    "/alpha/drivers/navcam/right",
 ])
 assert names == expected, f"bridge set mismatch: {names}"
+for entry in bridge:
+    if entry["ros_topic_name"] == "/clock":
+        continue
+    assert entry["ros_topic_name"].startswith("/alpha/drivers/"), entry
+    assert entry["gz_topic_name"].startswith("/alpha/drivers/"), entry
 print("[launch_test] OK: bridge exact 9-name set")
 
 checks = [
@@ -123,7 +128,57 @@ PATH="$stub_dir:$PATH" "$LAUNCH_SH" --help >/dev/null || fail "--help non-zero w
 pass "--help exits 0 without colcon"
 
 # ---------------------------------------------------------------------------- #
-# 5. Three negative cases, all non-zero without Gazebo
+# 5. Run artifact layout and parameter snapshot
+# ---------------------------------------------------------------------------- #
+
+run_root="$stub_dir/run-root"
+mkdir -p "$run_root/parameters/example"
+printf 'snapshot-marker\n' > "$run_root/parameters/example/marker.txt"
+bash -c '
+  set -euo pipefail
+  source "$1"
+  ROOT="$2"
+  create_test_run
+  [[ "$(basename "$TEST_RUN_DIR")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]
+  [ -f "$TEST_RUN_DIR/parameters/example/marker.txt" ]
+  [ -d "$TEST_RUN_DIR/ros/build_logs" ]
+  [ -d "$TEST_RUN_DIR/ros/logs" ]
+  [ -d "$TEST_RUN_DIR/ros/bags" ]
+  [ -d "$TEST_RUN_DIR/logs" ]
+  [ -d "$TEST_RUN_DIR/post_processing" ]
+  [ "$COLCON_LOG_PATH" = "$TEST_RUN_DIR/ros/build_logs" ]
+  [ "$ROS_LOG_DIR" = "$TEST_RUN_DIR/ros/logs" ]
+  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
+  start_terminal_capture
+  [ "$INTERACTIVE_RUN" -eq 0 ]
+  printf "terminal-capture-marker\n"
+  timestamp_test_run_dir="$TEST_RUN_DIR"
+  rename_test_run ""
+  [ "$TEST_RUN_DIR" = "$timestamp_test_run_dir" ]
+  if rename_test_run "invalid/name"; then
+    exit 1
+  fi
+  [ "$TEST_RUN_DIR" = "$timestamp_test_run_dir" ]
+  rename_test_run "straight-drive"
+  [[ "$(basename "$TEST_RUN_DIR")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-straight-drive$ ]]
+  [ "$COLCON_LOG_PATH" = "$TEST_RUN_DIR/ros/build_logs" ]
+  [ "$ROS_LOG_DIR" = "$TEST_RUN_DIR/ros/logs" ]
+  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
+  printf "terminal-capture-after-rename\n"
+' _ "$LAUNCH_SH" "$run_root" >/dev/null || fail "test-run artifact layout"
+run_directories=("$run_root"/test_runs/*)
+[ "${#run_directories[@]}" -eq 1 ] || fail "test-run directory count"
+terminal_log="${run_directories[0]}/logs/terminal.txt"
+for _ in {1..20}; do
+  grep -q "terminal-capture-marker" "$terminal_log" 2>/dev/null && break
+  sleep 0.1
+done
+grep -q "terminal-capture-marker" "$terminal_log" || fail "terminal capture content"
+grep -q "terminal-capture-after-rename" "$terminal_log" || fail "renamed terminal capture content"
+pass "test-run artifact layout"
+
+# ---------------------------------------------------------------------------- #
+# 6. Three negative cases, all non-zero without Gazebo
 # ---------------------------------------------------------------------------- #
 
 "$LAUNCH_SH" --no-such-flag >/dev/null 2>&1 && fail "unknown flag accepted" || pass "unknown flag non-zero"
@@ -131,7 +186,7 @@ pass "--help exits 0 without colcon"
 "$LAUNCH_SH" lunar_surface no_such_system_xyz >/dev/null 2>&1 && fail "bad system accepted" || pass "bad system non-zero"
 
 # ---------------------------------------------------------------------------- #
-# 6. Rename gates over working-tree text.
+# 7. Rename gates over working-tree text.
 #    rg excludes build/install/log/.git/__pycache__/*.pyc; *.bak included.
 #    This file itself is excluded from every gate (it must name each pattern
 #    to check it, so an unexcluded self-search would always self-trigger).

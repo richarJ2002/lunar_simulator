@@ -34,6 +34,11 @@ Usage: $(basename "$0") [world] [system] [--headless] [--rviz] [-h|--help]
   --headless   Run Gazebo server without GUI
   --rviz       Open RViz with the system's .rviz config
   -h, --help   Show this help
+
+ROS_DOMAIN_ID defaults to 73 so unrelated ROS sessions cannot publish a
+second /clock into this simulator. GZ_PARTITION defaults to
+lunar_simulator_<ROS_DOMAIN_ID> so unrelated Gazebo sessions cannot feed the
+bridge. Export either value before launching to override it.
 EOF
 }
 
@@ -48,6 +53,16 @@ RUN_SIMULATION_HEADLESS="${RUN_SIMULATION_HEADLESS:-0}"
 # Open RViz with the system's RViz config file (src/systems/<system>/<system>.rviz).
 # Set via --rviz flag.
 OPEN_RVIZ=0
+
+# Keep this simulator's global /clock topic isolated from unrelated ROS work.
+# Respect an explicit caller override for multi-system or CI environments.
+ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-73}"
+export ROS_DOMAIN_ID
+
+# Gazebo Transport discovery is independent of DDS discovery. Isolate it as
+# well so this bridge receives only this simulation's Gazebo /clock stream.
+GZ_PARTITION="${GZ_PARTITION:-lunar_simulator_${ROS_DOMAIN_ID}}"
+export GZ_PARTITION
 
 # Gazebo world name (without .sdf extension). Default: lunar_surface.
 WORLD="lunar_surface"
@@ -73,6 +88,11 @@ DRIVERS_YAML=""        # Path to parameters/systems/<system>/<system>_drivers/<s
 MODEL_NAME=""          # Model name extracted from model.config
 GENERATED_MODEL_FILE="" # Temporary SDF with camera noise patched
 GAZEBO_PID=""          # Gazebo process ID
+TEST_RUN_DIR=""        # Timestamped root for this simulation's artifacts
+RUN_ROS_DIR=""         # Colcon, ROS, and rosbag artifacts
+RUN_LOGS_DIR=""        # Terminal and simulator logs
+SIMULATION_STARTED=0    # Whether this invocation reached Gazebo startup
+INTERACTIVE_RUN=0       # Whether stdin/stdout began attached to a terminal
 
 # ---------------------------------------------------------------------------- #
 # ARGUMENT PARSING
@@ -112,6 +132,9 @@ parse_arguments() {
 validate_names() {
   [[ "$WORLD" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid world '$WORLD'"; exit 1; }
   [[ "$SYSTEM" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid system '$SYSTEM'"; exit 1; }
+  [[ "$ROS_DOMAIN_ID" =~ ^[0-9]+$ ]] || { err "Invalid ROS_DOMAIN_ID '$ROS_DOMAIN_ID'"; exit 1; }
+  [ "$ROS_DOMAIN_ID" -le 232 ] || { err "ROS_DOMAIN_ID must be in [0, 232]"; exit 1; }
+  [[ "$GZ_PARTITION" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid GZ_PARTITION '$GZ_PARTITION'"; exit 1; }
 }
 
 resolve_paths() {
@@ -147,6 +170,113 @@ validate_source_files() {
 }
 
 # ---------------------------------------------------------------------------- #
+# RUN ARTIFACTS
+# ---------------------------------------------------------------------------- #
+
+create_test_run() {
+  local test_runs_dir="$ROOT/test_runs"
+  local timestamp
+
+  mkdir -p "$test_runs_dir"
+  while true; do
+    timestamp="$(date +%Y-%m-%d-%H-%M-%S)"
+    TEST_RUN_DIR="$test_runs_dir/$timestamp"
+    if mkdir "$TEST_RUN_DIR" 2>/dev/null; then
+      break
+    fi
+    if [ ! -d "$TEST_RUN_DIR" ]; then
+      err "Unable to create test run directory: $TEST_RUN_DIR"
+      return 1
+    fi
+    sleep 1
+  done
+
+  RUN_ROS_DIR="$TEST_RUN_DIR/ros"
+  RUN_LOGS_DIR="$TEST_RUN_DIR/logs"
+  mkdir -p "$TEST_RUN_DIR/parameters" \
+    "$RUN_ROS_DIR/build_logs" \
+    "$RUN_ROS_DIR/logs" \
+    "$RUN_ROS_DIR/bags" \
+    "$RUN_LOGS_DIR" \
+    "$TEST_RUN_DIR/post_processing"
+  cp -a "$ROOT/parameters/." "$TEST_RUN_DIR/parameters/"
+
+  export TEST_RUN_DIR
+  export COLCON_LOG_PATH="$RUN_ROS_DIR/build_logs"
+  export ROS_LOG_DIR="$RUN_ROS_DIR/logs"
+  export LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+}
+
+start_terminal_capture() {
+  if [ -t 0 ] && [ -t 1 ]; then
+    INTERACTIVE_RUN=1
+  fi
+  exec {TERMINAL_LOG_FD}>>"$RUN_LOGS_DIR/terminal.txt"
+  exec > >(tee -a "/dev/fd/$TERMINAL_LOG_FD") 2>&1
+  msg "Recording test run in $TEST_RUN_DIR"
+}
+
+rename_test_run() {
+  local run_name="$1"
+  local renamed_test_run_dir
+
+  [ -n "$run_name" ] || return 0
+  if [[ ! "$run_name" =~ ^[A-Za-z0-9._-]+$ ]] ||
+    [ "${#run_name}" -gt 100 ]; then
+    err "Test run names must be 1-100 characters using only letters, numbers, '.', '_' or '-'"
+    return 1
+  fi
+
+  renamed_test_run_dir="${TEST_RUN_DIR}-${run_name}"
+  if [ -e "$renamed_test_run_dir" ]; then
+    err "Test run directory already exists: $renamed_test_run_dir"
+    return 1
+  fi
+  if ! mv -- "$TEST_RUN_DIR" "$renamed_test_run_dir"; then
+    err "Unable to rename test run directory to: $renamed_test_run_dir"
+    return 1
+  fi
+
+  TEST_RUN_DIR="$renamed_test_run_dir"
+  RUN_ROS_DIR="$TEST_RUN_DIR/ros"
+  RUN_LOGS_DIR="$TEST_RUN_DIR/logs"
+  export TEST_RUN_DIR
+  export COLCON_LOG_PATH="$RUN_ROS_DIR/build_logs"
+  export ROS_LOG_DIR="$RUN_ROS_DIR/logs"
+  export LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+  msg "Named test run: $TEST_RUN_DIR"
+}
+
+prompt_for_test_run_name() {
+  local run_name
+
+  [ "$INTERACTIVE_RUN" -eq 1 ] || return 0
+  while true; do
+    printf "Name this test run (Enter to keep only the timestamp): "
+    if ! IFS= read -r run_name; then
+      return 0
+    fi
+    [ -n "$run_name" ] || return 0
+    if rename_test_run "$run_name"; then
+      return 0
+    fi
+  done
+}
+
+finalize_test_run() {
+  local exit_status=$?
+
+  trap - EXIT
+  if [ -n "$GENERATED_MODEL_FILE" ]; then
+    rm -f -- "$GENERATED_MODEL_FILE"
+  fi
+  if [ "$SIMULATION_STARTED" -eq 1 ]; then
+    prompt_for_test_run_name || true
+  fi
+  exit "$exit_status"
+}
+
+# ---------------------------------------------------------------------------- #
 # BUILD
 # ---------------------------------------------------------------------------- #
 
@@ -155,7 +285,7 @@ build_workspace() {
   set +u
   source /opt/ros/jazzy/setup.bash
   set -u
-  colcon build --symlink-install --base-paths "$ROOT" >/dev/null
+  colcon build --symlink-install --base-paths "$ROOT"
   set +u
   source "$ROOT/install/setup.bash"
   set -u
@@ -199,7 +329,6 @@ patch_camera_noise() {
   sed "s|<stddev>0.0235294118</stddev><!-- ALPHA_CAMERA_NOISE_STDDEV -->|<stddev>$normalized_stddev</stddev><!-- ALPHA_CAMERA_NOISE_STDDEV -->|g" \
     "$MODEL_FILE" > "$GENERATED_MODEL_FILE"
 
-  trap 'rm -f "$GENERATED_MODEL_FILE"' EXIT
 }
 
 # ---------------------------------------------------------------------------- #
@@ -216,6 +345,7 @@ start_gazebo() {
     gz sim -v4 "$WORLD_FILE" &
   fi
   GAZEBO_PID=$!
+  SIMULATION_STARTED=1
 }
 
 wait_for_world() {
@@ -270,12 +400,14 @@ unpause_simulation() {
 # ---------------------------------------------------------------------------- #
 
 launch_ros_nodes() {
-  msg "Launching ROS nodes for '$SYSTEM'..."
+  msg "Launching ROS nodes for '$SYSTEM' in ROS domain $ROS_DOMAIN_ID and Gazebo partition $GZ_PARTITION..."
   local launch_rviz="false"
   [ "$OPEN_RVIZ" = "1" ] && launch_rviz="true"
 
   ros2 launch lunar_simulator "${SYSTEM}_launch.py" \
     system_name:="$SYSTEM" use_sim_time:=true \
+    ros_domain_id:="$ROS_DOMAIN_ID" \
+    gz_partition:="$GZ_PARTITION" \
     launch_gazebo:=false launch_bridge:=false launch_rviz:="$launch_rviz" &
 }
 
@@ -293,6 +425,9 @@ main() {
   validate_names
   resolve_paths
   validate_source_files
+  create_test_run
+  start_terminal_capture
+  trap finalize_test_run EXIT
   build_workspace
   extract_model_name
   patch_camera_noise
@@ -307,4 +442,6 @@ main() {
   wait "$GAZEBO_PID"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

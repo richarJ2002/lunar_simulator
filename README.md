@@ -2,11 +2,15 @@
 
 | System | Node | Topics | Description |
 |--------|------|--------|-------------|
-| **alpha** | `alpha_node` (single process; composes `continuous_ekf`, `alpha_driver_node`, and every other node below) | `/alpha/control/cmd/wheel_joint_states` (`actuator_msgs/Actuators`, public control input, perturbed with configured actuator noise and forwarded by `alpha_driver_node` to the raw Gazebo bridge) <br> `/alpha/localisation/ground_truth/{odometry,path}` <br> `/alpha/localisation/kalman_filter/{odometry,path}` <br> `/alpha/loccam/{left,right}` (images) | ExoMars-scale Alpha rover with triple-bogie, independently walking/steering/driven wheels and front/mast stereo cameras. Localisation owns ground truth while `continuous_ekf` publishes the estimated path and TF alongside its fused odometry. |
+| **alpha** | `alpha_node` (single process; composes `continuous_ekf`, `alpha_driver_node`, and every other node below) | `/alpha/control/cmd/wheel_joint_states` (`actuator_msgs/Actuators`, public control input, perturbed with configured actuator noise and forwarded through `/alpha/drivers/cmd/wheel_joint_states`) <br> `/alpha/localisation/ground_truth/{odometry,path}` <br> `/alpha/localisation/kalman_filter/{odometry,path}` <br> `/alpha/drivers/loccam/{left,right}` (bridged images) | ExoMars-scale Alpha rover with triple-bogie, independently walking/steering/driven wheels and front/mast stereo cameras. Every ROS-Gazebo transport endpoint except the standard `/clock` lives under `/alpha/drivers`; processed sensor and localisation outputs retain their public namespaces. |
 
 ## How to Launch
 
 ```bash
+# The project defaults to DDS domain 73 to isolate the global /clock topic.
+export ROS_DOMAIN_ID=73
+export GZ_PARTITION=lunar_simulator_73
+
 # Alpha is the default; both commands are equivalent
 ./scripts/launch_simulator.sh
 ./scripts/launch_simulator.sh lunar_surface alpha
@@ -17,6 +21,34 @@
 # itself)
 ros2 launch lunar_simulator launch/alpha_launch.py
 ```
+
+Use the same `ROS_DOMAIN_ID` in every terminal that publishes commands or
+inspects topics. `GZ_PARTITION` independently isolates Gazebo Transport from
+other local simulations. Explicitly exported values override both defaults.
+
+Each `launch_simulator.sh` invocation creates a timestamped artifact directory:
+
+```text
+test_runs/YYYY-MM-DD-HH-mm-SS/
+|-- parameters/       # Snapshot of parameters/ at launch time
+|-- ros/
+|   |-- build_logs/   # Colcon logs
+|   |-- logs/         # ROS node logs
+|   `-- bags/         # Destination for rosbag recordings
+|-- logs/
+|   `-- terminal.txt  # Complete launcher and simulation terminal output
+`-- post_processing/  # Reserved for later analysis outputs
+```
+
+The launcher exports `TEST_RUN_DIR`, `ROS_LOG_DIR`, `COLCON_LOG_PATH`, and
+`LUNAR_SIMULATOR_ROSBAG_DIR` so child processes and future recording tools use
+the same run directory.
+
+When an interactive simulation ends, the launcher asks for an optional test-run
+name. Entering `straight-drive`, for example, renames the directory to
+`YYYY-MM-DD-HH-mm-SS-straight-drive`; pressing Enter leaves the timestamp-only
+name unchanged. Suffixes may contain up to 100 letters, numbers, periods,
+underscores, or hyphens. Non-interactive runs skip this prompt.
 
 Every node's topics default to the `/alpha/...` namespace via a shared
 `system_name` launch argument (default `alpha`), declared once in
@@ -118,5 +150,5 @@ combination:
 
 ```bash
 ros2 topic pub --once /alpha/control/cmd/velocity geometry_msgs/msg/Twist \
-  "{linear: {x: 1.0, y: 0.0}, angular: {z: 0.3}}"
+  "{linear: {x: 0.015, y: 0.0}, angular: {z: 0.01}}"
 ```
