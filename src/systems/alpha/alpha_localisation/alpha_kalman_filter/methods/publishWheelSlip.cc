@@ -1,7 +1,7 @@
 /*!
  * @File:         publishWheelSlip.cc
  *
- * @Brief:        Implements publication of the fused per-wheel slip state.
+ * @Brief:        Publishes the retained neutral no-slip compatibility value.
  *
  * @Date:         17/09/2026
  *
@@ -22,13 +22,11 @@ void AlphaKalmanFilterNode::publishWheelSlip()
 
     output.data.resize(static_cast<std::size_t>(WHEEL_COUNT));
 
-    /* Publish the current cached per-wheel slip states, in wheel order;
-     * latestState defaults to zero ("no slip assumed") until the first
-     * real observation is fused. */
+    /* Slip is no longer an ESKF state. Keep the existing topic stable while
+     * wheel feedback remains disabled by publishing the neutral prior. */
     for (Eigen::Index wheel = 0; wheel < WHEEL_COUNT; ++wheel)
     {
-        output.data[static_cast<std::size_t>(wheel)] =
-            latestState(SLIP_STATE_START_INDEX + wheel);
+        output.data[static_cast<std::size_t>(wheel)] = 0.0;
     }
 
     p_wheelSlipPublisher->publish(output);

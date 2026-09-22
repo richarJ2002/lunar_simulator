@@ -1,9 +1,9 @@
 inertial_odometry:
   ros__parameters:
     imu_topic: /alpha/imu
-    odometry_topic: /localisation/inertial/odometry
-    filtered_imu_topic: /localisation/inertial/filtered_imu
-    odom_frame: map
+    odometry_topic: /alpha/localisation/inertial/odometry
+    filtered_imu_topic: /alpha/localisation/inertial/filtered_imu
+    odom_frame: alpha/startup_fixed
     base_frame: alpha/base_link
     low_pass_cutoff_hz: 5.0
     gravity_mps2: 1.62

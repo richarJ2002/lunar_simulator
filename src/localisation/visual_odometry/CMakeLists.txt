@@ -34,13 +34,17 @@ add_library(visual_odometry STATIC
   src/visual_odometry_node/methods/multiply.cc
   src/visual_odometry_node/methods/invertRigid.cc
   src/visual_odometry_node/methods/configureCameraTransform.cc
+  src/visual_odometry_node/methods/calculateVisualPoseQuality.cc
+  src/visual_odometry_node/methods/handleResetCallBack.cc
   src/visual_odometry_node/methods/handleStereoCallBack.cc
+  src/visual_odometry_node/methods/logPipelineDiagnostics.cc
   src/visual_odometry_node/methods/publishFeatureImage.cc
   src/visual_odometry_node/methods/updatePose.cc
   src/visual_odometry_node/methods/publishPointCloud.cc
   src/visual_odometry_node/methods/rotationToQuaternion.cc
   src/visual_odometry_node/methods/publishOdometry.cc
   src/visual_odometry_node/methods/storePrevious.cc
+  src/visual_odometry_node/methods/selectKeyframeAction.cc
 )
 target_compile_features(visual_odometry PUBLIC cxx_std_17)
 target_include_directories(visual_odometry PUBLIC

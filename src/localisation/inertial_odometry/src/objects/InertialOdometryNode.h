@@ -28,6 +28,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Vector3.h>
 
 namespace localisation::inertial_odometry
 {
@@ -77,7 +78,8 @@ class InertialOdometryNode final : public rclcpp::Node
             "/" + systemName + "/localisation/inertial/filtered_imu");
 
         /* Fixed world frame shared with Gazebo and every other node. */
-        odomFrame = declare_parameter<std::string>("odom_frame", "map");
+        odomFrame = declare_parameter<std::string>(
+            "odom_frame", systemName + "/startup_fixed");
 
         /* Rover body frame this node's odometry describes. */
         baseFrame =
@@ -129,12 +131,49 @@ class InertialOdometryNode final : public rclcpp::Node
         /* Record the resolved topics and tuning once at start-up for
          * operators inspecting the node's log. */
         RCLCPP_INFO(get_logger(),
+                    "IMU calibration requires a stationary rover for %d "
+                    "samples; filtered samples are temporally correlated",
+                    calibrationSampleTarget);
+        RCLCPP_INFO(get_logger(),
                     "IMU odometry: %s -> %s (LPF %.1f Hz, gravity %.2f m/s^2)",
                     imuTopic.c_str(),
                     odometryTopic.c_str(),
                     cutoffHz,
                     gravityMps2);
     }
+
+    /*!
+     * @brief           Forms the fixed-frame stationary specific-force prior.
+     *
+     * @param[in]       stationaryMeanBody_in
+     *                  Mean stationary accelerometer sample in body axes.
+     * @param[in]       gravityMagnitudeMps2_in
+     *                  Known local gravity magnitude in metres per second
+     *                  squared.
+     *
+     * @return          Gravity-specific-force vector in startup-fixed. At
+     *                  initialization body and fixed axes coincide.
+     */
+    static tf2::Vector3 calculateGravitySpecificForceFixed(
+        const tf2::Vector3 &stationaryMeanBody_in,
+        double gravityMagnitudeMps2_in);
+
+    /*!
+     * @brief           Removes fixed-frame gravity-specific force.
+     *
+     * @param[in]       orientationBodyToFixed_in
+     *                  Unit quaternion rotating body vectors into fixed.
+     * @param[in]       specificForceBody_in
+     *                  Bias-corrected accelerometer specific force in body.
+     * @param[in]       gravitySpecificForceFixed_in
+     *                  Constant stationary specific-force vector in fixed.
+     *
+     * @return          Gravity-free acceleration in startup-fixed.
+     */
+    static tf2::Vector3 calculateGravityFreeAccelerationFixed(
+        const tf2::Quaternion &orientationBodyToFixed_in,
+        const tf2::Vector3 &specificForceBody_in,
+        const tf2::Vector3 &gravitySpecificForceFixed_in);
 
   private:
     /* ---------------------------------------------------------------------- *
@@ -292,6 +331,13 @@ class InertialOdometryNode final : public rclcpp::Node
      * @brief       Estimated stationary gyroscope bias in rad/s.
      */
     std::array<double, 3> angularRateBias{0.0, 0.0, 0.0};
+
+    /*!
+     * @brief       Constant stationary specific force in startup-fixed,
+     *              metres per second squared. Its direction is measured
+     *              during calibration and need not align with fixed Z.
+     */
+    tf2::Vector3 gravitySpecificForceFixedMps2{0.0, 0.0, 0.0};
 
     /*!
      * @brief       Integrated odom-frame velocity in m/s.

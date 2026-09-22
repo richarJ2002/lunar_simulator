@@ -26,7 +26,8 @@ namespace localisation::wheel_odometry
 {
 
 void WheelOdometryNode::publishSlipObservation(
-    double jointStampS_in, const std::array<double, 6> &rawWheelSpeedMps_in,
+    double                       jointStampS_in,
+    const std::array<double, 6> &rawWheelSpeedMps_in,
     const std::array<double, 6> &steerAngleRad_in)
 {
     /*!
@@ -47,9 +48,8 @@ void WheelOdometryNode::publishSlipObservation(
         return;
     }
 
-    /* Clamp the configured ceiling to a valid slip-ratio range. */
-    const double boundedMaximumSlip =
-        std::clamp(maximumSlipRatio, 0.0, 0.99);
+    /* Clamp the configured absolute ceiling to a valid slip-ratio range. */
+    const double boundedMaximumSlip = std::clamp(maximumSlipRatio, 0.0, 0.99);
 
     /*!
      * One observation per wheel, independently: a single shared value
@@ -61,14 +61,13 @@ void WheelOdometryNode::publishSlipObservation(
      * from "not observed this cycle" (see handleSlipObservationCallBack()).
      */
     std::array<double, 6> observedSlipRatios{};
-    bool anyWheelObserved = false;
+    bool                  anyWheelObserved = false;
 
     /* Evaluate every wheel independently against the same visual twist
      * reference. */
     for (std::size_t wheel = 0U; wheel < observedSlipRatios.size(); ++wheel)
     {
-        observedSlipRatios[wheel] =
-            std::numeric_limits<double>::quiet_NaN();
+        observedSlipRatios[wheel] = std::numeric_limits<double>::quiet_NaN();
 
         /* Read this wheel's raw (un-slip-adjusted) circumferential
          * speed. */
@@ -131,14 +130,13 @@ void WheelOdometryNode::publishSlipObservation(
             1.0 - expectedRollingSpeedMps / rawWheelSpeedMps;
 
         /*!
-         * Slip ratio is only physically meaningful in [0, maximumSlip);
-         * a negative value would mean the wheel is rolling faster than
-         * expected (traction, not slip) and is not modelled here, and an
-         * overly large value usually indicates a bad visual-odometry
-         * projection rather than genuine wheel slip.
+         * Positive slip means wheel spin: circumferential wheel speed exceeds
+         * rover rolling speed. Negative slip means forward skid: the rover
+         * moves farther than wheel rotation alone predicts. Both are bounded
+         * because a near-zero denominator or bad visual estimate can otherwise
+         * produce an arbitrarily large ratio.
          */
-        if (observedSlipRatioUnbounded < 0.0 ||
-            observedSlipRatioUnbounded > boundedMaximumSlip)
+        if (std::abs(observedSlipRatioUnbounded) > boundedMaximumSlip)
         {
             /* Leave this wheel's observation as NaN. */
             continue;
@@ -147,13 +145,13 @@ void WheelOdometryNode::publishSlipObservation(
         /* Snap a small residual observation down to exactly zero slip. */
         double observedSlipRatio = observedSlipRatioUnbounded;
 
-        if (observedSlipRatio < slipRatioDeadband)
+        if (std::abs(observedSlipRatio) < slipRatioDeadband)
         {
             observedSlipRatio = 0.0;
         }
 
         observedSlipRatios[wheel] = observedSlipRatio;
-        anyWheelObserved = true;
+        anyWheelObserved          = true;
     }
 
     /* No wheel survived the gates above; there is no update to apply. */

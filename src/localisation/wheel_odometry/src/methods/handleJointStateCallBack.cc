@@ -20,9 +20,6 @@
 /* Generic Libraries */
 #include <cmath>
 
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2/LinearMath/Vector3.h>
-
 namespace localisation::wheel_odometry
 {
 
@@ -65,9 +62,13 @@ void WheelOdometryNode::handleJointStateCallBack(
         double unusedSteerRate = 0.0;
 
         /* Locate both this wheel's drive and steering joints by name. */
-        if (!findJoint(message_in, driveJointNames[wheel],
-                       unusedDrivePosition, driveRateRadps) ||
-            !findJoint(message_in, steerJointNames[wheel], wheelSteerAngleRad,
+        if (!findJoint(message_in,
+                       driveJointNames[wheel],
+                       unusedDrivePosition,
+                       driveRateRadps) ||
+            !findJoint(message_in,
+                       steerJointNames[wheel],
+                       wheelSteerAngleRad,
                        unusedSteerRate))
         {
             /*!
@@ -77,7 +78,9 @@ void WheelOdometryNode::handleJointStateCallBack(
              * still publishing the model's first joint states.
              */
             RCLCPP_WARN_THROTTLE(
-                get_logger(), *get_clock(), 3000,
+                get_logger(),
+                *get_clock(),
+                3000,
                 "Waiting for all six drive and steering joints");
 
             /* Skip this callback entirely; try again next message. */
@@ -112,8 +115,8 @@ void WheelOdometryNode::handleJointStateCallBack(
 
         /* Convert this wheel's drive rate to a raw circumferential
          * speed, applying its fixed sign convention. */
-        rawWheelSpeedMps[wheel] = driveDirectionMultipliers[wheel] *
-                                  wheelRadiusM * driveRateRadps;
+        rawWheelSpeedMps[wheel] =
+            driveDirectionMultipliers[wheel] * wheelRadiusM * driveRateRadps;
     }
 
     /* Convert this message's timestamp to seconds once, for every check
@@ -141,14 +144,16 @@ void WheelOdometryNode::handleJointStateCallBack(
     {
         /* Clamp defensively in case a slip ratio ever drifted outside
          * its configured bound. */
-        const double boundedSlip =
-            std::clamp(slipRatios[wheel], 0.0, maximumSlipRatio);
+        const double boundedSlip = shouldApplySlipFeedback
+                                       ? std::clamp(slipRatios[wheel],
+                                                    -maximumSlipRatio,
+                                                    maximumSlipRatio)
+                                       : 0.0;
 
         /*!
-         * A wheel spinning with slip ratio s only advances the rover by
-         * a fraction (1 - s) of its raw circumferential speed; the
-         * remainder is lost to the wheel spinning in place relative to
-         * the ground.
+         * A positive ratio reduces rolling speed for wheel spin. A negative
+         * ratio increases it for forward skid, where body travel exceeds the
+         * distance implied by wheel rotation.
          */
         wheelSpeedMps(static_cast<Eigen::Index>(wheel)) =
             rawWheelSpeedMps[wheel] * (1.0 - boundedSlip);
@@ -188,8 +193,7 @@ void WheelOdometryNode::handleJointStateCallBack(
     rollingDecomposition.setThreshold(lateralObservabilityThreshold);
 
     /* Solve for the body twist that best explains all six wheels. */
-    const Eigen::Vector3d bodyTwist =
-        rollingDecomposition.solve(wheelSpeedMps);
+    Eigen::Vector3d bodyTwist = rollingDecomposition.solve(wheelSpeedMps);
 
     /* Guard against a degenerate solve before it can corrupt the
      * integrated pose. */
@@ -204,6 +208,95 @@ void WheelOdometryNode::handleJointStateCallBack(
         return;
     }
 
+    const double wheelSpeedStddevMps =
+        wheelRadiusM * wheelAngularVelocityStddevRadps;
+    const double maximumMeasuredWheelSpeedMps =
+        wheelSpeedMps.cwiseAbs().maxCoeff();
+    constexpr double MAXIMUM_SOLVE_AMPLIFICATION = 3.0;
+    const double     maximumPlausiblePlanarSpeedMps =
+        MAXIMUM_SOLVE_AMPLIFICATION *
+        (maximumMeasuredWheelSpeedMps + wheelSpeedStddevMps);
+    bool                        usedLongitudinalFallback = false;
+    Eigen::Matrix<double, 6, 2> longitudinalYawMatrix;
+    longitudinalYawMatrix.col(0) = rollingMatrix.col(0);
+    longitudinalYawMatrix.col(1) = rollingMatrix.col(2);
+    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<double, 6, 2>>
+        longitudinalYawDecomposition(longitudinalYawMatrix);
+    if (bodyTwist.head<2>().norm() > maximumPlausiblePlanarSpeedMps)
+    {
+        /* Steering transients can make the nominally unobservable lateral
+         * direction look full-rank and amplify encoder noise. Fall back to
+         * the independently constrained longitudinal/yaw subspace rather
+         * than publishing an impossible planar speed. */
+        const Eigen::Vector2d longitudinalYawTwist =
+            longitudinalYawDecomposition.solve(wheelSpeedMps);
+        bodyTwist                = Eigen::Vector3d(longitudinalYawTwist.x(),
+                                    0.0,
+                                    longitudinalYawTwist.y());
+        usedLongitudinalFallback = true;
+        RCLCPP_WARN_THROTTLE(
+            get_logger(),
+            *get_clock(),
+            3000,
+            "Wheel solve rejected amplified lateral geometry; using "
+            "longitudinal/yaw fallback");
+    }
+
+    /* Propagate encoder and steering uncertainty through the conditioned
+     * least-squares solve. Steering noise acts as equivalent rolling-speed
+     * noise through the derivative of each constraint row. */
+    Eigen::Matrix<double, 6, 6> wheelMeasurementCovariance =
+        Eigen::Matrix<double, 6, 6>::Zero();
+    for (std::size_t wheel = 0U; wheel < steerAngleRad.size(); ++wheel)
+    {
+        const double cosine = std::cos(steerAngleRad[wheel]);
+        const double sine   = std::sin(steerAngleRad[wheel]);
+        const double steeringDerivativeMps =
+            -sine * bodyTwist.x() + cosine * bodyTwist.y() +
+            (wheelYM[wheel] * sine + wheelXM[wheel] * cosine) * bodyTwist.z();
+        const double equivalentSteeringStddevMps =
+            steeringDerivativeMps * steeringPositionStddevRad;
+        wheelMeasurementCovariance(static_cast<Eigen::Index>(wheel),
+                                   static_cast<Eigen::Index>(wheel)) =
+            wheelSpeedStddevMps * wheelSpeedStddevMps +
+            equivalentSteeringStddevMps * equivalentSteeringStddevMps;
+    }
+    Eigen::Matrix3d bodyTwistCovariance = Eigen::Matrix3d::Zero();
+    if (usedLongitudinalFallback)
+    {
+        const Eigen::Matrix<double, 2, 6> reducedPseudoInverse =
+            longitudinalYawDecomposition.solve(
+                Eigen::Matrix<double, 6, 6>::Identity());
+        const Eigen::Matrix2d reducedCovariance =
+            reducedPseudoInverse * wheelMeasurementCovariance *
+            reducedPseudoInverse.transpose();
+        bodyTwistCovariance(0, 0) = reducedCovariance(0, 0);
+        bodyTwistCovariance(0, 2) = reducedCovariance(0, 1);
+        bodyTwistCovariance(2, 0) = reducedCovariance(1, 0);
+        bodyTwistCovariance(2, 2) = reducedCovariance(1, 1);
+        bodyTwistCovariance(1, 1) = 1.0e3;
+    }
+    else
+    {
+        const Eigen::Matrix<double, 3, 6> rollingPseudoInverse =
+            rollingDecomposition.solve(Eigen::Matrix<double, 6, 6>::Identity());
+        bodyTwistCovariance = rollingPseudoInverse *
+                              wheelMeasurementCovariance *
+                              rollingPseudoInverse.transpose();
+    }
+    if (!usedLongitudinalFallback && rollingDecomposition.rank() < 3)
+    {
+        /* A parallel-wheel solve deliberately returns vy=0 as the minimum-
+         * norm solution. Zero is unavailable, not a precise measurement. */
+        bodyTwistCovariance.row(1).setZero();
+        bodyTwistCovariance.col(1).setZero();
+        bodyTwistCovariance(1, 1) = 1.0e3;
+    }
+    if (!bodyTwistCovariance.allFinite())
+    {
+        bodyTwistCovariance = Eigen::Matrix3d::Identity() * 1.0e3;
+    }
+
     /* Integrate the new twist into the pose only once a previous
      * timestamp exists to measure an interval against. */
     if (hasPreviousStamp)
@@ -212,43 +305,26 @@ void WheelOdometryNode::handleJointStateCallBack(
         const double dtS = stampS - previousStampS;
 
         /* Integrate normally when the gap is positive and within the
-         * configured bound, and once ground_truth's one-time initial pose
-         * has seeded this node's own integrated pose and live roll/pitch
-         * cache (see handleInitialPoseCallBack()) -- integrating from the
-         * not-yet-seeded (zero) defaults would corrupt the pose this node
-         * publishes below. */
-        if (dtS > 0.0 && dtS <= maximumIntegrationDtS && hasReceivedInitialPose)
+         * configured bound. Pose starts at identity in startup-fixed. */
+        if (dtS > 0.0 && dtS <= maximumIntegrationDtS)
         {
             /*!
-             * Euler-integrate the body twist into the map-aligned pose
-             * using the full current attitude (roll/pitch borrowed from
-             * continuous_ekf's latest fused estimate, see
-             * handleKalmanFilterCallBack(); yaw this node's own, at the
-             * *start* of this interval) rather than yaw alone, so a body-
-             * frame (vx, vy) increment on a tilted rover is correctly
-             * projected onto all three map axes instead of assuming a
-             * level body frame -- this is what lets z become a genuine
-             * estimate below instead of staying fixed at zero.
+             * Integrate only the independently observed planar wheel motion.
+             * Wheel odometry does not borrow fused roll/pitch because that
+             * would preprocess a measurement with the state it corrects.
              */
-            tf2::Matrix3x3 rotation;
-            rotation.setRPY(latestRollRad, latestPitchRad, yawRad);
-
-            /* Body-frame velocity has no z component: the rolling-
-             * constraint solve above has no vertical degree of freedom. */
-            const tf2::Vector3 bodyVelocityMps(bodyTwist.x(), bodyTwist.y(),
-                                               0.0);
-
-            /* Rotate the body-frame velocity into the map-aligned frame. */
-            const tf2::Vector3 worldVelocityMps = rotation * bodyVelocityMps;
+            const double cosineYaw = std::cos(yawRad);
+            const double sineYaw   = std::sin(yawRad);
+            const double fixedVelocityXMps =
+                cosineYaw * bodyTwist.x() - sineYaw * bodyTwist.y();
+            const double fixedVelocityYMps =
+                sineYaw * bodyTwist.x() + cosineYaw * bodyTwist.y();
 
             /* Accumulate the rotated x velocity into position. */
-            positionXM += worldVelocityMps.x() * dtS;
+            positionXM += fixedVelocityXMps * dtS;
 
             /* Accumulate the rotated y velocity into position. */
-            positionYM += worldVelocityMps.y() * dtS;
-
-            /* Accumulate the rotated z velocity into position. */
-            positionZM += worldVelocityMps.z() * dtS;
+            positionYM += fixedVelocityYMps * dtS;
 
             /* Integrate yaw and keep it wrapped to [-pi, pi]. */
             yawRad = wrapAngle(yawRad + bodyTwist.z() * dtS);
@@ -262,9 +338,12 @@ void WheelOdometryNode::handleJointStateCallBack(
              * the gap is skipped entirely rather than integrated.
              */
             RCLCPP_WARN_THROTTLE(
-                get_logger(), *get_clock(), 2000,
+                get_logger(),
+                *get_clock(),
+                2000,
                 "Skipping %.3f s wheel integration gap (limit %.3f s)",
-                dtS, maximumIntegrationDtS);
+                dtS,
+                maximumIntegrationDtS);
         }
     }
 
@@ -275,15 +354,8 @@ void WheelOdometryNode::handleJointStateCallBack(
     /* Mark that an interval reference now exists for future calls. */
     hasPreviousStamp = true;
 
-    if (hasReceivedInitialPose)
-    {
-        /* Publish the newly integrated pose and current twist -- withheld
-         * entirely until ground_truth's one-time initial pose has seeded
-         * this node (see handleInitialPoseCallBack()), so continuous_ekf
-         * can never fuse a not-yet-seeded (zero) wheel pose as though it
-         * were real. */
-        publishOdometry(message_in.header.stamp, bodyTwist);
-    }
+    /* Publish the pose and body twist relative to startup-fixed. */
+    publishOdometry(message_in.header.stamp, bodyTwist, bodyTwistCovariance);
 }
 
 } /* namespace localisation::wheel_odometry */

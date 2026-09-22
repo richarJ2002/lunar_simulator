@@ -28,7 +28,8 @@ namespace localisation::wheel_odometry
 
 void WheelOdometryNode::publishOdometry(
     const builtin_interfaces::msg::Time &stamp_in,
-    const Eigen::Vector3d &bodyTwist_in)
+    const Eigen::Vector3d &bodyTwist_in,
+    const Eigen::Matrix3d &bodyTwistCovariance_in)
 {
     /* Build one odometry message to publish below. */
     nav_msgs::msg::Odometry output;
@@ -48,21 +49,15 @@ void WheelOdometryNode::publishOdometry(
     /* Write the integrated y position. */
     output.pose.pose.position.y = positionYM;
 
-    /* Write the integrated z position, projected through the live
-     * roll/pitch cache at every step (see handleJointStateCallBack()). */
+    /* Planar wheel integration does not observe fixed-frame vertical motion. */
     output.pose.pose.position.z = positionZM;
 
     /*!
-     * Orientation reports the full attitude used for this cycle's
-     * integration (latestRollRad/latestPitchRad borrowed from
-     * continuous_ekf, yawRad this node's own), not a claim that this node
-     * independently measured roll/pitch itself -- this is what lets
-     * odometryToState.cc recover the same rotation for its map-frame
-     * velocity conversion (see its wheel-specific rebase) that this node
-     * already applied internally to position above.
+     * Wheel odometry independently observes only planar heading. Roll and
+     * pitch remain identity and their covariance below is unknown.
      */
     tf2::Quaternion orientation;
-    orientation.setRPY(latestRollRad, latestPitchRad, yawRad);
+    orientation.setRPY(0.0, 0.0, yawRad);
     output.pose.pose.orientation = tf2::toMsg(orientation);
 
     /* Write the current body-frame x velocity. */
@@ -104,27 +99,28 @@ void WheelOdometryNode::publishOdometry(
     /* Modest yaw variance; yaw is directly observable. */
     output.pose.covariance[35] = 0.04;
 
-    /* Modest x-rate variance. */
-    output.twist.covariance[0] = 0.01;
+    const std::array<std::size_t, 3> covarianceAxes{0U, 1U, 5U};
+    for (Eigen::Index row = 0; row < 3; ++row)
+    {
+        for (Eigen::Index column = 0; column < 3; ++column)
+        {
+            const std::size_t outputRow =
+                covarianceAxes[static_cast<std::size_t>(row)];
+            const std::size_t outputColumn =
+                covarianceAxes[static_cast<std::size_t>(column)];
+            output.twist.covariance[outputRow * 6U + outputColumn] =
+                bodyTwistCovariance_in(row, column);
+        }
+    }
 
-    /* Modest y-rate variance. */
-    output.twist.covariance[7] = 0.01;
-
-    /* Moderate z-rate variance; see the pose-covariance block comment
-     * above -- the body-frame twist has no z component by construction
-     * (no vertical degree of freedom in the rolling-constraint solve), but
-     * odometryToState.cc's map-frame rotation of this twist still produces
-     * a genuine, borrowed-tilt-dependent vertical component. */
-    output.twist.covariance[14] = 0.02;
+    /* Vertical velocity is not part of the rolling constraint. */
+    output.twist.covariance[14] = 1.0e3;
 
     /* Large, effectively "unknown", roll-rate variance. */
     output.twist.covariance[21] = 1.0e3;
 
     /* Large, effectively "unknown", pitch-rate variance. */
     output.twist.covariance[28] = 1.0e3;
-
-    /* Modest yaw-rate variance; yaw rate is directly observable. */
-    output.twist.covariance[35] = 0.02;
 
     /* Publish the fully populated message. */
     odometryPublisher->publish(output);

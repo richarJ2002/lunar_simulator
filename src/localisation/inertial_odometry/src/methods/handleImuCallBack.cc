@@ -120,44 +120,44 @@ void InertialOdometryNode::handleImuCallBack(
         /* The calibration window has just been completed. */
         if (calibrationSampleCount == calibrationSampleTarget)
         {
-            /*!
-             * Bias = mean measured value while stationary. For the
-             * accelerometer, a stationary sensor still reads +gravity along
-             * its up axis, so gravityMps2 is subtracted from the z bias to
-             * leave only the sensor's true offset.
-             */
+            std::array<double, 3> stationaryAccelerationMean{};
             for (std::size_t index = 0U; index < 3U; ++index)
             {
-                /* Average this axis's accumulated acceleration sum. */
-                accelerationBias[index] =
+                stationaryAccelerationMean[index] =
                     accelerationCalibrationSum[index] /
                     static_cast<double>(calibrationSampleTarget);
-
-                /* Average this axis's accumulated angular-rate sum. */
                 angularRateBias[index] =
                     angularCalibrationSum[index] /
                     static_cast<double>(calibrationSampleTarget);
             }
 
-            /* Remove gravity from the z bias, leaving the true offset. */
-            accelerationBias[2] -= gravityMps2;
+            /* Static acceleration cannot separate all bias components from
+             * gravity. Use measured direction plus known lunar magnitude as
+             * the gravity prior; the residual is the accelerometer-bias prior. */
+            gravitySpecificForceFixedMps2 =
+                calculateGravitySpecificForceFixed(
+                    tf2::Vector3(stationaryAccelerationMean[0],
+                                 stationaryAccelerationMean[1],
+                                 stationaryAccelerationMean[2]),
+                    gravityMps2);
+            if (gravitySpecificForceFixedMps2.length2() <= 1.0e-24)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "IMU calibration measured no gravity direction");
+                calibrationSampleCount = 0;
+                accelerationCalibrationSum = {0.0, 0.0, 0.0};
+                angularCalibrationSum = {0.0, 0.0, 0.0};
+                return;
+            }
 
-            /*!
-             * Seed the low-pass filter state with the calibration-window
-             * average (bias-corrected) so the first post-calibration sample
-             * does not see a filter transient jumping from zero.
-             */
             for (std::size_t index = 0U; index < 3U; ++index)
             {
-                /* Seed the filtered acceleration with the bias-corrected
-                 * calibration-window average. */
+                accelerationBias[index] =
+                    stationaryAccelerationMean[index] -
+                    gravitySpecificForceFixedMps2[
+                        static_cast<int>(index)];
                 filteredAcceleration[index] =
-                    accelerationCalibrationSum[index] /
-                        static_cast<double>(calibrationSampleTarget) -
-                    accelerationBias[index];
-
-                /* A stationary rover has zero true angular rate, so the
-                 * filtered angular rate starts exactly at zero. */
+                    gravitySpecificForceFixedMps2[static_cast<int>(index)];
                 filteredAngularRate[index] = 0.0;
             }
 
@@ -246,10 +246,10 @@ void InertialOdometryNode::handleImuCallBack(
                                         filteredAcceleration[2]);
 
     /*!
-     * Rotate the filtered body-frame acceleration into the odom frame using
-     * the just-updated orientation, then remove the local gravity vector
-     * (assumed aligned with the odom frame's z axis) so what remains is
-     * acceleration due to actual rover motion.
+     * Rotate the filtered body-frame acceleration into startup-fixed using
+     * the just-updated relative orientation, then remove the constant gravity
+     * specific-force vector measured during stationary calibration. The fixed
+     * frame may be tilted, so no axis is assumed vertical.
      */
     tf2::Vector3 accelerationOdom =
         tf2::Matrix3x3(orientation) * accelerationBody;
@@ -257,8 +257,10 @@ void InertialOdometryNode::handleImuCallBack(
     /* Gravity removal is enabled. */
     if (removeGravity)
     {
-        /* Subtract local gravity from the odom-frame z component. */
-        accelerationOdom.setZ(accelerationOdom.z() - gravityMps2);
+        accelerationOdom = calculateGravityFreeAccelerationFixed(
+            orientation,
+            accelerationBody,
+            gravitySpecificForceFixedMps2);
     }
 
     /*!

@@ -28,6 +28,8 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 namespace localisation::ground_truth
@@ -36,8 +38,10 @@ namespace localisation::ground_truth
 /*!
  * @brief           Converts simulator truth odometry into comparison outputs.
  *
- * The input pose is already expressed in the Gazebo `map` world frame. The
- * node does not rebase or otherwise alter that pose. It is intended for a
+ * The first valid input pose defines `alpha/startup_fixed`. The node publishes
+ * that full initial position and attitude as a static transform from `map`,
+ * then expresses all comparison odometry below the fixed frame. No estimator
+ * consumes this private truth-derived transform. It is intended for a
  * single-threaded executor.
  */
 class GroundTruthNode final : public rclcpp::Node
@@ -47,7 +51,8 @@ class GroundTruthNode final : public rclcpp::Node
      * @brief           Configures ground-truth path and TF publication.
      * @throws          std::invalid_argument if a path limit is invalid.
      */
-    GroundTruthNode() : Node("ground_truth")
+    GroundTruthNode() :
+        Node("ground_truth")
     {
         /*!
          * Declared first so the topic defaults below can be rooted at the
@@ -59,6 +64,11 @@ class GroundTruthNode final : public rclcpp::Node
         /* Input topic: the raw ground-truth odometry bridged from Gazebo. */
         const std::string odometryTopic = declare_parameter<std::string>(
             "odometry_topic",
+            "/" + systemName + "/drivers/ground_truth/odometry");
+
+        /* Output topic: validated ground-truth odometry for ROS consumers. */
+        const std::string outputOdometryTopic = declare_parameter<std::string>(
+            "output_odometry_topic",
             "/" + systemName + "/localisation/ground_truth/odometry");
 
         /* Output topic: the retained, rate-limited comparison path. */
@@ -66,25 +76,17 @@ class GroundTruthNode final : public rclcpp::Node
             "path_topic",
             "/" + systemName + "/localisation/ground_truth/path");
 
-        /*!
-         * Output topic: this node's own first valid odometry sample,
-         * published exactly once, latched. This is the rover's actual
-         * settled resting pose (see alpha_node/main.cpp's startup delay,
-         * which guarantees physics settling has already finished by the
-         * time this node's first message arrives) -- continuous_ekf and
-         * wheel_odometry both seed their own map-frame origin from it
-         * instead of a manually re-measured, terrain-specific constant.
-         */
-        const std::string initialPoseTopic = declare_parameter<std::string>(
-            "initial_pose_topic",
-            "/" + systemName + "/localisation/ground_truth/initial_pose");
-
         /* Fixed world frame shared with Gazebo and every other node. */
         mapFrame = declare_parameter<std::string>("map_frame", "map");
 
+        /* Local comparison frame placed at the rover's first valid pose. */
+        startupFixedFrame = declare_parameter<std::string>(
+            "startup_fixed_frame", systemName + "/startup_fixed");
+
         /* This node's own child frame, distinct from the estimator's. */
-        groundTruthBaseFrame = declare_parameter<std::string>(
-            "ground_truth_base_frame", "alpha/ground_truth_base_link");
+        groundTruthBaseFrame =
+            declare_parameter<std::string>("ground_truth_base_frame",
+                                           "alpha/ground_truth_base_link");
 
         /* Read the raw path-length limit before validating it below. */
         const int configuredMaximumPoses =
@@ -115,29 +117,53 @@ class GroundTruthNode final : public rclcpp::Node
         p_transformBroadcaster =
             std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
+        /* Own the latched broadcaster for map -> startup-fixed. */
+        p_staticTransformBroadcaster =
+            std::make_unique<tf2_ros::StaticTransformBroadcaster>(*this);
+
         /* Latch the path so a newly opened RViz view sees the current
          * history immediately, rather than waiting for the next sample. */
         p_pathPublisher = create_publisher<nav_msgs::msg::Path>(
-            pathTopic, rclcpp::QoS(1).reliable().transient_local());
+            pathTopic,
+            rclcpp::QoS(1).reliable().transient_local());
 
-        /* Latched the same way, so continuous_ekf/wheel_odometry receive
-         * this one-time message regardless of when they subscribe relative
-         * to when it is published (see handleOdometryCallBack()). */
-        p_initialPosePublisher = create_publisher<nav_msgs::msg::Odometry>(
-            initialPoseTopic, rclcpp::QoS(1).reliable().transient_local());
+        /* Relay validated simulator truth outside the private driver boundary.
+         */
+        p_odometryPublisher = create_publisher<nav_msgs::msg::Odometry>(
+            outputOdometryTopic,
+            rclcpp::QoS(10).reliable());
 
         /* Every incoming odometry message triggers handleOdometryCallBack(). */
         p_odometrySubscription = create_subscription<nav_msgs::msg::Odometry>(
-            odometryTopic, rclcpp::QoS(10).reliable(),
+            odometryTopic,
+            rclcpp::QoS(10).reliable(),
             [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
             { handleOdometryCallBack(*p_message); });
 
         /* Record the resolved topic names once at start-up for operators
          * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(), "Ground truth: %s -> %s, %s",
-                    odometryTopic.c_str(), pathTopic.c_str(),
-                    initialPoseTopic.c_str());
+        RCLCPP_INFO(get_logger(),
+                    "Ground truth: %s -> %s, %s in %s",
+                     odometryTopic.c_str(),
+                     outputOdometryTopic.c_str(),
+                     pathTopic.c_str(),
+                    startupFixedFrame.c_str());
     }
+
+    /*!
+     * @brief           Rebases one map-frame body transform into fixed.
+     *
+     * @param[in]       mapFromFixed_in
+     *                  Full startup-fixed pose in map.
+     * @param[in]       mapFromBody_in
+     *                  Body pose in map at the sample epoch.
+     *
+     * @return          Body pose in startup-fixed, equal to
+     *                  inverse(mapFromFixed_in) * mapFromBody_in.
+     */
+    static tf2::Transform calculateFixedFromBody(
+        const tf2::Transform &mapFromFixed_in,
+        const tf2::Transform &mapFromBody_in);
 
   private:
     /* ---------------------------------------------------------------------- *
@@ -160,7 +186,7 @@ class GroundTruthNode final : public rclcpp::Node
      * @return          Timestamp in nanoseconds.
      */
     static std::int64_t
-    stampToNanoseconds(const builtin_interfaces::msg::Time &stamp_in);
+        stampToNanoseconds(const builtin_interfaces::msg::Time &stamp_in);
 
     /*!
      * @brief           Tests whether a pose can be published safely.
@@ -182,6 +208,15 @@ class GroundTruthNode final : public rclcpp::Node
      */
     void publishTransform(const nav_msgs::msg::Odometry &odometry_in);
 
+    /*!
+     * @brief           Publishes the latched map-to-startup-fixed transform.
+     *
+     * @param[in]       stamp_in
+     *                  Timestamp of the first valid truth sample.
+     */
+    void publishStartupFixedTransform(
+        const builtin_interfaces::msg::Time &stamp_in);
+
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
      * ---------------------------------------------------------------------- */
@@ -198,16 +233,14 @@ class GroundTruthNode final : public rclcpp::Node
         p_odometrySubscription;
 
     /*!
+     * @brief       Publishes validated simulator truth for ROS consumers.
+     */
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr p_odometryPublisher;
+
+    /*!
      * @brief       Publishes a retained, bounded ground-truth path.
      */
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr p_pathPublisher;
-
-    /*!
-     * @brief       Publishes this node's first valid odometry sample,
-     *              exactly once (see handleOdometryCallBack()).
-     */
-    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr
-        p_initialPosePublisher;
 
     /*!
      * @brief       Publishes the ground-truth map-to-body transform.
@@ -215,7 +248,13 @@ class GroundTruthNode final : public rclcpp::Node
     std::unique_ptr<tf2_ros::TransformBroadcaster> p_transformBroadcaster;
 
     /*!
-     * @brief       Accumulated ground-truth poses, all expressed in map.
+     * @brief       Publishes the static map-to-startup-fixed transform.
+     */
+    std::unique_ptr<tf2_ros::StaticTransformBroadcaster>
+        p_staticTransformBroadcaster;
+
+    /*!
+     * @brief       Accumulated truth poses in startupFixedFrame.
      */
     nav_msgs::msg::Path groundTruthPath;
 
@@ -223,6 +262,11 @@ class GroundTruthNode final : public rclcpp::Node
      * @brief       Fixed world frame shared with Gazebo.
      */
     std::string mapFrame;
+
+    /*!
+     * @brief       Local fixed frame coincident with the first valid pose.
+     */
+    std::string startupFixedFrame;
 
     /*!
      * @brief       Separate comparison child frame for the true rover body.
@@ -245,10 +289,14 @@ class GroundTruthNode final : public rclcpp::Node
     std::int64_t lastPathStampNs{-1};
 
     /*!
-     * @brief       True once p_initialPosePublisher has published its one
-     *              and only message (see handleOdometryCallBack()).
+     * @brief       Full first body pose mapping startup-fixed into map.
      */
-    bool hasPublishedInitialPose{false};
+    tf2::Transform mapFromStartupFixed{tf2::Transform::getIdentity()};
+
+    /*!
+     * @brief       True after the first valid truth pose defines the frame.
+     */
+    bool hasStartupFixedFrame{false};
 };
 
 } /* namespace localisation::ground_truth */

@@ -77,6 +77,16 @@ forward. This leaves at least 30 mm between the body and the shaped side-beam
 envelopes and at least 70 mm between the body and rear pivot housing. Thus the
 rear bogie is behind, rather than inside, the body.
 
+## Passive bogie pivot dynamics
+
+The three passive pivots use 5 N m s/rad damping and 0.2 N m Coulomb friction.
+Each 9 kg side-bogie endpoint has a lunar weight moment of about 4.7 N m at its
+0.320 m pivot radius. The previous 10 N m joint-friction value was more than
+twice that characteristic moment and could arrest low-load articulation before
+both wheels seated on uneven terrain. The lower friction retains a small
+breakaway threshold while allowing terrain loads to articulate the bogie;
+damping controls transient motion without imposing a static load.
+
 ## References
 
 1. DLR, *Wheel Walking for Improving the Rover Mobility on Soft Soils and

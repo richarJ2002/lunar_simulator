@@ -33,7 +33,7 @@ namespace systems::alpha::alpha_drivers
  * @brief           Models Alpha's simulator hardware boundary in both
  *                   directions.
  *
- * Raw Gazebo measurements remain private under `/alpha/raw`; noisy
+ * Raw Gazebo measurements remain private under `/alpha/drivers`; noisy
  * measurements are published through Alpha's normal public sensor topics.
  * The public wheel command topic is the only actuator input; it is perturbed
  * the same way before being forwarded to the raw Gazebo actuator bridge, then
@@ -57,7 +57,7 @@ class AlphaDriverNode final : public rclcpp::Node
         /*!
          * The owning system's namespace is declared first so every topic
          * declared below can default to a name rooted at it (e.g.
-         * "/alpha/raw/imu"); a future second system launched with a
+         * "/alpha/drivers/imu"); a future second system launched with a
          * different system_name gets its own topic namespace for free.
          */
         const std::string systemName =
@@ -91,14 +91,29 @@ class AlphaDriverNode final : public rclcpp::Node
         wheelVelocityStddev_radPerS =
             declareNonnegativeParameter("wheel_velocity_stddev_radps", 0.015);
 
+        /* Bound public encoder traffic independently of Gazebo's physics
+         * iteration rate. */
+        const double jointStatePublishRateHz = declareNonnegativeParameter(
+            "joint_state_publish_rate_hz", 50.0);
+        if (!(jointStatePublishRateHz > 0.0) ||
+            jointStatePublishRateHz > 1.0e9)
+        {
+            throw std::invalid_argument(
+                "joint_state_publish_rate_hz must be in (0, 1e9]");
+        }
+        jointStateMinimumPeriod_ns = static_cast<std::int64_t>(
+            1.0e9 / jointStatePublishRateHz);
+
         /* Steering-command position white-noise standard deviation, applied
          * to the outgoing actuator command rather than a sensor reading. */
-        wheelCommandPositionStddev_rad = declareNonnegativeParameter(
-            "wheel_command_position_stddev_rad", 0.001);
+        wheelCommandPositionStddev_rad =
+            declareNonnegativeParameter("wheel_command_position_stddev_rad",
+                                        0.001);
 
         /* Drive-command velocity white-noise standard deviation. */
-        wheelCommandVelocityStddev_radPerS = declareNonnegativeParameter(
-            "wheel_command_velocity_stddev_radps", 0.01);
+        wheelCommandVelocityStddev_radPerS =
+            declareNonnegativeParameter("wheel_command_velocity_stddev_radps",
+                                        0.01);
 
         /*!
          * Alpha's real-hardware maximum drive-wheel speed (matching the
@@ -180,7 +195,8 @@ class AlphaDriverNode final : public rclcpp::Node
      * @param[in]       message_in
      *                  Raw joint measurement.
      */
-    void publishNoisyJointStateCallBack(const sensor_msgs::msg::JointState &message_in);
+    void publishNoisyJointStateCallBack(
+        const sensor_msgs::msg::JointState &message_in);
 
     /*!
      * @brief           Adds configured noise to one wheel command and
@@ -189,8 +205,8 @@ class AlphaDriverNode final : public rclcpp::Node
      * @param[in]       message_in
      *                  Command received on the public wheel command topic.
      */
-    void
-        publishNoisyWheelCommandCallBack(const actuator_msgs::msg::Actuators &message_in);
+    void publishNoisyWheelCommandCallBack(
+        const actuator_msgs::msg::Actuators &message_in);
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
@@ -232,9 +248,9 @@ class AlphaDriverNode final : public rclcpp::Node
      * to AXIS_COUNT, which this class declares later under PRIVATE MEMBERS;
      * the literal 3U below is that same value spelled out instead.
      */
-    std::array<double, 3U> declareTripletParameter(
-        const std::string            &name_in,
-        const std::array<double, 3U> &defaults_in);
+    std::array<double, 3U>
+        declareTripletParameter(const std::string            &name_in,
+                                const std::array<double, 3U> &defaults_in);
 
     /*!
      * @brief           Configures the raw and public IMU topics.
@@ -350,6 +366,15 @@ class AlphaDriverNode final : public rclcpp::Node
      *              rad/s.
      */
     double wheelVelocityStddev_radPerS{0.015};
+
+    /*! @brief Minimum simulation-time interval between public joint states. */
+    std::int64_t jointStateMinimumPeriod_ns{20000000};
+
+    /*! @brief Timestamp of the most recently published joint state. */
+    std::int64_t previousJointStateStamp_ns{0};
+
+    /*! @brief Whether a public joint-state timestamp has been recorded. */
+    bool hasPreviousJointStateStamp{false};
 
     /*!
      * @brief       Wheel steering-command white-noise standard deviation in

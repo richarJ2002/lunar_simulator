@@ -2,7 +2,7 @@ alpha_driver_node:
   ros__parameters:
     noise_enabled: true
     random_seed: 7302028
-    raw_imu_topic: /alpha/raw/imu
+    raw_imu_topic: /alpha/drivers/imu
     imu_topic: /alpha/imu
     imu_angular_velocity_stddev_radps: 0.008
     imu_linear_acceleration_stddev_mps2: 0.05
@@ -15,8 +15,11 @@ alpha_driver_node:
     - 0.02
     - -0.015
     - 0.025
-    raw_joint_state_topic: /alpha/raw/joint_states
+    raw_joint_state_topic: /alpha/drivers/joint_states
     joint_state_topic: /alpha/joint_states
     wheel_position_stddev_rad: 0.002
     wheel_velocity_stddev_radps: 0.015
+    joint_state_publish_rate_hz: 50.0
+    wheel_joint_states_topic: /alpha/control/cmd/wheel_joint_states
+    raw_wheel_joint_states_topic: /alpha/drivers/cmd/wheel_joint_states
     camera_pixel_stddev: 6.0

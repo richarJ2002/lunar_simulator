@@ -11,6 +11,9 @@ add_library(ekf_continuous_kalman_filter STATIC
   src/methods/getState.cc
   src/methods/getCovariance.cc
   src/methods/setState.cc
+  src/methods/applyCovarianceTransform.cc
+  src/methods/restore.cc
+  src/methods/isCovarianceValid.cc
 )
 target_compile_features(ekf_continuous_kalman_filter PUBLIC cxx_std_17)
 target_include_directories(ekf_continuous_kalman_filter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)

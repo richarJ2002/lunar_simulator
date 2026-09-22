@@ -24,6 +24,14 @@ TC_WORLD_FILE="$TC_ROOT/worlds/lunar_surface.sdf"
 TC_LOG_DIR="$(mktemp -d --tmpdir lunar_simulator_test.XXXXXX)"
 TC_LAUNCH_LOG="$TC_LOG_DIR/launch.log"
 
+# Use the same isolated default as both supported launch entry points. Tests
+# and every process they spawn must share the domain so topic probes see the
+# simulator while unrelated ROS sessions cannot contribute another /clock.
+ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-73}"
+export ROS_DOMAIN_ID
+GZ_PARTITION="${GZ_PARTITION:-lunar_simulator_${ROS_DOMAIN_ID}}"
+export GZ_PARTITION
+
 # Populated by tc::start_simulator; empty until then.
 TC_SIMULATOR_PID=""
 
@@ -94,18 +102,15 @@ tc::start_simulator() {
   done
   echo "[test] simulator ready after ${waited}s"
 
-  # A stray publisher on the bare /clock topic from an unrelated ROS 2
-  # session on this machine silently corrupts every use_sim_time node's
-  # clock without any error -- see CLAUDE.md's Simulator launch mechanics
-  # note. Warn rather than fail outright, since this is an environment
-  # issue, not something this test suite can fix.
+  # The isolated project domain must contain exactly one /clock publisher.
+  # Treat any other count as a hard setup failure because mixed clocks make
+  # every timestamp-sensitive result invalid.
   local clock_publishers
   clock_publishers=$(timeout 5 ros2 topic info /clock --verbose 2>/dev/null \
     | grep -c "Endpoint type: PUBLISHER" || true)
   if [ "$clock_publishers" != "1" ]; then
-    echo "[test] WARNING: /clock has $clock_publishers publishers, expected 1." >&2
-    echo "[test]          Results may be unreliable -- set a distinct ROS_DOMAIN_ID" >&2
-    echo "[test]          and re-run if this test fails unexpectedly." >&2
+    echo "[test] ERROR: /clock has $clock_publishers publishers in ROS domain $ROS_DOMAIN_ID; expected 1." >&2
+    exit 1
   fi
 }
 
@@ -149,6 +154,10 @@ tc::stop_rover() {
 #                                   position error in metres.
 # @param[in]      max_z_err_m       Maximum acceptable |z| position error
 #                                   in metres.
+# @param[in]      min_truth_travel_m Optional minimum horizontal distance the
+#                                   ground truth must move from its first
+#                                   sample. Defaults to zero for stationary
+#                                   tests.
 # @return         0 if every sample stayed within bounds, 1 otherwise.
 #
 tc::check_bounded_error() {
@@ -156,6 +165,7 @@ tc::check_bounded_error() {
   local interval_s="$2"
   local max_horiz_err_m="$3"
   local max_z_err_m="$4"
+  local min_truth_travel_m="${5:-0.0}"
   if ! [[ "$duration_s" =~ ^[1-9][0-9]*$ ]]; then
     echo "[test] ERROR: duration_s must be a positive integer (got '$duration_s')" >&2
     return 1
@@ -168,7 +178,8 @@ tc::check_bounded_error() {
 
   echo "[test] checking fused-estimate error for ${duration_s}s (every ${interval_s}s, limits: horiz<=${max_horiz_err_m}m z<=${max_z_err_m}m)..."
 
-  python3 - "$samples" "$interval_s" "$max_horiz_err_m" "$max_z_err_m" <<'PYEOF'
+  python3 - "$samples" "$interval_s" "$max_horiz_err_m" "$max_z_err_m" \
+    "$min_truth_travel_m" <<'PYEOF'
 import re
 import subprocess
 import sys
@@ -178,6 +189,7 @@ samples = int(sys.argv[1])
 interval_s = float(sys.argv[2])
 max_horiz_m = float(sys.argv[3])
 max_z_m = float(sys.argv[4])
+min_truth_travel_m = float(sys.argv[5])
 
 POSITION_PATTERN = re.compile(
     r"position:\s*\n\s*x:\s*([\-0-9.e]+)\s*\n\s*y:\s*([\-0-9.e]+)\s*\n\s*z:\s*([\-0-9.e]+)"
@@ -202,6 +214,8 @@ def read_position(topic):
 
 
 has_failed = False
+initial_ground_truth_position = None
+maximum_truth_travel_m = 0.0
 
 for sample_index in range(samples):
     ground_truth_position = read_position("/alpha/localisation/ground_truth/odometry")
@@ -220,6 +234,14 @@ for sample_index in range(samples):
     ) ** 0.5
     z_error_m = fused_position[2] - ground_truth_position[2]
 
+    if initial_ground_truth_position is None:
+        initial_ground_truth_position = ground_truth_position
+    truth_travel_m = (
+        (ground_truth_position[0] - initial_ground_truth_position[0]) ** 2
+        + (ground_truth_position[1] - initial_ground_truth_position[1]) ** 2
+    ) ** 0.5
+    maximum_truth_travel_m = max(maximum_truth_travel_m, truth_travel_m)
+
     sample_failed = horizontal_error_m > max_horiz_m or abs(z_error_m) > max_z_m
     has_failed = has_failed or sample_failed
     status = "FAIL" if sample_failed else "OK"
@@ -230,6 +252,13 @@ for sample_index in range(samples):
     )
 
     time.sleep(interval_s)
+
+if maximum_truth_travel_m < min_truth_travel_m:
+    print(
+        f"ground-truth travel={maximum_truth_travel_m:.4f} m, expected at least "
+        f"{min_truth_travel_m:.4f} m  [FAIL]"
+    )
+    has_failed = True
 
 sys.exit(1 if has_failed else 0)
 PYEOF

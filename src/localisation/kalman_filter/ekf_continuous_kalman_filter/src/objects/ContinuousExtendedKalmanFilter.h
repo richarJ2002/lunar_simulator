@@ -35,9 +35,9 @@ namespace localisation::kalman_filter::ekf_continuous_kalman_filter
  * caller evaluates its own process model (state derivative and Jacobian) and
  * observation model (observation matrix) at the engine's current state --
  * read via getState() -- and hands the resulting matrices to predict() and
- * update(). The engine performs only the matrix algebra: Euler integration
- * of the continuous covariance (Riccati) equation for predict(), and a
- * Joseph-form correction for update(). It does not track wall/sim time,
+ * update(). The engine performs only the matrix algebra: first-order state-
+ * transition covariance propagation for predict(), and a Joseph-form
+ * correction for update(). It does not track wall/sim time,
  * bound integration step size, or wrap any state component (e.g. an angle)
  * back into a canonical range -- all of that is the caller's model-specific
  * responsibility, exercised by calling predict() repeatedly with a bounded
@@ -179,7 +179,45 @@ class ContinuousExtendedKalmanFilter
      */
     [[nodiscard]] FilterStatus setState(const Eigen::VectorXd &state_in) noexcept;
 
+    /*!
+     * @brief           Applies a validated covariance-coordinate transform.
+     *
+     * Computes P' = J P J^T and validates the resulting covariance. This is
+     * intended for model-specific error-state reset Jacobians without exposing
+     * an unchecked covariance setter.
+     *
+     * @param[in]       transform_in
+     *                  Square stateSize-by-stateSize reset transform.
+     *
+     * @return          Lifecycle, input, or numerical status.
+     */
+    [[nodiscard]] FilterStatus applyCovarianceTransform(
+        const Eigen::MatrixXd &transform_in) noexcept;
+
+    /*!
+     * @brief           Restores a previously validated state and covariance.
+     *
+     * @param[in]       state_in
+     *                  State checkpoint matching the configured state size.
+     * @param[in]       covariance_in
+     *                  Finite symmetric PSD covariance checkpoint.
+     * @return          Lifecycle, input, or numerical status.
+     */
+    [[nodiscard]] FilterStatus restore(
+        const Eigen::VectorXd &state_in,
+        const Eigen::MatrixXd &covariance_in) noexcept;
+
   private:
+    /*!
+     * @brief           Checks covariance finiteness, symmetry and PSD.
+     *
+     * @param[in]       covariance_in
+     *                  Candidate square covariance matrix.
+     * @return          True when valid within numerical roundoff tolerance.
+     */
+    static bool isCovarianceValid(
+        const Eigen::MatrixXd &covariance_in) noexcept;
+
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
      * ---------------------------------------------------------------------- */

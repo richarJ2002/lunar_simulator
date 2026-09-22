@@ -27,10 +27,18 @@ launch_bridge:=false``.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    EnvironmentVariable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -48,6 +56,18 @@ def generate_launch_description():
         'use_sim_time',
         default_value='true',
         description='Follow simulation time on the alpha_node process.',
+    )
+    ros_domain_id_arg = DeclareLaunchArgument(
+        'ros_domain_id',
+        default_value=EnvironmentVariable('ROS_DOMAIN_ID', default_value='73'),
+        description='DDS domain used to isolate this simulator and its /clock.',
+    )
+    gz_partition_arg = DeclareLaunchArgument(
+        'gz_partition',
+        default_value=EnvironmentVariable(
+            'GZ_PARTITION', default_value='lunar_simulator_73'
+        ),
+        description='Gazebo Transport partition isolating the simulator clock.',
     )
     world_arg = DeclareLaunchArgument(
         'world',
@@ -98,7 +118,6 @@ def generate_launch_description():
     alpha_node = Node(
         package='lunar_simulator',
         executable='alpha_node',
-        name='alpha_node',
         parameters=alpha_parameters + [
             {'system_name': LaunchConfiguration('system_name')},
             {'use_sim_time': LaunchConfiguration('use_sim_time')},
@@ -131,10 +150,20 @@ def generate_launch_description():
     return LaunchDescription([
         system_name_arg,
         use_sim_time_arg,
+        ros_domain_id_arg,
+        gz_partition_arg,
         world_arg,
         launch_gazebo_arg,
         launch_bridge_arg,
         launch_rviz_arg,
+        SetEnvironmentVariable(
+            name='ROS_DOMAIN_ID',
+            value=LaunchConfiguration('ros_domain_id'),
+        ),
+        SetEnvironmentVariable(
+            name='GZ_PARTITION',
+            value=LaunchConfiguration('gz_partition'),
+        ),
         SetEnvironmentVariable(
             name='GZ_SIM_RESOURCE_PATH',
             value=[

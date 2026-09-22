@@ -1,12 +1,13 @@
 visual_odometry:
   ros__parameters:
-    left_image_topic: /alpha/loccam/left
-    right_image_topic: /alpha/loccam/right
-    odometry_topic: /localisation/visual/odometry
-    odom_frame: map
+    left_image_topic: /alpha/drivers/loccam/left
+    right_image_topic: /alpha/drivers/loccam/right
+    odometry_topic: /alpha/localisation/visual/odometry
+    odom_frame: alpha/startup_fixed
     base_frame: alpha/base_link
-    point_cloud_topic: /localisation/visual/point_cloud
-    feature_image_topic: /localisation/visual/features
+    point_cloud_topic: /alpha/localisation/visual/point_cloud
+    feature_image_topic: /alpha/localisation/visual/features
+    reset_topic: /alpha/localisation/visual/reset
     fx_px: 800.0
     fy_px: 800.0
     cx_px: 512.0
@@ -17,6 +18,22 @@ visual_odometry:
     camera_pitch_rad: 0.174533
     num_disparities: 128
     block_size: 15
-    maximum_features: 500
+    maximum_features: 640
     minimum_correspondences: 20
     maximum_depth_m: 25.0
+    maximum_input_age_s: 0.25
+    maximum_keyframe_interval_s: 0.75
+    feature_grid_rows: 4
+    feature_grid_columns: 4
+    maximum_features_per_cell: 40
+    near_mid_depth_m: 12.0
+    minimum_inlier_coverage_ratio: 0.25
+    minimum_near_mid_inlier_ratio: 0.25
+    preferred_disparity_px: 8.0
+    disparity_stddev_px: 1.0
+    reprojection_noise_floor_px: 0.25
+    maximum_pnp_normal_condition: 1.0e12
+    minimum_translation_variance_m2: 1.0e-5
+    maximum_translation_variance_m2: 4.0
+    minimum_rotation_variance_rad2: 1.0e-6
+    maximum_rotation_variance_rad2: 0.25

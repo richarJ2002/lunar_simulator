@@ -22,15 +22,18 @@
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
-AlphaKalmanFilterNode::StateVector AlphaKalmanFilterNode::measurementVariances(
-    const nav_msgs::msg::Odometry &message_in, double minimumVariance_in)
+AlphaKalmanFilterNode::MeasurementVarianceVector
+    AlphaKalmanFilterNode::measurementVariances(
+        const nav_msgs::msg::Odometry &message_in,
+        double                         minimumVariance_in)
 {
     /*!
      * Start from the configured floor for every state; only the six pose
      * and six twist diagonal covariance entries below can raise a specific
      * state's variance above that floor.
      */
-    StateVector variances = StateVector::Constant(minimumVariance_in);
+    MeasurementVarianceVector variances =
+        MeasurementVarianceVector::Constant(minimumVariance_in);
 
     for (Eigen::Index index = 0; index < 6; ++index)
     {
@@ -43,8 +46,7 @@ AlphaKalmanFilterNode::StateVector AlphaKalmanFilterNode::measurementVariances(
             static_cast<std::size_t>(index * 6 + index);
 
         /* Read this axis's reported pose variance. */
-        const double poseVariance =
-            message_in.pose.covariance[covarianceIndex];
+        const double poseVariance = message_in.pose.covariance[covarianceIndex];
 
         /* Read this axis's reported twist variance. */
         const double twistVariance =
@@ -65,8 +67,7 @@ AlphaKalmanFilterNode::StateVector AlphaKalmanFilterNode::measurementVariances(
         if (std::isfinite(twistVariance) && twistVariance > 0.0)
         {
             /* Raise this twist state's variance above the floor. */
-            variances(index + 6) =
-                std::max(minimumVariance_in, twistVariance);
+            variances(index + 6) = std::max(minimumVariance_in, twistVariance);
         }
     }
 

@@ -1,6 +1,35 @@
 ament_add_gtest(test_kalman_math test_kalman_math.cpp)
 target_compile_features(test_kalman_math PUBLIC cxx_std_17)
-target_link_libraries(test_kalman_math ekf_continuous_kalman_filter Eigen3::Eigen)
+target_link_libraries(test_kalman_math
+  alpha_kalman_filter
+  ekf_continuous_kalman_filter
+  Eigen3::Eigen)
+
+ament_add_gtest(test_imu_ring_buffer test_imu_ring_buffer.cpp)
+target_compile_features(test_imu_ring_buffer PUBLIC cxx_std_17)
+target_include_directories(test_imu_ring_buffer PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
+target_link_libraries(test_imu_ring_buffer alpha_kalman_filter Eigen3::Eigen)
+
+ament_add_gtest(test_startup_fixed_frame test_startup_fixed_frame.cpp)
+target_compile_features(test_startup_fixed_frame PUBLIC cxx_std_17)
+target_include_directories(test_startup_fixed_frame PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/localisation/ground_truth/src)
+target_link_libraries(test_startup_fixed_frame ground_truth)
+ament_target_dependencies(test_startup_fixed_frame tf2)
+
+ament_add_gtest(test_inertial_gravity test_inertial_gravity.cpp)
+target_compile_features(test_inertial_gravity PUBLIC cxx_std_17)
+target_include_directories(test_inertial_gravity PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/localisation/inertial_odometry/src)
+target_link_libraries(test_inertial_gravity inertial_odometry)
+ament_target_dependencies(test_inertial_gravity tf2)
+
+ament_add_gtest(test_visual_keyframe_policy test_visual_keyframe_policy.cpp)
+target_compile_features(test_visual_keyframe_policy PUBLIC cxx_std_17)
+target_include_directories(test_visual_keyframe_policy PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/localisation/visual_odometry/src)
+target_link_libraries(test_visual_keyframe_policy visual_odometry)
 
 ament_add_gtest(test_corner_detector test_corner_detector.cpp)
 target_compile_features(test_corner_detector PUBLIC cxx_std_17)

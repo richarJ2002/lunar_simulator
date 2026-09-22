@@ -81,7 +81,8 @@ class WheelOdometryNode final : public rclcpp::Node
      * @throws          std::invalid_argument if a wheel, slip or visual-slip
      *                  parameter lies outside its valid range.
      */
-    WheelOdometryNode() : Node("wheel_odometry")
+    WheelOdometryNode() :
+        Node("wheel_odometry")
     {
         /*!
          * Declared first so the topic defaults below can be rooted at the
@@ -92,8 +93,9 @@ class WheelOdometryNode final : public rclcpp::Node
 
         /* Input topic: joint states carrying every wheel's drive/steer
          * position and rate. */
-        const std::string inputTopic = declare_parameter<std::string>(
-            "joint_state_topic", "/" + systemName + "/joint_states");
+        const std::string inputTopic =
+            declare_parameter<std::string>("joint_state_topic",
+                                           "/" + systemName + "/joint_states");
 
         /* Output topic: the integrated slip-adjusted odometry pose. */
         const std::string outputTopic = declare_parameter<std::string>(
@@ -114,47 +116,21 @@ class WheelOdometryNode final : public rclcpp::Node
 
         /* Output topic: this node's raw per-cycle slip observation, fused
          * by continuous_ekf rather than blended locally. */
-        const std::string slipObservationTopic = declare_parameter<
-            std::string>(
+        const std::string slipObservationTopic = declare_parameter<std::string>(
             "slip_observation_topic",
             "/" + systemName + "/localisation/wheel/slip_observation");
 
         /* Input topic: continuous_ekf's fused slip estimate, applied to
          * all six wheels below. */
-        const std::string wheelSlipEstimateTopic = declare_parameter<
-            std::string>(
-            "wheel_slip_estimate_topic",
-            "/" + systemName + "/localisation/kalman_filter/wheel_slip_ratio");
-
-        /*!
-         * Input topic: continuous_ekf's fused pose/twist estimate, read
-         * only for its roll/pitch (see handleKalmanFilterCallBack()) so
-         * each integration step can be projected through the rover's
-         * actual current tilt instead of assuming a level body frame.
-         */
-        const std::string kalmanFilterOdometryTopic = declare_parameter<
-            std::string>(
-            "kalman_filter_odometry_topic",
-            "/" + systemName + "/localisation/kalman_filter/odometry");
-
-        /*!
-         * Input topic: ground_truth's own settled resting pose, published
-         * once, latched (see GroundTruthNode::handleOdometryCallBack()).
-         * Seeds this node's own integrated pose (position, yaw) and the
-         * live roll/pitch cache above (see handleInitialPoseCallBack())
-         * instead of a manually re-measured, terrain-specific constant.
-         * Subscribed independently of kalmanFilterOdometryTopic above
-         * (rather than waiting for continuous_ekf's own first fused
-         * output) to avoid a circular startup dependency: continuous_ekf's
-         * own seeding can itself depend on this node's odometry arriving
-         * first.
-         */
-        const std::string initialPoseTopic = declare_parameter<std::string>(
-            "initial_pose_topic",
-            "/" + systemName + "/localisation/ground_truth/initial_pose");
+        const std::string wheelSlipEstimateTopic =
+            declare_parameter<std::string>(
+                "wheel_slip_estimate_topic",
+                "/" + systemName +
+                    "/localisation/kalman_filter/wheel_slip_ratio");
 
         /* Fixed world frame in which the integrated pose is published. */
-        odomFrame = declare_parameter<std::string>("odom_frame", "map");
+        odomFrame = declare_parameter<std::string>(
+            "odom_frame", systemName + "/startup_fixed");
 
         /* Child body frame of the integrated pose and twist. */
         baseFrame =
@@ -163,6 +139,12 @@ class WheelOdometryNode final : public rclcpp::Node
         /* Common wheel radius used to convert drive rate to speed. */
         wheelRadiusM = declare_parameter<double>("wheel_radius_m", 0.1425);
 
+        /* Encoder and steering standard deviations used for twist covariance. */
+        wheelAngularVelocityStddevRadps = declare_parameter<double>(
+            "wheel_angular_velocity_stddev_radps", 0.015);
+        steeringPositionStddevRad = declare_parameter<double>(
+            "steering_position_stddev_rad", 0.002);
+
         /* Largest joint-state gap still integrated as continuous motion. */
         maximumIntegrationDtS =
             declare_parameter<double>("maximum_integration_dt_s", 5.0);
@@ -170,9 +152,13 @@ class WheelOdometryNode final : public rclcpp::Node
         /* Whether visual odometry is used to produce a slip observation at
          * all. */
         shouldEstimateSlip =
-            declare_parameter<bool>("estimate_slip_from_visual", true);
+            declare_parameter<bool>("estimate_slip_from_visual", false);
 
-        /* Slip ratios below this threshold are treated as zero. */
+        /* Whether EKF slip estimates are applied back to wheel speeds. */
+        shouldApplySlipFeedback =
+            declare_parameter<bool>("apply_slip_feedback", false);
+
+        /* Slip-ratio magnitudes below this threshold are treated as zero. */
         slipRatioDeadband =
             declare_parameter<double>("slip_ratio_deadband", 0.05);
 
@@ -184,13 +170,13 @@ class WheelOdometryNode final : public rclcpp::Node
         /* Maximum age of a visual-odometry reference still usable for
          * slip estimation. */
         visualOdometryTimeoutS =
-            declare_parameter<double>("visual_odometry_timeout_s", 0.25);
+            declare_parameter<double>("visual_odometry_timeout_s", 0.75);
 
         /* Visual-odometry twist variance above this is untrustworthy. */
         maximumVisualTwistVariance =
             declare_parameter<double>("maximum_visual_twist_variance", 0.08);
 
-        /* Upper bound applied to any slip ratio. */
+        /* Absolute bound applied to wheel spin and forward skid ratios. */
         maximumSlipRatio =
             declare_parameter<double>("maximum_slip_ratio", 0.30);
 
@@ -201,17 +187,18 @@ class WheelOdometryNode final : public rclcpp::Node
          * must exceed encoder-noise-driven steering angles rather than
          * just numerical zero.
          */
-        lateralObservabilityThreshold = declare_parameter<double>(
-            "lateral_observability_threshold", 0.02);
+        lateralObservabilityThreshold =
+            declare_parameter<double>("lateral_observability_threshold", 0.02);
 
         /* Reject a configuration whose wheel or slip parameters could
          * never produce a physically meaningful result. */
         if (wheelRadiusM <= 0.0 || maximumIntegrationDtS <= 0.0 ||
-            minimumWheelSpeedMps < 0.0 ||
-            visualOdometryTimeoutS <= 0.0 || maximumVisualTwistVariance < 0.0 ||
-            maximumSlipRatio < 0.0 || maximumSlipRatio > 0.99 ||
-            slipRatioDeadband < 0.0 || slipRatioDeadband >= 1.0 ||
-            lateralObservabilityThreshold <= 0.0)
+            wheelAngularVelocityStddevRadps < 0.0 ||
+            steeringPositionStddevRad < 0.0 || minimumWheelSpeedMps < 0.0 ||
+            visualOdometryTimeoutS <= 0.0 ||
+            maximumVisualTwistVariance < 0.0 || maximumSlipRatio <= 0.0 ||
+            maximumSlipRatio > 0.99 || slipRatioDeadband < 0.0 ||
+            slipRatioDeadband >= 1.0 || lateralObservabilityThreshold <= 0.0)
         {
             /* Fail fast at construction rather than misbehave later. */
             throw std::invalid_argument(
@@ -224,7 +211,8 @@ class WheelOdometryNode final : public rclcpp::Node
          * falls back to the physically-measured Alpha defaults rather than
          * leaving the node in a partially configured state.
          */
-        loadSixValues("slip_ratios", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        loadSixValues("slip_ratios",
+                      {0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
                       slipRatios);
 
         /* Load each wheel's fixed drive-direction sign convention. */
@@ -233,52 +221,61 @@ class WheelOdometryNode final : public rclcpp::Node
                       driveDirectionMultipliers);
 
         /* Load each wheel's fixed body-frame x position. */
-        loadSixValues("wheel_x_m", {0.64, 0.64, 0.0, 0.0, -0.72, -0.72},
+        loadSixValues("wheel_x_m",
+                      {0.64, 0.64, 0.0, 0.0, -0.72, -0.72},
                       wheelXM);
 
         /* Load each wheel's fixed body-frame y position. */
-        loadSixValues("wheel_y_m", {0.60, -0.60, 0.60, -0.60, 0.60, -0.60},
+        loadSixValues("wheel_y_m",
+                      {0.60, -0.60, 0.60, -0.60, 0.60, -0.60},
                       wheelYM);
 
-        /* Clamp every configured slip ratio into its valid range. */
+        /* Clamp every configured signed slip ratio into its valid range. */
         for (double &slipRatio : slipRatios)
         {
-            /* A slip ratio outside [0, maximumSlipRatio) is not
-             * physically meaningful; clamp it into range. */
-            slipRatio = std::clamp(slipRatio, 0.0, maximumSlipRatio);
+            slipRatio =
+                std::clamp(slipRatio, -maximumSlipRatio, maximumSlipRatio);
         }
 
         /* Fixed drive-joint names in front-left..rear-right order. */
-        driveJointNames = {
-            "alpha/front_left_drive_joint",  "alpha/front_right_drive_joint",
-            "alpha/centre_left_drive_joint", "alpha/centre_right_drive_joint",
-            "alpha/rear_left_drive_joint",   "alpha/rear_right_drive_joint"};
+        driveJointNames = {"alpha/front_left_drive_joint",
+                           "alpha/front_right_drive_joint",
+                           "alpha/centre_left_drive_joint",
+                           "alpha/centre_right_drive_joint",
+                           "alpha/rear_left_drive_joint",
+                           "alpha/rear_right_drive_joint"};
 
         /* Fixed steering-joint names in front-left..rear-right order. */
-        steerJointNames = {
-            "alpha/front_left_steer_joint",  "alpha/front_right_steer_joint",
-            "alpha/centre_left_steer_joint", "alpha/centre_right_steer_joint",
-            "alpha/rear_left_steer_joint",   "alpha/rear_right_steer_joint"};
+        steerJointNames = {"alpha/front_left_steer_joint",
+                           "alpha/front_right_steer_joint",
+                           "alpha/centre_left_steer_joint",
+                           "alpha/centre_right_steer_joint",
+                           "alpha/rear_left_steer_joint",
+                           "alpha/rear_right_steer_joint"};
 
         /* Publisher for the integrated slip-adjusted odometry pose. */
-        odometryPublisher = create_publisher<nav_msgs::msg::Odometry>(
-            outputTopic, rclcpp::QoS(10));
+        odometryPublisher =
+            create_publisher<nav_msgs::msg::Odometry>(outputTopic,
+                                                      rclcpp::QoS(10));
 
         /* Latch the slip-ratio topic so a newly opened subscriber sees
          * the current value immediately. */
         slipRatioPublisher = create_publisher<std_msgs::msg::Float64MultiArray>(
-            slipRatioTopic, rclcpp::QoS(1).reliable().transient_local());
+            slipRatioTopic,
+            rclcpp::QoS(1).reliable().transient_local());
 
         /* Publisher for this node's raw per-cycle per-wheel slip
          * observations, consumed by continuous_ekf. */
         slipObservationPublisher =
             create_publisher<std_msgs::msg::Float64MultiArray>(
-                slipObservationTopic, rclcpp::SensorDataQoS());
+                slipObservationTopic,
+                rclcpp::SensorDataQoS());
 
         /* Every incoming joint-state message triggers
          * handleJointStateCallBack(). */
         jointSubscription = create_subscription<sensor_msgs::msg::JointState>(
-            inputTopic, rclcpp::SensorDataQoS(),
+            inputTopic,
+            rclcpp::SensorDataQoS(),
             [this](sensor_msgs::msg::JointState::ConstSharedPtr p_message)
             { handleJointStateCallBack(*p_message); });
 
@@ -286,7 +283,8 @@ class WheelOdometryNode final : public rclcpp::Node
          * handleVisualOdometryCallBack(). */
         visualOdometrySubscription =
             create_subscription<nav_msgs::msg::Odometry>(
-                visualOdometryTopic, rclcpp::SensorDataQoS(),
+                visualOdometryTopic,
+                rclcpp::SensorDataQoS(),
                 [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
                 { handleVisualOdometryCallBack(*p_message); });
 
@@ -294,42 +292,29 @@ class WheelOdometryNode final : public rclcpp::Node
          * handleWheelSlipEstimateCallBack(). */
         wheelSlipEstimateSubscription =
             create_subscription<std_msgs::msg::Float64MultiArray>(
-                wheelSlipEstimateTopic, rclcpp::SensorDataQoS(),
-                [this](std_msgs::msg::Float64MultiArray::ConstSharedPtr p_message)
+                wheelSlipEstimateTopic,
+                rclcpp::SensorDataQoS(),
+                [this](
+                    std_msgs::msg::Float64MultiArray::ConstSharedPtr p_message)
                 { handleWheelSlipEstimateCallBack(*p_message); });
-
-        /* Every fused estimate from continuous_ekf refreshes the live
-         * roll/pitch cache; matches continuous_ekf's own output QoS
-         * (rclcpp::QoS(10)) rather than SensorDataQoS since that is what
-         * AlphaKalmanFilterNode actually publishes with. */
-        kalmanFilterSubscription = create_subscription<nav_msgs::msg::Odometry>(
-            kalmanFilterOdometryTopic, rclcpp::QoS(10),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
-            { handleKalmanFilterCallBack(*p_message); });
-
-        /* ground_truth's one-time settled resting pose; latched, so this
-         * arrives regardless of subscribe order relative to when
-         * ground_truth publishes it. */
-        initialPoseSubscription = create_subscription<nav_msgs::msg::Odometry>(
-            initialPoseTopic, rclcpp::QoS(1).reliable().transient_local(),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
-            { handleInitialPoseCallBack(*p_message); });
 
         /* Record the resolved topic names once at start-up for operators
          * inspecting the node's log. */
         RCLCPP_INFO(get_logger(),
                     "Wheel odometry: %s -> %s; visual slip reference: %s -> %s",
-                    inputTopic.c_str(), outputTopic.c_str(),
-                    visualOdometryTopic.c_str(), slipRatioTopic.c_str());
+                    inputTopic.c_str(),
+                    outputTopic.c_str(),
+                    visualOdometryTopic.c_str(),
+                    slipRatioTopic.c_str());
     }
 
     /*! @brief Releases the node without external side effects. */
     ~WheelOdometryNode() override = default;
 
     WheelOdometryNode(const WheelOdometryNode &otherNode_in) = delete;
-    WheelOdometryNode &operator=(
-        const WheelOdometryNode &otherNode_in) = delete;
-    WheelOdometryNode(WheelOdometryNode &&otherNode_in) = delete;
+    WheelOdometryNode &
+        operator=(const WheelOdometryNode &otherNode_in)           = delete;
+    WheelOdometryNode(WheelOdometryNode &&otherNode_in)            = delete;
     WheelOdometryNode &operator=(WheelOdometryNode &&otherNode_in) = delete;
 
   private:
@@ -346,7 +331,8 @@ class WheelOdometryNode final : public rclcpp::Node
      *                  twist (linear x, y and angular z) and its diagonal
      *                  twist covariance are used.
      */
-    void handleVisualOdometryCallBack(const nav_msgs::msg::Odometry &message_in);
+    void
+        handleVisualOdometryCallBack(const nav_msgs::msg::Odometry &message_in);
 
     /*!
      * @brief           Solves the six-wheel rolling-constraint system for
@@ -357,7 +343,8 @@ class WheelOdometryNode final : public rclcpp::Node
      *                  Joint-state message containing all six drive and
      *                  steering joints.
      */
-    void handleJointStateCallBack(const sensor_msgs::msg::JointState &message_in);
+    void handleJointStateCallBack(
+        const sensor_msgs::msg::JointState &message_in);
 
     /*!
      * @brief           Applies continuous_ekf's latest fused per-wheel slip
@@ -366,43 +353,10 @@ class WheelOdometryNode final : public rclcpp::Node
      * @param[in]       message_in
      *                  Fused per-wheel slip ratios, six elements in wheel
      *                  order, each dimensionless; clamped into
-     *                  [0, maximumSlipRatio) defensively before use.
+     *                  [-maximumSlipRatio, maximumSlipRatio] defensively.
      */
     void handleWheelSlipEstimateCallBack(
         const std_msgs::msg::Float64MultiArray &message_in);
-
-    /*!
-     * @brief           Refreshes the live roll/pitch cache from
-     *                   continuous_ekf's latest fused estimate.
-     *
-     * This node cannot sense roll or pitch itself; it only borrows
-     * continuous_ekf's best current estimate of them to project each
-     * integration step (see handleJointStateCallBack()) through the
-     * rover's actual current tilt instead of assuming a level body frame.
-     *
-     * @param[in]       message_in
-     *                  continuous_ekf's fused pose/twist estimate; only
-     *                  its orientation is used.
-     */
-    void handleKalmanFilterCallBack(const nav_msgs::msg::Odometry &message_in);
-
-    /*!
-     * @brief           Seeds this node's integrated pose and live
-     *                   roll/pitch cache from ground_truth's one-time
-     *                   settled resting pose.
-     *
-     * Fires exactly once in practice (ground_truth only ever publishes one
-     * message on this topic), but is not itself latched against being
-     * called again -- harmless, since it would simply re-derive the same
-     * value from the same retained message. handleJointStateCallBack()
-     * withholds integration and publication entirely until this has run,
-     * so continuous_ekf can never fuse a not-yet-seeded (zero) wheel pose.
-     *
-     * @param[in]       message_in
-     *                  ground_truth's settled resting pose, in the map
-     *                  frame.
-     */
-    void handleInitialPoseCallBack(const nav_msgs::msg::Odometry &message_in);
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
@@ -421,9 +375,9 @@ class WheelOdometryNode final : public rclcpp::Node
      * @param[out]      values_out
      *                  Six validated (or default) values in wheel order.
      */
-    void loadSixValues(const std::string &name_in,
+    void loadSixValues(const std::string         &name_in,
                        const std::vector<double> &defaults_in,
-                       std::array<double, 6> &values_out);
+                       std::array<double, 6>     &values_out);
 
     /*!
      * @brief           Converts a ROS timestamp to seconds.
@@ -433,8 +387,7 @@ class WheelOdometryNode final : public rclcpp::Node
      *
      * @return          Timestamp in seconds.
      */
-    static double
-    stampToSeconds(const builtin_interfaces::msg::Time &stamp_in);
+    static double stampToSeconds(const builtin_interfaces::msg::Time &stamp_in);
 
     /*!
      * @brief           Finds one named joint's position and velocity in a
@@ -453,8 +406,9 @@ class WheelOdometryNode final : public rclcpp::Node
      *                  position and a velocity entry.
      */
     static bool findJoint(const sensor_msgs::msg::JointState &message_in,
-                          const std::string &name_in, double &position_out,
-                          double &velocity_out);
+                          const std::string                  &name_in,
+                          double                             &position_out,
+                          double                             &velocity_out);
 
     /*!
      * @brief           Computes and publishes one raw per-wheel slip
@@ -477,9 +431,10 @@ class WheelOdometryNode final : public rclcpp::Node
      * @param[in]       steerAngleRad_in
      *                  Per-wheel steering angle in radians, in wheel order.
      */
-    void publishSlipObservation(double jointStampS_in,
-                                const std::array<double, 6> &rawWheelSpeedMps_in,
-                                const std::array<double, 6> &steerAngleRad_in);
+    void
+        publishSlipObservation(double                       jointStampS_in,
+                               const std::array<double, 6> &rawWheelSpeedMps_in,
+                               const std::array<double, 6> &steerAngleRad_in);
 
     /*! @brief Publishes the current six per-wheel slip ratios. */
     void publishSlipRatios();
@@ -504,9 +459,13 @@ class WheelOdometryNode final : public rclcpp::Node
      * @param[in]       bodyTwist_in
      *                  Slip-adjusted planar body twist (vx, vy, wz) in the
      *                  body frame, in m/s and rad/s.
+     * @param[in]       bodyTwistCovariance_in
+     *                  Covariance of (vx, vy, wz), in squared body-twist
+     *                  units.
      */
     void publishOdometry(const builtin_interfaces::msg::Time &stamp_in,
-                         const Eigen::Vector3d &bodyTwist_in);
+                          const Eigen::Vector3d               &bodyTwist_in,
+                          const Eigen::Matrix3d &bodyTwistCovariance_in);
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
@@ -552,20 +511,6 @@ class WheelOdometryNode final : public rclcpp::Node
         wheelSlipEstimateSubscription;
 
     /*!
-     * @brief       Receives continuous_ekf's fused pose/twist estimate,
-     *              read only for its roll/pitch.
-     */
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr
-        kalmanFilterSubscription;
-
-    /*!
-     * @brief       Subscribes to ground_truth's one-time settled resting
-     *              pose.
-     */
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr
-        initialPoseSubscription;
-
-    /*!
      * @brief       Drive-joint names in front-left..rear-right wheel order.
      */
     std::array<std::string, 6> driveJointNames;
@@ -577,7 +522,8 @@ class WheelOdometryNode final : public rclcpp::Node
 
     /*!
      * @brief       Slip ratio currently applied to all six wheels,
-     *              dimensionless in [0, 1). Sourced from continuous_ekf's
+     *              dimensionless and signed: positive for wheel spin,
+     *              negative for forward skid. Sourced from continuous_ekf's
      *              fused estimate (see handleWheelSlipEstimateCallBack());
      *              starts from the configured slip_ratios default until the
      *              first fused estimate arrives.
@@ -614,6 +560,12 @@ class WheelOdometryNode final : public rclcpp::Node
      */
     double wheelRadiusM{0.1425};
 
+    /** @brief Drive-rate standard deviation in radians per second. */
+    double wheelAngularVelocityStddevRadps{0.015};
+
+    /** @brief Steering-angle standard deviation in radians. */
+    double steeringPositionStddevRad{0.002};
+
     /*!
      * @brief       Largest joint-state time gap integrated as continuous
      *              motion, in seconds.
@@ -621,8 +573,8 @@ class WheelOdometryNode final : public rclcpp::Node
     double maximumIntegrationDtS{5.0};
 
     /*!
-     * @brief       Observed slip ratios below this dimensionless threshold
-     *              are treated as zero slip.
+     * @brief       Observed slip-ratio magnitudes below this dimensionless
+     *              threshold are treated as zero slip.
      */
     double slipRatioDeadband{0.05};
 
@@ -637,7 +589,7 @@ class WheelOdometryNode final : public rclcpp::Node
      * @brief       Maximum age in seconds of a visual-odometry reference
      *              that may still be used for slip estimation.
      */
-    double visualOdometryTimeoutS{0.25};
+    double visualOdometryTimeoutS{0.75};
 
     /*!
      * @brief       Visual-odometry twist variance above this threshold is
@@ -647,8 +599,8 @@ class WheelOdometryNode final : public rclcpp::Node
     double maximumVisualTwistVariance{0.08};
 
     /*!
-     * @brief       Upper bound applied to any slip ratio, dimensionless in
-     *              [0, 1). Always overwritten by the `maximum_slip_ratio`
+     * @brief       Absolute bound applied to signed slip ratios. Always
+     *              overwritten by the `maximum_slip_ratio`
      *              parameter (default 0.30) in the constructor; this
      *              in-class initializer only matters if a future code path
      *              reads it before that parameter is declared.
@@ -687,7 +639,12 @@ class WheelOdometryNode final : public rclcpp::Node
     /*!
      * @brief       Whether visual-odometry-based slip estimation is enabled.
      */
-    bool shouldEstimateSlip{true};
+    bool shouldEstimateSlip{false};
+
+    /*!
+     * @brief       Whether fused slip is applied to the wheel rolling solve.
+     */
+    bool shouldApplySlipFeedback{false};
 
     /*!
      * @brief       True once at least one visual-odometry reference has been
@@ -723,10 +680,9 @@ class WheelOdometryNode final : public rclcpp::Node
     double positionYM{0.0};
 
     /*!
-     * @brief       Integrated rover position z in the odom frame, in
-     *              metres. Unlike x/y, this is projected through the live
-     *              roll/pitch cache below at every integration step (see
-     *              handleJointStateCallBack()), not assumed level.
+     * @brief       Diagnostic fixed-frame z position in metres. It remains
+     *              zero because wheel rolling constraints do not observe
+     *              vertical motion.
      */
     double positionZM{0.0};
 
@@ -735,31 +691,6 @@ class WheelOdometryNode final : public rclcpp::Node
      */
     double yawRad{0.0};
 
-    /*!
-     * @brief       Live roll estimate borrowed from continuous_ekf's
-     *              latest fused output (see handleKalmanFilterCallBack()),
-     *              radians. This node cannot sense roll itself; seeded
-     *              from ground_truth's one-time initial pose (see
-     *              handleInitialPoseCallBack()) until the first fused
-     *              estimate arrives.
-     */
-    double latestRollRad{0.0};
-
-    /*!
-     * @brief       Live pitch estimate borrowed from continuous_ekf's
-     *              latest fused output, radians, same caveats as
-     *              latestRollRad above.
-     */
-    double latestPitchRad{0.0};
-
-    /*!
-     * @brief       True once positionXM/YM/ZM, yawRad, latestRollRad and
-     *              latestPitchRad have been seeded from ground_truth's
-     *              one-time initial pose (see handleInitialPoseCallBack()).
-     *              handleJointStateCallBack() withholds integration and
-     *              publication entirely until this is true.
-     */
-    bool hasReceivedInitialPose{false};
 };
 
 } /* namespace localisation::wheel_odometry */

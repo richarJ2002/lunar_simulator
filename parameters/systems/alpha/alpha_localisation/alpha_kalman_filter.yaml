@@ -1,24 +1,29 @@
 continuous_ekf:
   ros__parameters:
-    inertial_odometry_topic: /localisation/inertial/odometry
-    visual_odometry_topic: /localisation/visual/odometry
-    wheel_odometry_topic: /localisation/wheel/odometry
-    output_topic: /localisation/kalman_filter/odometry
-    odom_frame: map
+    raw_imu_topic: /alpha/imu
+    visual_odometry_topic: /alpha/localisation/visual/odometry
+    wheel_odometry_topic: /alpha/localisation/wheel/odometry
+    output_topic: /alpha/localisation/kalman_filter/odometry
+    odom_frame: alpha/startup_fixed
+    map_frame: alpha/startup_fixed
     base_frame: alpha/base_link
-    initial_position_x_m: 0.0
-    initial_position_y_m: 0.0
-    initial_position_z_m: 0.72
-    initial_roll_rad: 0.0
-    initial_pitch_rad: 0.0
-    initial_yaw_rad: 0.0
     prediction_rate_hz: 100.0
     publish_tf: false
-    maximum_visual_measurement_age_s: 0.5
-    process_noise_position: 0.002
-    process_noise_orientation: 0.002
-    process_noise_linear_velocity: 0.05
-    process_noise_angular_velocity: 0.02
-    inertial_measurement_variance: 0.02
+    maximum_visual_measurement_age_s: 0.75
+    maximum_imu_measurement_age_s: 0.25
+    imu_initialization_samples: 100
+    gravity_mps2: 1.62
+    fuse_visual_pose: true
+    fuse_wheel_twist: true
+    # Zero selects a 99% chi-square gate for each update's active dimension.
+    visual_nis_threshold: 0.0
+    wheel_nis_threshold: 0.0
+    accelerometer_noise_variance: 0.0025
+    gyroscope_noise_variance: 0.000064
+    accelerometer_bias_random_walk_variance: 0.000001
+    gyroscope_bias_random_walk_variance: 0.00000001
+    initial_accelerometer_bias_variance: 0.01
+    initial_gyroscope_bias_variance: 0.001
     visual_measurement_variance: 0.04
-    wheel_measurement_variance: 0.02
+    visual_attitude_measurement_variance: 0.5
+    wheel_measurement_variance: 0.10

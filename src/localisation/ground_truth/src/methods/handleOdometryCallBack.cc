@@ -14,7 +14,7 @@
 #include "objects/GroundTruthNode.h"
 
 /* Data include */
-/* None */
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 /* Generic Libraries */
 /* None */
@@ -41,14 +41,36 @@ void GroundTruthNode::handleOdometryCallBack(
         return;
     }
 
-    /* Start from a copy of the validated odometry message. */
+    /* Convert the raw body-to-map pose into a rigid transform. */
+    tf2::Transform mapFromTruthBody;
+    tf2::fromMsg(odometry_in.pose.pose, mapFromTruthBody);
+
+    if (!hasStartupFixedFrame)
+    {
+        /* The full first pose, including roll and pitch, defines the local
+         * fixed frame. Local estimators do not receive this transform. */
+        mapFromStartupFixed = mapFromTruthBody;
+        hasStartupFixedFrame = true;
+        publishStartupFixedTransform(odometry_in.header.stamp);
+    }
+
+    /* T_fixed_truth = inverse(T_map_fixed) * T_map_truth. */
+    const tf2::Transform startupFixedFromTruthBody =
+        calculateFixedFromBody(mapFromStartupFixed, mapFromTruthBody);
+
+    /* Start from a copy so body-frame twist and covariance are preserved. */
     nav_msgs::msg::Odometry truthOdometry = odometry_in;
 
-    /*!
-     * The pose is already in the shared Gazebo map frame; only the frame id
-     * needs to be written explicitly.
-     */
-    truthOdometry.header.frame_id = mapFrame;
+    /* Comparison pose is now relative to the startup-fixed frame. */
+    truthOdometry.header.frame_id = startupFixedFrame;
+    truthOdometry.pose.pose.position.x =
+        startupFixedFromTruthBody.getOrigin().x();
+    truthOdometry.pose.pose.position.y =
+        startupFixedFromTruthBody.getOrigin().y();
+    truthOdometry.pose.pose.position.z =
+        startupFixedFromTruthBody.getOrigin().z();
+    truthOdometry.pose.pose.orientation =
+        tf2::toMsg(startupFixedFromTruthBody.getRotation());
 
     /*!
      * Publish under ground truth's own comparison child frame, not the
@@ -56,25 +78,15 @@ void GroundTruthNode::handleOdometryCallBack(
      */
     truthOdometry.child_frame_id = groundTruthBaseFrame;
 
-    /* Broadcast the map-to-body transform for this sample. */
+    /* Publish the validated sample outside the private driver boundary. */
+    p_odometryPublisher->publish(truthOdometry);
+
+    /* Broadcast the startup-fixed-to-body transform for this sample. */
     publishTransform(truthOdometry);
 
     /* Add this sample to the retained, rate-limited path. */
     appendPathPose(truthOdometry);
 
-    if (!hasPublishedInitialPose)
-    {
-        /*!
-         * This is the first valid sample this node has seen, which (per
-         * alpha_node/main.cpp's fixed startup delay) is already the
-         * rover's settled resting pose, not a mid-drop transient --
-         * publish it once, latched, as the map-frame origin
-         * continuous_ekf/wheel_odometry seed themselves from.
-         */
-        p_initialPosePublisher->publish(truthOdometry);
-
-        hasPublishedInitialPose = true;
-    }
 }
 
 } /* namespace localisation::ground_truth */

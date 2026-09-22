@@ -6,7 +6,7 @@
 #                stays close to ground truth throughout. Regression test
 #                for the wheel-odometry rotational-slip issue documented
 #                in CLAUDE.md's Key Invariants (mitigated via
-#                gyroOnlyYawRad and capped yaw-variance inflation, see
+#                gyro-only quaternion and capped yaw-variance inflation, see
 #                AlphaKalmanFilterNode.h).
 #
 # @Date:         18/09/2026
@@ -61,7 +61,10 @@ tc::publish_twist "$LINEAR_X_MPS" "$ANGULAR_Z_RADPS"
 # z_err's 2.0 m bound accommodates the smaller, already-documented
 # cyclical Z oscillation seen during sustained circular driving (also
 # CLAUDE.md), which is a known, separate, non-emergency residual.
-if tc::check_bounded_error "$DURATION_S" 10 5.0 2.0; then
+# Require real ground-truth translation as well as bounded estimator error.
+# Without this gate a broken actuator bridge leaves both poses stationary and
+# can falsely look like perfect localization.
+if tc::check_bounded_error "$DURATION_S" 10 5.0 2.0 0.05; then
   RESULT=0
 else
   RESULT=$?

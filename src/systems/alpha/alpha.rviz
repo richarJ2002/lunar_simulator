@@ -16,7 +16,7 @@ Visualization Manager:
         Line Width: 0.03
         Value: Lines
       Plane: XY
-      Reference Frame: map
+      Reference Frame: alpha/startup_fixed
     - Class: rviz_default_plugins/TF
       Name: TF
       Enabled: true
@@ -32,7 +32,7 @@ Visualization Manager:
       Color: 255; 0; 0
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: alpha/startup_fixed
   Tools:
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Interact
@@ -41,7 +41,7 @@ Visualization Manager:
     Current:
       Class: rviz_default_plugins/Orbit
       Name: Current View
-      Target Frame: map
+      Target Frame: alpha/startup_fixed
       Distance: 12
 Window Geometry:
   Displays:

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
 add_library(inertial_odometry STATIC
+  src/methods/calculateGravitySpecificForceFixed.cc
+  src/methods/calculateGravityFreeAccelerationFixed.cc
   src/methods/handleImuCallBack.cc
   src/methods/publishFilteredImu.cc
   src/methods/publishOdometry.cc

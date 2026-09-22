@@ -1,102 +1,152 @@
-/*!
- * @File:         predictTo.cc
+/**
+ * @file            predictTo.cc
  *
- * @Brief:        Implements substep-bounded propagation of the owned filter
- *                to a requested monotonic timestamp.
+ * @brief           Implements timestamp-ordered raw-IMU ESKF prediction.
  *
- * @Date:         17/09/2026
- *
+ * @date            22/09/2026
  */
 
-/* Function Includes */
-/* None */
-
-/* Object Include */
+/* Matching Declaration Include */
 #include "objects/AlphaKalmanFilterNode.h"
 
-/* Generic Libraries */
+/* C++ Standard Library Includes */
 #include <algorithm>
+#include <cstddef>
+#include <optional>
+
+/* Object Includes */
+#include "objects/ImuSample.h"
+#include "objects/StateIndex.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 AlphaKalmanFilterNode::FilterStatus
-AlphaKalmanFilterNode::predictTo(double targetTimestampS_in)
+    AlphaKalmanFilterNode::predictTo(double targetTimestampS_in,
+                                     bool   shouldSaveCheckpoints_in)
 {
-    /* How far forward the state needs to be propagated. */
-    double remainingTimeS = targetTimestampS_in - filterTimestampS;
+    constexpr double TIMESTAMP_TOLERANCE_S = 1.0e-9;
+    constexpr double MAXIMUM_SUBSTEP_S     = 0.02;
 
-    /* Small negative gaps are floating-point noise around zero, not a
-     * genuine request to predict backwards. */
-    constexpr double timestampToleranceS = 1.0e-9;
-
-    if (remainingTimeS < -timestampToleranceS)
+    if (!hasInitialState)
     {
-        /* A genuinely earlier target time is a caller error. */
+        return FilterStatus::FILTER_STATUS_NOT_INITIALIZED;
+    }
+    if (targetTimestampS_in < stateTimestamp_s - TIMESTAMP_TOLERANCE_S)
+    {
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
-
-    if (remainingTimeS <= 0.0)
+    if (targetTimestampS_in <= stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
     {
-        /* Already at (or within tolerance of) the target time; nothing
-         * to propagate. */
         return FilterStatus::FILTER_STATUS_SUCCESS;
     }
 
-    while (remainingTimeS > 0.0)
+    const auto propagateInterval =
+        [this, MAXIMUM_SUBSTEP_S](
+            double                 intervalEndTimestampS_in,
+            const Eigen::Vector3d &specificForceBodyMps2_in,
+            const Eigen::Vector3d &angularVelocityBodyRadPerS_in)
+        -> FilterStatus
     {
-        /* Bound each Euler step to 20 ms so the linearized process model
-         * stays a good approximation even over a long prediction gap. */
-        const double timeStepS = std::min(remainingTimeS, 0.02);
-
-        /* Re-evaluate Alpha's process model at the engine's current
-         * state before every substep, since it is nonlinear. */
-        const StateVector currentState = filter.getState();
-        StateVector stateDerivative;
-        StateMatrix processJacobian;
-        computeProcessModel(currentState, stateDerivative, processJacobian);
-
-        /* Advance state and covariance by exactly one bounded step. */
-        const FilterStatus predictStatus =
-            filter.predict(timeStepS, stateDerivative, processJacobian,
-                           processNoise);
-
-        if (predictStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+        double remainingTime_s = intervalEndTimestampS_in - stateTimestamp_s;
+        while (remainingTime_s > 0.0)
         {
-            /* Stop propagating as soon as a step fails; filterTimestampS
-             * intentionally stays at the last successfully reached time. */
-            return predictStatus;
+            const double timeStep_s =
+                std::min(remainingTime_s, MAXIMUM_SUBSTEP_S);
+            NominalStateVector predictedState;
+            ErrorStateMatrix   processJacobian;
+            computeProcessModel(nominalState,
+                                specificForceBodyMps2_in,
+                                angularVelocityBodyRadPerS_in,
+                                timeStep_s,
+                                predictedState,
+                                processJacobian);
+            const FilterStatus predictionStatus =
+                filter.predict(timeStep_s,
+                               ErrorStateVector::Zero(),
+                               processJacobian,
+                               processNoise);
+            if (predictionStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+            {
+                return predictionStatus;
+            }
+            nominalState = predictedState;
+            stateTimestamp_s += timeStep_s;
+            remainingTime_s -= timeStep_s;
         }
+        return FilterStatus::FILTER_STATUS_SUCCESS;
+    };
 
-        /* Wrap roll, pitch and yaw back into the canonical [-pi, pi]
-         * range after integration, then write the wrapped state back into
-         * the engine, which has no knowledge of which states are angles. */
-        StateVector wrapped = filter.getState();
-        wrapped(3) = wrapAngle(wrapped(3));
-        wrapped(4) = wrapAngle(wrapped(4));
-        wrapped(5) = wrapAngle(wrapped(5));
-
-        const FilterStatus setStatus = filter.setState(wrapped);
-
-        if (setStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+    const std::size_t retainedSampleCount = imuBuffer.getSampleCount();
+    for (std::size_t sampleIndex = 0U; sampleIndex < retainedSampleCount;
+         ++sampleIndex)
+    {
+        const std::optional<ImuSample> sample =
+            imuBuffer.getSample(sampleIndex);
+        if (!sample.has_value())
         {
-            return setStatus;
+            return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
         }
-
-        /*!
-         * Advance the gyro-only yaw cross-check by the same bounded step,
-         * using only the IMU's own gyro reading -- never wheel's, which is
-         * exactly what this exists to check against. See
-         * gyroOnlyYawRad's doc comment.
-         */
-        gyroOnlyYawRad =
-            wrapAngle(gyroOnlyYawRad + latestGyroYawRateRadps * timeStepS);
-
-        /* Record how much time this step actually covered. */
-        filterTimestampS += timeStepS;
-        remainingTimeS -= timeStepS;
+        if (sample->timestamp_s <= stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
+        {
+            continue;
+        }
+        const double intervalEndTimestamp_s =
+            std::min(sample->timestamp_s, targetTimestampS_in);
+        const FilterStatus propagationStatus =
+            propagateInterval(intervalEndTimestamp_s,
+                              sample->linearAcceleration_body_mPerS2,
+                              sample->angularVelocity_body_radPerS);
+        if (propagationStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+        {
+            return propagationStatus;
+        }
+        if (shouldSaveCheckpoints_in)
+        {
+            saveFilterCheckpoint();
+        }
+        if (sample->timestamp_s > targetTimestampS_in + TIMESTAMP_TOLERANCE_S)
+        {
+            break;
+        }
     }
 
+    if (targetTimestampS_in > stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
+    {
+        const std::optional<ImuSample> latestSample =
+            imuBuffer.getLatestSample();
+        if (!latestSample.has_value() ||
+            targetTimestampS_in - latestSample->timestamp_s >
+                maximumImuMeasurementAgeS)
+        {
+            return FilterStatus::FILTER_STATUS_INVALID_INPUT;
+        }
+        const FilterStatus propagationStatus =
+            propagateInterval(targetTimestampS_in,
+                              latestSample->linearAcceleration_body_mPerS2,
+                              latestSample->angularVelocity_body_radPerS);
+        if (propagationStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+        {
+            return propagationStatus;
+        }
+    }
+
+    const std::optional<ImuSample> latestSample = imuBuffer.getLatestSample();
+    if (latestSample.has_value())
+    {
+        const Eigen::Index gyroscopeBiasIndex =
+            static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
+        latestAngularVelocity_body_radPerS =
+            latestSample->angularVelocity_body_radPerS -
+            nominalState.segment<3>(gyroscopeBiasIndex);
+    }
+    latestState      = nominalState;
+    latestCovariance = filter.getCovariance();
+    hasEstimate      = true;
+    if (shouldSaveCheckpoints_in)
+    {
+        saveFilterCheckpoint();
+    }
     return FilterStatus::FILTER_STATUS_SUCCESS;
 }
 

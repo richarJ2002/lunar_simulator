@@ -77,7 +77,7 @@ FilterStatus ContinuousExtendedKalmanFilter::update(
      * A failed factorization means the innovation covariance was not
      * positive definite, so the update cannot proceed numerically.
      */
-    if (decomposition.info() != Eigen::Success)
+    if (decomposition.info() != Eigen::Success || !decomposition.isPositive())
     {
         return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
     }
@@ -89,8 +89,9 @@ FilterStatus ContinuousExtendedKalmanFilter::update(
         decomposition.solve(
             Eigen::MatrixXd::Identity(measurementSize, measurementSize));
 
-    /* Apply the gain-weighted innovation to correct the state estimate. */
-    state += gain * innovation_in;
+    /* Compute into temporaries so a rejected numerical update cannot corrupt
+     * the last valid posterior retained by the engine. */
+    const Eigen::VectorXd correctedState = state + gain * innovation_in;
 
     /*!
      * Joseph-form covariance update: P' = (I - K H) P (I - K H)^T +
@@ -103,19 +104,25 @@ FilterStatus ContinuousExtendedKalmanFilter::update(
         gain * observationMatrix_in;
 
     /* Evaluate the Joseph-form expression above. */
-    covariance = residual * covariance * residual.transpose() +
-                 gain * measurementNoise_in * gain.transpose();
+    Eigen::MatrixXd correctedCovariance =
+        residual * covariance * residual.transpose() +
+        gain * measurementNoise_in * gain.transpose();
 
     /*!
      * Re-symmetrize to cancel the asymmetry floating-point arithmetic
      * accumulates over repeated updates.
      */
-    covariance = 0.5 * (covariance + covariance.transpose());
+    correctedCovariance =
+        0.5 * (correctedCovariance + correctedCovariance.transpose());
 
-    if (!state.allFinite() || !covariance.allFinite())
+    if (!correctedState.allFinite() ||
+        !isCovarianceValid(correctedCovariance))
     {
         return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
     }
+
+    state      = correctedState;
+    covariance = correctedCovariance;
 
     return FilterStatus::FILTER_STATUS_SUCCESS;
 }

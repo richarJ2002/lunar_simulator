@@ -15,16 +15,19 @@ namespace systems::alpha::alpha_drivers
 void AlphaDriverNode::configureImuInterface(const std::string &systemName_in)
 {
     /* Input topic: raw, noise-free IMU bridged straight from Gazebo. */
-    const std::string rawImuTopic = declare_parameter<std::string>(
-        "raw_imu_topic", "/" + systemName_in + "/raw/imu");
+    const std::string rawImuTopic =
+        declare_parameter<std::string>("raw_imu_topic",
+                                       "/" + systemName_in + "/drivers/imu");
 
     /* Output topic: the noisy IMU every consumer actually subscribes to. */
-    const std::string imuTopic = declare_parameter<std::string>(
-        "imu_topic", "/" + systemName_in + "/imu");
+    const std::string imuTopic =
+        declare_parameter<std::string>("imu_topic",
+                                       "/" + systemName_in + "/imu");
 
     /* Advertise the noisy public IMU topic. */
-    p_imuPublisher = create_publisher<sensor_msgs::msg::Imu>(
-        imuTopic, rclcpp::SensorDataQoS());
+    p_imuPublisher =
+        create_publisher<sensor_msgs::msg::Imu>(imuTopic,
+                                                rclcpp::SensorDataQoS());
 
     /*!
      * Every interface below shares one mutually-exclusive callback group so
@@ -39,9 +42,11 @@ void AlphaDriverNode::configureImuInterface(const std::string &systemName_in)
 
     /* Every raw IMU sample triggers publishNoisyImuCallBack() on that group. */
     p_rawImuSubscription = create_subscription<sensor_msgs::msg::Imu>(
-        rawImuTopic, rclcpp::SensorDataQoS(),
+        rawImuTopic,
+        rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::Imu::ConstSharedPtr p_message)
-        { publishNoisyImuCallBack(*p_message); }, subscriptionOptions);
+        { publishNoisyImuCallBack(*p_message); },
+        subscriptionOptions);
 }
 
 } /* namespace systems::alpha::alpha_drivers */

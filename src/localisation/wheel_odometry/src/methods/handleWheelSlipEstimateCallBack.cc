@@ -24,6 +24,11 @@ namespace localisation::wheel_odometry
 void WheelOdometryNode::handleWheelSlipEstimateCallBack(
     const std_msgs::msg::Float64MultiArray &message_in)
 {
+    if (!shouldApplySlipFeedback)
+    {
+        return;
+    }
+
     if (message_in.data.size() != slipRatios.size())
     {
         /*!
@@ -33,9 +38,12 @@ void WheelOdometryNode::handleWheelSlipEstimateCallBack(
          * elements (see AlphaKalmanFilterNode::publishWheelSlip()).
          */
         RCLCPP_WARN_THROTTLE(
-            get_logger(), *get_clock(), 3000,
+            get_logger(),
+            *get_clock(),
+            3000,
             "Ignoring wheel-slip estimate with %zu elements (expected %zu)",
-            message_in.data.size(), slipRatios.size());
+            message_in.data.size(),
+            slipRatios.size());
 
         return;
     }
@@ -61,7 +69,8 @@ void WheelOdometryNode::handleWheelSlipEstimateCallBack(
         /* Defensively clamp into range even though continuous_ekf already
          * bounds its own slip states the same way -- this node must stay
          * correct even if used with a different fusion source. */
-        slipRatios[wheel] = std::clamp(estimate, 0.0, maximumSlipRatio);
+        slipRatios[wheel] =
+            std::clamp(estimate, -maximumSlipRatio, maximumSlipRatio);
     }
 
     /* Republish immediately so a subscriber to the applied-ratio topic

@@ -56,22 +56,31 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
 
-    /* Forward-Euler-integrate the state by this step's derivative. */
-    state += stateDerivative_in * dtS_in;
+    /* Compute into temporaries so a rejected numerical step cannot corrupt
+     * the last valid posterior retained by the engine. */
+    const Eigen::VectorXd predictedState =
+        state + stateDerivative_in * dtS_in;
 
-    /* Continuous covariance equation: Pdot = F P + P F^T + Q. */
-    covariance +=
-        (processJacobian_in * covariance +
-         covariance * processJacobian_in.transpose() + processNoise_in) *
-        dtS_in;
+    /* First-order discretization Phi = I + F dt. Propagating covariance as
+     * Phi P Phi^T + Q dt preserves positive semidefiniteness; directly
+     * applying forward Euler to Pdot can make a valid covariance indefinite
+     * when strongly coupled state blocks begin at very different scales. */
+    const Eigen::MatrixXd transitionMatrix =
+        Eigen::MatrixXd::Identity(stateSize, stateSize) +
+        processJacobian_in * dtS_in;
+    Eigen::MatrixXd predictedCovariance =
+        transitionMatrix * covariance * transitionMatrix.transpose() +
+        processNoise_in * dtS_in;
 
     /*!
      * Re-symmetrize to cancel the asymmetry floating-point arithmetic
      * accumulates over repeated updates.
      */
-    covariance = 0.5 * (covariance + covariance.transpose());
+    predictedCovariance =
+        0.5 * (predictedCovariance + predictedCovariance.transpose());
 
-    if (!state.allFinite() || !covariance.allFinite())
+    if (!predictedState.allFinite() ||
+        !isCovarianceValid(predictedCovariance))
     {
         /*!
          * A non-finite result means this step's linearization broke down
@@ -79,6 +88,9 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
          */
         return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
     }
+
+    state      = predictedState;
+    covariance = predictedCovariance;
 
     return FilterStatus::FILTER_STATUS_SUCCESS;
 }

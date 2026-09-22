@@ -8,8 +8,6 @@ add_library(wheel_odometry STATIC
   src/methods/publishSlipObservation.cc
   src/methods/publishSlipRatios.cc
   src/methods/handleWheelSlipEstimateCallBack.cc
-  src/methods/handleKalmanFilterCallBack.cc
-  src/methods/handleInitialPoseCallBack.cc
   src/methods/handleJointStateCallBack.cc
   src/methods/wrapAngle.cc
   src/methods/publishOdometry.cc

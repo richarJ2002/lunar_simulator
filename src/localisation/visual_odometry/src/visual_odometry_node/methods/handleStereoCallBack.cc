@@ -18,6 +18,7 @@
 
 /* Generic Libraries */
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -45,7 +46,7 @@ feature_tracking::ImageView imageViewFromMat(const cv::Mat &image_in)
     /* Borrow, never copy, the Mat's own pixel buffer. */
     view.p_pixels = image_in.data;
 
-    view.width = image_in.cols;
+    view.width  = image_in.cols;
     view.height = image_in.rows;
 
     /* OpenCV's row stride, in bytes; may exceed width for a padded
@@ -62,9 +63,8 @@ feature_tracking::ImageView imageViewFromMat(const cv::Mat &image_in)
  */
 std::vector<cv::Point2f> toPoint2fVector(
     const std::array<feature_tracking::Point2D,
-                     feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
-        &points_in,
-    std::size_t count_in)
+                     feature_tracking::MAXIMUM_SUPPORTED_FEATURES> &points_in,
+    std::size_t                                                     count_in)
 {
     std::vector<cv::Point2f> result;
 
@@ -96,6 +96,50 @@ void VisualOdometryNode::handleStereoCallBack(
     const sensor_msgs::msg::Image::ConstSharedPtr &p_left_in,
     const sensor_msgs::msg::Image::ConstSharedPtr &p_right_in)
 {
+    const std::chrono::steady_clock::time_point processingStart =
+        std::chrono::steady_clock::now();
+    ++receivedPairCount;
+    const double publicationTimestamp_s =
+        stampToSeconds(p_left_in->header.stamp);
+    latestAdmissionAge_s            = now().seconds() - publicationTimestamp_s;
+    latestConversionDuration_ms     = 0.0;
+    latestDetectionDuration_ms      = 0.0;
+    latestDisparityDuration_ms      = 0.0;
+    latestTrackingDuration_ms       = 0.0;
+    latestReconstructionDuration_ms = 0.0;
+    latestPnpDuration_ms            = 0.0;
+    latestCorrespondenceCount       = 0U;
+    latestInlierCount               = 0U;
+    latestDetectedCount             = 0U;
+    latestTrackedCount              = 0U;
+    latestStereoValidCount          = 0U;
+    latestVisualQuality             = VisualPoseQuality{};
+
+    const auto finishDiagnostics = [this, processingStart](bool isAccepted_in)
+    {
+        latestProcessingDuration_ms =
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - processingStart)
+                .count();
+        if (isAccepted_in)
+        {
+            ++acceptedPoseCount;
+            consecutiveFailureCount = 0U;
+        }
+        else
+        {
+            ++failedPoseCount;
+            ++consecutiveFailureCount;
+        }
+    };
+
+    if (!std::isfinite(latestAdmissionAge_s) || latestAdmissionAge_s < 0.0 ||
+        latestAdmissionAge_s > maximumInputAgeS)
+    {
+        finishDiagnostics(false);
+        return;
+    }
+
     /* Step 1 output: the current left frame as an OpenCV matrix. */
     cv::Mat currentLeft;
 
@@ -119,15 +163,23 @@ void VisualOdometryNode::handleStereoCallBack(
     catch (const cv_bridge::Exception &error)
     {
         /* Log the failure (throttled) and give up on this frame only. */
-        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 2000,
-                              "LocCam conversion failed: %s", error.what());
+        RCLCPP_ERROR_THROTTLE(get_logger(),
+                              *get_clock(),
+                              2000,
+                              "LocCam conversion failed: %s",
+                              error.what());
+        finishDiagnostics(false);
         return;
     }
+    latestConversionDuration_ms =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - processingStart)
+            .count();
 
     /* Detection output: current-frame corner positions, valid only in
      * [0, currentCornerCount). */
     std::array<feature_tracking::Point2D,
-              feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+               feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
         currentCorners{};
 
     /* Number of valid entries written to currentCorners. */
@@ -141,14 +193,21 @@ void VisualOdometryNode::handleStereoCallBack(
      * is not fatal to the frame; treat it the same as "zero features
      * found" rather than aborting the callback.
      */
+    const std::chrono::steady_clock::time_point currentDetectionStart =
+        std::chrono::steady_clock::now();
     static_cast<void>(cornerDetector.detect(imageViewFromMat(currentLeft),
                                             currentCorners,
                                             currentCornerCount));
+    latestDetectionDuration_ms =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - currentDetectionStart)
+            .count();
 
     /* Current-frame corner pixel coordinates, converted for the
      * disparity-lookup/visualization code below. */
     const std::vector<cv::Point2f> detectedFeatures =
         toPoint2fVector(currentCorners, currentCornerCount);
+    latestDetectedCount = currentCornerCount;
 
     /* True only on the very first callback, before any frame has been
      * retained as "previous". */
@@ -163,8 +222,12 @@ void VisualOdometryNode::handleStereoCallBack(
          */
 
         /* Publish the detected corners with no track, for diagnostics. */
-        publishFeatureImage(p_left_in->header, currentLeft, detectedFeatures,
-                            {}, {}, {});
+        publishFeatureImage(p_left_in->header,
+                            currentLeft,
+                            detectedFeatures,
+                            {},
+                            {},
+                            {});
 
         /* Publish an empty cloud so subscribers see a message every
          * frame. */
@@ -179,8 +242,24 @@ void VisualOdometryNode::handleStereoCallBack(
 
         /* Publish a single, maximally confident sample so the fusing EKF
          * has an initial visual measurement to accept. */
-        publishOdometry(p_left_in->header.stamp, 1.0, 1U, initialPose,
-                        initialPose);
+        PoseCovariance initialCovariance = PoseCovariance::zeros();
+        for (int index = 0; index < 3; ++index)
+        {
+            initialCovariance(index, index) =
+                visualQualityConfiguration.minimumTranslationVarianceM2;
+            initialCovariance(index + 3, index + 3) =
+                visualQualityConfiguration.minimumRotationVarianceRad2;
+        }
+        accumulatedPoseCovariance = initialCovariance;
+        publishOdometry(p_left_in->header.stamp,
+                        1.0,
+                        initialPose,
+                        initialPose,
+                        initialCovariance,
+                        initialCovariance);
+        latestAcceptedInterval_s = 0.0;
+        latestInlierCount        = 1U;
+        finishDiagnostics(true);
         return;
     }
 
@@ -191,28 +270,33 @@ void VisualOdometryNode::handleStereoCallBack(
     /* Elapsed time since the previous accepted frame, in seconds. */
     const double dtS = currentStampS - previousStampS;
 
-    /* Reject non-positive or implausibly large time steps. */
-    if (!(dtS > 0.0) || dtS > 1.0)
+    /* A backwards clock jump starts a new identity-relative visual epoch. */
+    if (!(dtS > 0.0))
     {
         /*!
-         * Reject non-positive or implausibly large time steps (clock jumps,
-         * simulation resets, dropped frames) rather than dividing by a bad
-         * dtS later when computing twist. Diagnostics are still published
-         * so a viewer can see that a frame arrived, even though odometry is
-         * skipped.
+         * Reject a non-positive time step (clock jump or simulation reset)
+         * rather than dividing by it later when computing twist. Diagnostics
+         * are still published so a viewer can see that a frame arrived, even
+         * though odometry is skipped.
          */
 
         /* Publish the detected corners with no track, for diagnostics. */
-        publishFeatureImage(p_left_in->header, currentLeft, detectedFeatures,
-                            {}, {}, {});
+        publishFeatureImage(p_left_in->header,
+                            currentLeft,
+                            detectedFeatures,
+                            {},
+                            {},
+                            {});
 
         /* Publish an empty cloud so subscribers see a message every
          * frame. */
         publishPointCloud(p_left_in->header.stamp, {}, {}, worldFromOptical);
 
-        /* Still advance "previous" so the next callback measures dtS from
-         * this frame instead of repeating the same bad gap. */
+        worldFromOptical          = bodyFromOptical;
+        accumulatedPoseCovariance = PoseCovariance::zeros();
+        isVisualPoseAvailable     = true;
         storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        finishDiagnostics(false);
         return;
     }
 
@@ -228,6 +312,8 @@ void VisualOdometryNode::handleStereoCallBack(
      * fixed-point disparity scaled by 16, so divide back down to true pixel
      * disparity.
      */
+    const std::chrono::steady_clock::time_point disparityStart =
+        std::chrono::steady_clock::now();
     p_stereoMatcher->compute(previousLeft, previousRight, disparityFixed);
 
     /* True floating-point pixel disparity. */
@@ -235,13 +321,17 @@ void VisualOdometryNode::handleStereoCallBack(
 
     /* Undo StereoBM's internal 16x fixed-point scaling. */
     disparityFixed.convertTo(disparity, CV_32F, 1.0 / 16.0);
+    latestDisparityDuration_ms =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - disparityStart)
+            .count();
 
     /* Step 3 output: previous-frame corner positions, valid only in
      * [0, previousCornerCount); this is also exactly the input shape
      * track() below requires, so it is used directly rather than
      * round-tripped through a vector first. */
     std::array<feature_tracking::Point2D,
-              feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+               feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
         previousCorners{};
 
     /* Number of valid entries written to previousCorners. */
@@ -255,14 +345,20 @@ void VisualOdometryNode::handleStereoCallBack(
      * treated the same as "zero features found" rather than aborting the
      * frame.
      */
+    const std::chrono::steady_clock::time_point previousDetectionStart =
+        std::chrono::steady_clock::now();
     static_cast<void>(cornerDetector.detect(imageViewFromMat(previousLeft),
                                             previousCorners,
                                             previousCornerCount));
+    latestDetectionDuration_ms +=
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - previousDetectionStart)
+            .count();
 
     /* Step 3 output: each previous feature's tracked current-frame
      * position, aligned by index with previousCorners. */
     std::array<feature_tracking::Point2D,
-              feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+               feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
         trackedCorners{};
 
     /* Step 3 output: per-feature Lucas-Kanade track success flags,
@@ -280,12 +376,22 @@ void VisualOdometryNode::handleStereoCallBack(
     /* Optical flow requires at least one feature to track. */
     if (previousCornerCount > 0U)
     {
+        const std::chrono::steady_clock::time_point trackingStart =
+            std::chrono::steady_clock::now();
         /* Track every previous-frame feature forward into the current
          * frame. */
-        static_cast<void>(opticalFlowTracker.track(
-            imageViewFromMat(previousLeft), imageViewFromMat(currentLeft),
-            previousCorners, previousCornerCount, trackedCorners,
-            trackedStatus, trackedError));
+        static_cast<void>(
+            opticalFlowTracker.track(imageViewFromMat(previousLeft),
+                                     imageViewFromMat(currentLeft),
+                                     previousCorners,
+                                     previousCornerCount,
+                                     trackedCorners,
+                                     trackedStatus,
+                                     trackedError));
+        latestTrackingDuration_ms =
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - trackingStart)
+                .count();
     }
 
     /* Previous-frame corner pixel coordinates, converted for the
@@ -313,6 +419,14 @@ void VisualOdometryNode::handleStereoCallBack(
         trackedError.begin(),
         trackedError.begin() +
             static_cast<std::ptrdiff_t>(previousCornerCount));
+    for (std::size_t index = 0U; index < trackingStatus.size(); ++index)
+    {
+        if (trackingStatus[index] != 0U &&
+            trackingError[index] <= MAXIMUM_TRACKING_ERROR_PX)
+        {
+            ++latestTrackedCount;
+        }
+    }
 
     /* Step 4 output: reconstructed previous-frame 3-D points that survive
      * every gate below. */
@@ -321,6 +435,11 @@ void VisualOdometryNode::handleStereoCallBack(
     /* Step 4 output: each surviving point's tracked current-frame pixel
      * position, aligned with previousPoints3d. */
     std::vector<cv::Point2f> currentPoints2d;
+    const int gridCellCount = visualQualityConfiguration.occupancyGridRows *
+                              visualQualityConfiguration.occupancyGridColumns;
+    std::vector<int> featureCountPerCell(
+        static_cast<std::size_t>(gridCellCount),
+        0);
 
     /*!
      * Step 4: for every successfully tracked feature, reconstruct its 3-D
@@ -331,6 +450,8 @@ void VisualOdometryNode::handleStereoCallBack(
      * small to be reliable (large or infinite depth), and depth outside the
      * plausible near/far bounds. Surviving pairs feed PnP RANSAC below.
      */
+    const std::chrono::steady_clock::time_point reconstructionStart =
+        std::chrono::steady_clock::now();
     for (std::size_t index = 0U; index < previousFeatures.size(); ++index)
     {
         /* Reject a lost track or an untrustworthy match. */
@@ -344,14 +465,12 @@ void VisualOdometryNode::handleStereoCallBack(
          * disparity-lookup index; u/v is standard pinhole pixel-
          * coordinate notation. */
         // NOLINTNEXTLINE(readability-identifier-length)
-        const int u =
-            static_cast<int>(std::lround(previousFeatures[index].x));
+        const int u = static_cast<int>(std::lround(previousFeatures[index].x));
 
         /* Round the feature's previous-frame pixel row to an integer
          * disparity-lookup index. */
         // NOLINTNEXTLINE(readability-identifier-length)
-        const int v =
-            static_cast<int>(std::lround(previousFeatures[index].y));
+        const int v = static_cast<int>(std::lround(previousFeatures[index].y));
 
         /* Reject a feature whose rounded pixel falls outside the disparity
          * image. */
@@ -379,6 +498,32 @@ void VisualOdometryNode::handleStereoCallBack(
         {
             continue;
         }
+        ++latestStereoValidCount;
+
+        const int gridColumn = std::clamp(
+            static_cast<int>(
+                previousFeatures[index].x *
+                static_cast<float>(
+                    visualQualityConfiguration.occupancyGridColumns) /
+                static_cast<float>(visualQualityConfiguration.imageWidthPx)),
+            0,
+            visualQualityConfiguration.occupancyGridColumns - 1);
+        const int gridRow = std::clamp(
+            static_cast<int>(
+                previousFeatures[index].y *
+                static_cast<float>(
+                    visualQualityConfiguration.occupancyGridRows) /
+                static_cast<float>(visualQualityConfiguration.imageHeightPx)),
+            0,
+            visualQualityConfiguration.occupancyGridRows - 1);
+        int &cellFeatureCount = featureCountPerCell[static_cast<std::size_t>(
+            gridRow * visualQualityConfiguration.occupancyGridColumns +
+            gridColumn)];
+        if (cellFeatureCount >= maximumFeaturesPerCell)
+        {
+            continue;
+        }
+        ++cellFeatureCount;
 
         /*!
          * Back-project the pixel to a 3-D point in the previous optical
@@ -405,14 +550,23 @@ void VisualOdometryNode::handleStereoCallBack(
          * index with previousPoints3d. */
         currentPoints2d.push_back(currentFeatures[index]);
     }
+    latestReconstructionDuration_ms =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - reconstructionStart)
+            .count();
+    latestCorrespondenceCount = previousPoints3d.size();
 
     /*!
      * Publish the visualization for this frame regardless of whether a pose
      * update succeeds below, so a viewer can always see current tracking
      * quality.
      */
-    publishFeatureImage(p_left_in->header, currentLeft, previousFeatures,
-                        currentFeatures, trackingStatus, currentPoints2d);
+    publishFeatureImage(p_left_in->header,
+                        currentLeft,
+                        previousFeatures,
+                        currentFeatures,
+                        trackingStatus,
+                        currentPoints2d);
 
     /* Whether Step 5 below actually produced and accepted a pose
      * update. */
@@ -443,31 +597,64 @@ void VisualOdometryNode::handleStereoCallBack(
          * confident-looking but underdetermined or outlier-dominated solve
          * is worse than skipping the update entirely.
          */
-        estimated = cv::solvePnPRansac(
-            previousPoints3d, currentPoints2d, cameraMatrix, cv::noArray(),
-            rotationVector, translationVector, false,
-            PNP_RANSAC_MAXIMUM_ITERATIONS, PNP_RANSAC_REPROJECTION_ERROR_PX,
-            PNP_RANSAC_CONFIDENCE, inliers, cv::SOLVEPNP_ITERATIVE);
+        const std::chrono::steady_clock::time_point pnpStart =
+            std::chrono::steady_clock::now();
+        estimated            = cv::solvePnPRansac(previousPoints3d,
+                                       currentPoints2d,
+                                       cameraMatrix,
+                                       cv::noArray(),
+                                       rotationVector,
+                                       translationVector,
+                                       false,
+                                       PNP_RANSAC_MAXIMUM_ITERATIONS,
+                                       PNP_RANSAC_REPROJECTION_ERROR_PX,
+                                       PNP_RANSAC_CONFIDENCE,
+                                       inliers,
+                                       cv::SOLVEPNP_ITERATIVE);
+        latestPnpDuration_ms = std::chrono::duration<double, std::milli>(
+                                   std::chrono::steady_clock::now() - pnpStart)
+                                   .count();
+        latestInlierCount = inliers.size();
 
         /* Additionally require enough surviving inliers, not just a
          * reported success. */
-        estimated = estimated &&
-                    inliers.size() >=
-                        static_cast<std::size_t>(minimumCorrespondences);
+        estimated = estimated && inliers.size() >= static_cast<std::size_t>(
+                                                       minimumCorrespondences);
+
+        VisualPoseQuality quality;
+        if (estimated)
+        {
+            quality             = calculateVisualPoseQuality(previousPoints3d,
+                                                 currentPoints2d,
+                                                 inliers,
+                                                 rotationVector,
+                                                 translationVector,
+                                                 cameraMatrix,
+                                                 visualQualityConfiguration);
+            latestVisualQuality = quality;
+            estimated           = quality.isValid;
+        }
 
         /* Only apply the estimate if it passed both gates above. */
-        if (estimated)
+        if (estimated && isVisualPoseAvailable)
         {
             /* Fold the accepted rotation/translation into the accumulated
              * pose and publish it. */
-            updatePose(rotationVector, translationVector,
-                       p_left_in->header.stamp, dtS, previousPoints3d,
-                       inliers);
+            updatePose(rotationVector,
+                       translationVector,
+                       p_left_in->header.stamp,
+                       dtS,
+                       previousPoints3d,
+                       inliers,
+                       quality);
+            latestAcceptedInterval_s = dtS;
         }
     }
 
+    const bool poseUpdated = estimated && isVisualPoseAvailable;
+
     /* No pose update was produced or accepted this frame. */
-    if (!estimated)
+    if (!poseUpdated)
     {
         /*!
          * When no pose update was possible, still publish the reconstructed
@@ -488,18 +675,47 @@ void VisualOdometryNode::handleStereoCallBack(
 
         /* Publish every reconstructed point, expressed in the current
          * (not yet advanced) accumulated pose. */
-        publishPointCloud(p_left_in->header.stamp, previousPoints3d,
-                          correlatedIndices, worldFromOptical);
+        publishPointCloud(p_left_in->header.stamp,
+                          previousPoints3d,
+                          correlatedIndices,
+                          worldFromOptical);
 
         /* Let an operator know odometry did not advance this cycle. */
         RCLCPP_WARN_THROTTLE(
-            get_logger(), *get_clock(), 3000,
+            get_logger(),
+            *get_clock(),
+            3000,
             "Visual odometry lacks stereo/temporal correspondences");
     }
 
-    /* Retain this frame as "previous" for the next callback, whether or
-     * not a pose update was accepted this cycle. */
-    storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+    const KeyframeAction keyframeAction =
+        selectKeyframeAction(estimated,
+                             isVisualPoseAvailable,
+                             dtS,
+                             maximumKeyframeIntervalS);
+    if (keyframeAction == KeyframeAction::ADVANCE_KEYFRAME)
+    {
+        /* Successful updates advance the accepted keyframe. Once continuity
+         * is unavailable, frames advance only to keep diagnostics current. */
+        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+    }
+    else if (keyframeAction == KeyframeAction::MARK_POSE_UNAVAILABLE)
+    {
+        /* The estimate failed across a gap too large to bridge safely. Keep
+         * the accumulated world pose unchanged and re-key only for current
+         * diagnostics until an explicit reset starts a new visual epoch. */
+        isVisualPoseAvailable = false;
+        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        RCLCPP_WARN_THROTTLE(
+            get_logger(),
+            *get_clock(),
+            2000,
+            "Visual pose unavailable after %.3f s failed keyframe gap",
+            dtS);
+    }
+    /* A recoverable PnP failure deliberately retains the accepted keyframe so
+     * the next solve spans all motion since the last accepted pose. */
+    finishDiagnostics(poseUpdated);
 }
 
 } /* namespace localisation::visual_odometry */

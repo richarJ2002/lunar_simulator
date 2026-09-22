@@ -80,6 +80,14 @@ FilterStatus ContinuousExtendedKalmanFilter::initialize(
     covariance =
         0.5 * (initialCovariance_in + initialCovariance_in.transpose());
 
+    if (!isCovarianceValid(covariance))
+    {
+        state.resize(0);
+        covariance.resize(0, 0);
+        stateSize = 0;
+        return FilterStatus::FILTER_STATUS_INVALID_CONFIGURATION;
+    }
+
     /*!
      * Only now that every field above is valid does the filter become usable by
      * predict(), update(), getState(), getCovariance(), setState() and

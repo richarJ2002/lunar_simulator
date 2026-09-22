@@ -25,12 +25,12 @@ void AlphaDriverNode::configureWheelCommandInterface(
      * config/alpha_ros_gz_bridge.yaml and alpha_model/model.sdf. */
     const std::string rawWheelCommandTopic = declare_parameter<std::string>(
         "raw_wheel_joint_states_topic",
-        "/" + systemName_in + "/cmd/wheel_joint_states");
+        "/" + systemName_in + "/drivers/cmd/wheel_joint_states");
 
     /* Publisher forwarding onto the raw actuator bridge topic. */
     p_rawWheelCommandPublisher =
         create_publisher<actuator_msgs::msg::Actuators>(rawWheelCommandTopic,
-                                                         rclcpp::QoS(10));
+                                                        rclcpp::QoS(10));
 
     /*!
      * Shares the same serial callback group as the other interfaces (see
@@ -42,18 +42,22 @@ void AlphaDriverNode::configureWheelCommandInterface(
     /* Assign that shared callback group to this subscription. */
     subscriptionOptions.callback_group = p_noiseCallbackGroup;
 
-    /* Every incoming public command triggers publishNoisyWheelCommandCallBack(). */
+    /* Every incoming public command triggers
+     * publishNoisyWheelCommandCallBack(). */
     p_wheelCommandSubscription =
         create_subscription<actuator_msgs::msg::Actuators>(
-            wheelCommandTopic, rclcpp::QoS(10),
+            wheelCommandTopic,
+            rclcpp::QoS(10),
             [this](actuator_msgs::msg::Actuators::ConstSharedPtr p_message)
             { publishNoisyWheelCommandCallBack(*p_message); },
             subscriptionOptions);
 
     /* Record the resolved topic names once at start-up for operators
      * inspecting the node's log. */
-    RCLCPP_INFO(get_logger(), "Alpha driver: wheel command %s -> %s",
-                wheelCommandTopic.c_str(), rawWheelCommandTopic.c_str());
+    RCLCPP_INFO(get_logger(),
+                "Alpha driver: wheel command %s -> %s",
+                wheelCommandTopic.c_str(),
+                rawWheelCommandTopic.c_str());
 }
 
 } /* namespace systems::alpha::alpha_drivers */

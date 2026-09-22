@@ -17,7 +17,6 @@
 /* None */
 
 /* Generic Libraries */
-#include <algorithm>
 #include <cstddef>
 
 #include <opencv2/calib3d.hpp>
@@ -30,9 +29,12 @@ namespace localisation::visual_odometry
  * named local variables, not positionally from ambiguous data. */
 void VisualOdometryNode::publishOdometry(
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-    const builtin_interfaces::msg::Time &stamp_in, double dtS_in,
-    std::size_t inlierCount_in, const cv::Matx44d &previousPose_in,
-    const cv::Matx44d &currentPose_in)
+    const builtin_interfaces::msg::Time &stamp_in,
+    double                               dtS_in,
+    const cv::Matx44d                   &previousPose_in,
+    const cv::Matx44d                   &currentPose_in,
+    const PoseCovariance                &poseCovariance_in,
+    const PoseCovariance                &relativeCovariance_in)
 {
     /* Message to populate and publish below. */
     nav_msgs::msg::Odometry output;
@@ -126,36 +128,17 @@ void VisualOdometryNode::publishOdometry(
     output.twist.twist.angular.z =
         relativeRotationVector.at<double>(2) / dtS_in;
 
-    /*!
-     * Heuristic diagonal covariance: more RANSAC inliers implies a better
-     * constrained, more trustworthy estimate, so variance is scaled down as
-     * inlierCount_in grows, floored so covariance never reports unrealistic
-     * zero confidence. Twist variance is doubled relative to pose variance
-     * because it additionally carries the finite-difference division by
-     * dtS_in, which amplifies pose uncertainty. This is a coarse confidence
-     * signal for the fusing EKF, not a rigorously derived covariance.
-     */
-    const double variance = std::max(
-        MINIMUM_POSE_VARIANCE,
-        COVARIANCE_INLIER_SCALE / static_cast<double>(inlierCount_in));
-
-    /* Fill the six diagonal pose/twist covariance entries from the
-     * heuristic variance above. */
-    for (int index = 0; index < 6; ++index)
+    for (int row = 0; row < 6; ++row)
     {
-        /* index is bounded to [0, 6); index * 6 + index (max 35) cannot
-         * overflow int before the widening cast. */
-        output.pose
-            // NOLINTNEXTLINE(bugprone-misplaced-widening-cast)
-            .covariance[static_cast<std::size_t>(index * 6 + index)] =
-            variance;
-
-        /* Set this diagonal twist-covariance entry, scaled up as
-         * documented above. */
-        output.twist
-            // NOLINTNEXTLINE(bugprone-misplaced-widening-cast)
-            .covariance[static_cast<std::size_t>(index * 6 + index)] =
-            TWIST_VARIANCE_SCALE * variance;
+        for (int column = 0; column < 6; ++column)
+        {
+            const std::size_t covarianceIndex =
+                static_cast<std::size_t>(row * 6 + column);
+            output.pose.covariance[covarianceIndex] =
+                poseCovariance_in(row, column);
+            output.twist.covariance[covarianceIndex] =
+                relativeCovariance_in(row, column) / (dtS_in * dtS_in);
+        }
     }
 
     /* Publish the fully assembled odometry message. */

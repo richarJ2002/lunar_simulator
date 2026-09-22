@@ -1,7 +1,7 @@
 /*!
  * @File:         publishTransform.cc
  *
- * @Brief:        Publishes the map to ground-truth body transform.
+ * @Brief:        Publishes startup-fixed to ground-truth body transform.
  *
  * @Date:         15/09/2026
  *
