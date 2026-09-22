@@ -25,3 +25,7 @@ rosbag**/*
 # Python bytecode (launch/__pycache__/ was previously tracked)
 __pycache__/
 *.pyc
+
+# Opencode artifacts
+AGENTS.md
+.agents/*
