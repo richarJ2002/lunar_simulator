@@ -187,6 +187,18 @@ def _plotly_theme_script() -> str:
              figure's own initial `Plotly.newPlot()` has long since
              resolved.
 
+             Beyond cartesian `xaxis*`/`yaxis*` keys it also themes every
+             3-D `scene*` (whose template background panes are otherwise
+             white in dark mode), visible range-slider borders, and the
+             hover label (2026-09-23). It only ever writes color keys, so
+             a live theme change never touches ranges, zoom, slider state,
+             layout images or trace visibility. A theming failure --
+             a synchronous throw or a rejected `Plotly.relayout()`
+             promise -- is caught per figure, logged via `console.error`
+             with the figure's id and recorded on its div as
+             `data-report-theme-error`; it can never propagate to, or stop
+             the theming of, any other figure.
+
     @return  The `<script>` block, self-contained (no external file).
     """
     # The same two palettes build_css() already uses for the page chrome,
@@ -200,11 +212,13 @@ def _plotly_theme_script() -> str:
                 "text_primary": CHROME_LIGHT["text_primary"],
                 "gridline": CHROME_LIGHT["gridline"],
                 "axis": CHROME_LIGHT["axis"],
+                "surface": CHROME_LIGHT["surface"],
             },
             "dark": {
                 "text_primary": CHROME_DARK["text_primary"],
                 "gridline": CHROME_DARK["gridline"],
                 "axis": CHROME_DARK["axis"],
+                "surface": CHROME_DARK["surface"],
             },
         }
     ).replace("</", "<\\/")
@@ -214,22 +228,55 @@ def _plotly_theme_script() -> str:
   function themeUpdateFor(graphDiv) {{
     var isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     var theme = isDark ? reportTheme.dark : reportTheme.light;
-    var update = {{"font.color": theme.text_primary}};
-    Object.keys(graphDiv.layout || {{}}).forEach(function (key) {{
+    var layout = graphDiv.layout || {{}};
+    var update = {{
+      "font.color": theme.text_primary,
+      "hoverlabel.bgcolor": theme.surface,
+      "hoverlabel.bordercolor": theme.axis,
+      "hoverlabel.font.color": theme.text_primary
+    }};
+    Object.keys(layout).forEach(function (key) {{
       if (/^[xy]axis\\d*$/.test(key)) {{
         update[key + ".gridcolor"] = theme.gridline;
         update[key + ".linecolor"] = theme.axis;
         update[key + ".zerolinecolor"] = theme.axis;
+        var slider = (layout[key] || {{}}).rangeslider;
+        if (slider && slider.visible !== false) {{
+          update[key + ".rangeslider.bordercolor"] = theme.axis;
+        }}
+      }} else if (/^scene\\d*$/.test(key)) {{
+        ["xaxis", "yaxis", "zaxis"].forEach(function (axis) {{
+          var prefix = key + "." + axis;
+          update[prefix + ".gridcolor"] = theme.gridline;
+          update[prefix + ".linecolor"] = theme.axis;
+          update[prefix + ".zerolinecolor"] = theme.axis;
+          update[prefix + ".backgroundcolor"] = theme.surface;
+        }});
       }}
     }});
     return update;
   }}
+  function reportThemeFailure(graphDiv, error) {{
+    var message = String((error && error.message) || error);
+    try {{ graphDiv.setAttribute("data-report-theme-error", message); }} catch (ignored) {{}}
+    if (window.console && console.error) {{
+      console.error("report: failed to theme figure " + graphDiv.id + ": " + message);
+    }}
+  }}
   window.__reportApplyPlotlyTheme = function (graphDiv) {{
-    if (!graphDiv || !graphDiv.layout || typeof Plotly === "undefined") {{ return; }}
-    Plotly.relayout(graphDiv, themeUpdateFor(graphDiv));
+    if (!graphDiv || !graphDiv.layout || typeof Plotly === "undefined") {{ return Promise.resolve(); }}
+    try {{
+      return Promise.resolve(Plotly.relayout(graphDiv, themeUpdateFor(graphDiv)))
+        .catch(function (error) {{ reportThemeFailure(graphDiv, error); }});
+    }} catch (error) {{
+      reportThemeFailure(graphDiv, error);
+      return Promise.resolve();
+    }}
   }};
   function applyToEveryRenderedFigure() {{
-    document.querySelectorAll(".plotly-graph-div").forEach(window.__reportApplyPlotlyTheme);
+    document.querySelectorAll(".plotly-graph-div").forEach(function (graphDiv) {{
+      window.__reportApplyPlotlyTheme(graphDiv);
+    }});
   }}
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyToEveryRenderedFigure);
 }})();

@@ -89,6 +89,11 @@ CHROME_DARK = {
     "border": "rgba(255,255,255,0.10)",
 }
 
+# Table cell rule color: a mid-gray at partial opacity, legible against
+# both the light and the dark card surface, so a table needs no per-theme
+# restyle of its trace.
+TABLE_RULE_COLOR = "rgba(137,135,129,0.45)"
+
 # The system sans stack, per the dataviz skill: no display/serif face.
 FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif'
 

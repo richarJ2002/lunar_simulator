@@ -20,6 +20,17 @@
         in python_tools.data.metrics is computed upstream, in the
         entry-point scripts, against the full-resolution arrays before
         they ever reach this module.
+
+        Every 2-D line trace is an SVG `go.Scatter`, never a WebGL
+        `go.Scattergl` (2026-09-23 rendering fix): each `Scattergl` figure
+        holds two WebGL contexts, a report page carries up to ~13 such
+        figures, and browsers cap live WebGL contexts per page (Chromium
+        at 16), silently evicting the oldest -- measured in headless
+        Firefox with its context cap lowered to Chromium's 16, the first
+        11 of the Kalman page's 13 figures drew no trace pixels at all.
+        Display decimation already bounds
+        each time-series trace at `DEFAULT_MAXIMUM_DISPLAY_POINTS`, well
+        within SVG's comfortable range, so WebGL bought nothing here.
 """
 
 from __future__ import annotations
@@ -29,7 +40,7 @@ import base64
 import html as html_module
 import struct
 import zlib
-from typing import Optional, Sequence
+from typing import Collection, Optional, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -39,8 +50,11 @@ from plotly.subplots import make_subplots
 from python_tools.data.models import ImageFrame, PointCloudSnapshot, WHEEL_ORDER
 from python_tools.reporting.style import (
     CATEGORICAL_COLORS,
+    CHROME_LIGHT,
     COLOR_ERROR,
     DIVERGING_MIDPOINT,
+    FONT_FAMILY,
+    TABLE_RULE_COLOR,
     WHEEL_COLORS,
     plotly_layout,
 )
@@ -49,6 +63,16 @@ from python_tools.reporting.style import (
 # renders, per Defect 3 in the plan's 2026-09-22 audit. Applies only to
 # display (see `_decimated_indices`); never to metric computation.
 DEFAULT_MAXIMUM_DISPLAY_POINTS = 2000
+
+# Top margin for the 2x3 wheel small multiples: the modebar occupies roughly
+# the top 30 px of a figure, so the top row's subplot titles need to start
+# below it (2026-09-23: at the shared 32 px margin the modebar covered the
+# top-right "centre left" title, measured in headless Chromium).
+SMALL_MULTIPLES_TOP_MARGIN_PX = 64
+
+# Left margin for the same grid, wide enough for its tick labels plus the
+# single rotated Y title annotation placed left of them.
+SMALL_MULTIPLES_LEFT_MARGIN_PX = 84
 
 
 def _segment_boundaries(times_s: npt.NDArray[np.float64]) -> list[int]:
@@ -276,6 +300,56 @@ def _decimated_indices(
     return result
 
 
+def _apply_subplot_layout(
+    figure: go.Figure,
+    x_title: str,
+    bottom_row: int,
+    height: int,
+    legend: bool = True,
+) -> None:
+    """!
+    @brief   Applies the shared `style.plotly_layout` to a `make_subplots`
+             figure without its single-axis `xaxis`/`yaxis` entries
+             landing on the top-left subplot only (2026-09-23 rendering
+             fix: `update_layout(xaxis=..., yaxis=...)` addresses the
+             *first* subplot's axes, so the previous direct call put the
+             "Time (s)" title on the top row, erased the top row's own
+             Y-axis title set earlier via `update_yaxes`, and styled only
+             the top row's gridlines/axis lines). Axis styling is instead
+             applied to every
+             subplot axis, and the X title to the bottom row only; no
+             range slider is enabled here -- a caller enables one
+             explicitly on its bottom row.
+
+    @param   figure
+             The subplot figure to style, modified in place.
+    @param   x_title
+             Unit-bearing X-axis title, shown on the bottom row.
+    @param   bottom_row
+             One-based index of the figure's bottom subplot row.
+    @param   height
+             Figure height in pixels.
+    @param   legend
+             Whether to show the legend.
+
+    @return  None
+    """
+    layout = plotly_layout(x_title, "", legend=legend, height=height)
+    # Split the single-axis entries out so they can be applied to every
+    # subplot axis rather than only to `xaxis`/`yaxis` (the first subplot).
+    x_axis_style = layout.pop("xaxis")
+    y_axis_style = layout.pop("yaxis")
+    # Titles are per-axis, and the range slider is opt-in per caller.
+    for axis_style in (x_axis_style, y_axis_style):
+        axis_style.pop("title", None)
+        axis_style.pop("rangeslider", None)
+    figure.update_layout(**layout)
+    figure.update_xaxes(**x_axis_style)
+    figure.update_yaxes(**y_axis_style)
+    # One X title, on the bottom row, where the shared tick labels are.
+    figure.update_xaxes(title_text=x_title, row=bottom_row)
+
+
 def three_axis_time_series(
     times_s: npt.NDArray[np.float64],
     series: Sequence[tuple[str, npt.NDArray[np.float64], str]],
@@ -320,7 +394,7 @@ def three_axis_time_series(
     for axis_index in range(3):
         for label, values, color in series:
             figure.add_trace(
-                go.Scattergl(
+                go.Scatter(
                     x=display_times_s,
                     y=values[indices, axis_index],
                     mode="lines",
@@ -332,16 +406,16 @@ def three_axis_time_series(
                 row=axis_index + 1,
                 col=1,
             )
+        # The unit goes on its own line: each row is only ~110 px tall, and
+        # a long single-line label (e.g. "Received (count / interval)")
+        # otherwise overruns into the neighbouring rows' titles.
         figure.update_yaxes(
-            title_text=f"{axis_labels[axis_index]} ({y_unit})", row=axis_index + 1, col=1
+            title_text=f"{axis_labels[axis_index]}<br>({y_unit})", row=axis_index + 1, col=1
         )
-    layout = plotly_layout(x_title, "", height=560)
-    # A range slider only needs to be declared once; with shared_xaxes it
-    # governs every linked row.
-    figure.update_layout(**layout)
+    _apply_subplot_layout(figure, x_title, bottom_row=3, height=560)
+    # A range slider only needs to be declared once, on the bottom row;
+    # with shared_xaxes it governs every linked row.
     figure.update_xaxes(rangeslider={"visible": True}, row=3, col=1)
-    figure.update_xaxes(rangeslider={"visible": False}, row=1, col=1)
-    figure.update_xaxes(rangeslider={"visible": False}, row=2, col=1)
     return figure
 
 
@@ -349,6 +423,7 @@ def trajectory_xy(
     series: Sequence[tuple[str, npt.NDArray[np.float64], str]],
     x_title: str = "X (m)",
     y_title: str = "Y (m)",
+    legend_only_labels: Collection[str] = (),
 ) -> go.Figure:
     """!
     @brief   Builds a 2-D XY trajectory plot with an equal aspect ratio, so
@@ -361,18 +436,25 @@ def trajectory_xy(
              X-axis title.
     @param   y_title
              Y-axis title.
+    @param   legend_only_labels
+             Labels whose traces start as `legendonly`: hidden and excluded
+             from autorange, but one legend click away. Used for a
+             diagnostic-only series whose scale (e.g. an unaided inertial
+             trace reaching kilometres) would otherwise shrink every other
+             trace to a dot.
 
     @return  The assembled figure.
     """
     figure = go.Figure()
     for label, positions, color in series:
         figure.add_trace(
-            go.Scattergl(
+            go.Scatter(
                 x=positions[:, 0],
                 y=positions[:, 1],
                 mode="lines",
                 name=label,
                 line={"color": color, "width": 2},
+                visible="legendonly" if label in legend_only_labels else None,
             )
         )
     layout = plotly_layout(x_title, y_title, height=480)
@@ -465,7 +547,7 @@ def estimate_truth_error_panel(
 
     figure = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08)
     figure.add_trace(
-        go.Scattergl(
+        go.Scatter(
             x=display_times_s,
             y=display_estimate,
             mode="lines",
@@ -476,7 +558,7 @@ def estimate_truth_error_panel(
         col=1,
     )
     figure.add_trace(
-        go.Scattergl(
+        go.Scatter(
             x=display_times_s,
             y=display_truth,
             mode="lines",
@@ -491,7 +573,7 @@ def estimate_truth_error_panel(
         # the standard Plotly "upper then lower with fill='tonexty'" idiom.
         three_sigma = 3.0 * display_sigma_band
         figure.add_trace(
-            go.Scattergl(
+            go.Scatter(
                 x=display_times_s,
                 y=display_error + three_sigma,
                 mode="lines",
@@ -503,7 +585,7 @@ def estimate_truth_error_panel(
             col=1,
         )
         figure.add_trace(
-            go.Scattergl(
+            go.Scatter(
                 x=display_times_s,
                 y=display_error - three_sigma,
                 mode="lines",
@@ -517,7 +599,7 @@ def estimate_truth_error_panel(
             col=1,
         )
     figure.add_trace(
-        go.Scattergl(
+        go.Scatter(
             x=display_times_s,
             y=display_error,
             mode="lines",
@@ -530,8 +612,8 @@ def estimate_truth_error_panel(
     figure.add_hline(y=0, line={"color": DIVERGING_MIDPOINT, "width": 1}, row=2, col=1)
     figure.update_yaxes(title_text=value_title, row=1, col=1)
     figure.update_yaxes(title_text=error_title, row=2, col=1)
-    layout = plotly_layout("Time (s)", "", height=520)
-    figure.update_layout(**layout)
+    _apply_subplot_layout(figure, "Time (s)", bottom_row=2, height=520)
+    # One range slider, on the bottom row; shared_xaxes links the top row.
     figure.update_xaxes(rangeslider={"visible": True}, row=2, col=1)
     return figure
 
@@ -574,7 +656,7 @@ def six_wheel_small_multiples(
         row = index // 3 + 1
         col = index % 3 + 1
         figure.add_trace(
-            go.Scattergl(
+            go.Scatter(
                 x=display_times_s,
                 y=values[indices, index],
                 mode="lines",
@@ -585,9 +667,27 @@ def six_wheel_small_multiples(
             row=row,
             col=col,
         )
-    figure.update_yaxes(title_text=y_title, col=1)
-    layout = plotly_layout("Time (s)", "", legend=False, height=440)
-    figure.update_layout(**layout)
+    _apply_subplot_layout(figure, "Time (s)", bottom_row=2, height=440, legend=False)
+    # One Y title centred across both rows (2026-09-23 rendering fix):
+    # repeated on each ~150 px row, a long title such as "Public wheel
+    # command velocity (rad/s)" was taller than its row and overflowed the
+    # figure at both edges. As a paper-referenced annotation it inherits the
+    # themed `font.color`, like the subplot titles.
+    figure.add_annotation(
+        text=y_title,
+        textangle=-90,
+        xref="paper",
+        yref="paper",
+        x=0.0,
+        y=0.5,
+        xanchor="right",
+        yanchor="middle",
+        xshift=-(SMALL_MULTIPLES_LEFT_MARGIN_PX - 24),
+        showarrow=False,
+    )
+    figure.update_layout(
+        margin={"t": SMALL_MULTIPLES_TOP_MARGIN_PX, "l": SMALL_MULTIPLES_LEFT_MARGIN_PX}
+    )
     return figure
 
 
@@ -623,7 +723,7 @@ def rate_count_plot(
     # `_decimated_indices`), ranking by the series' own magnitude.
     indices = _decimated_indices(times_s, np.abs(values))
     figure = go.Figure(
-        go.Scattergl(
+        go.Scatter(
             x=times_s[indices],
             y=values[indices],
             mode="lines+markers",
@@ -653,15 +753,29 @@ def summary_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> go.F
                 "values": list(headers),
                 "fill_color": CATEGORICAL_COLORS[0],
                 "font": {"color": "white"},
+                "line_color": TABLE_RULE_COLOR,
                 "align": "left",
             },
-            cells={"values": columns, "align": "left"},
+            # Transparent cells (2026-09-23 rendering fix): the default
+            # template's fixed pale-blue cell fill stayed light in dark
+            # mode while the themed text turned white, leaving the body
+            # unreadable. With no fill, the card surface shows through and
+            # the text follows the themed `font.color` in either mode.
+            cells={
+                "values": columns,
+                "fill_color": "rgba(0,0,0,0)",
+                "line_color": TABLE_RULE_COLOR,
+                "align": "left",
+            },
         )
     )
     figure.update_layout(
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
         height=44 + 28 * max(1, len(rows)),
         paper_bgcolor="rgba(0,0,0,0)",
+        # Same initial (light) text color and font as every other figure;
+        # the page's theme script re-colors it for dark mode.
+        font={"family": FONT_FAMILY, "size": 13, "color": CHROME_LIGHT["text_primary"]},
     )
     return figure
 
@@ -811,8 +925,15 @@ def point_cloud_3d_slider(snapshots: Sequence[PointCloudSnapshot]) -> go.Figure:
                 ),
             )
         )
+    # Open on the first snapshot that has points (2026-09-23 rendering fix):
+    # a real capture's first sampled cloud is published before visual
+    # odometry initializes and holds zero points, which left the panel blank
+    # on every load. All-empty input falls back to the first snapshot.
+    initial_index = next(
+        (index for index, snapshot in enumerate(snapshots) if len(snapshot.points_m) > 0), 0
+    )
     if figure.data:
-        figure.data[0].visible = True
+        figure.data[initial_index].visible = True
     if len(snapshots) > 1:
         steps = [
             {
@@ -823,7 +944,7 @@ def point_cloud_3d_slider(snapshots: Sequence[PointCloudSnapshot]) -> go.Figure:
             for index, snapshot in enumerate(snapshots)
         ]
         figure.update_layout(
-            sliders=[{"active": 0, "currentvalue": {"prefix": "t="}, "steps": steps}]
+            sliders=[{"active": initial_index, "currentvalue": {"prefix": "t="}, "steps": steps}]
         )
     layout = plotly_layout("X (m)", "Y (m)", legend=False, height=520)
     layout["scene"] = {"aspectmode": "data"}

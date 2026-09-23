@@ -30,6 +30,7 @@ TOPIC_ESTIMATE = "/alpha/localisation/kalman_filter/odometry"
 TOPIC_VISUAL = "/alpha/localisation/visual/odometry"
 TOPIC_WHEEL = "/alpha/localisation/wheel/odometry"
 TOPIC_INERTIAL = "/alpha/localisation/inertial/odometry"
+INERTIAL_TRAJECTORY_LABEL = "Inertial (diagnostic only -- ESKF consumes raw IMU, not this)"
 
 # Chi-square 99th-percentile thresholds by degrees of freedom, matching
 # selectNisThreshold.cc's fixed table, used to display the effective
@@ -125,16 +126,23 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
         warnings.append(f"{TOPIC_WHEEL} published no messages: no wheel measurement was available to fuse this run")
     inertial = context.bag.odometry.get(TOPIC_INERTIAL)
     if inertial is not None:
-        trajectory_series.append(("Inertial (diagnostic only -- ESKF consumes raw IMU, not this)", inertial.position_m, style.COLOR_RAW_SOURCE))
+        trajectory_series.append((INERTIAL_TRAJECTORY_LABEL, inertial.position_m, style.COLOR_RAW_SOURCE))
     else:
         warnings.append(f"{TOPIC_INERTIAL} published no messages (diagnostic-only comparison unavailable)")
     if trajectory_series:
-        trajectory_figure = figures.trajectory_xy(trajectory_series)
+        # The unaided inertial trace can drift kilometres while every other
+        # source stays within metres, so it starts legend-only: it no longer
+        # drives the initial axes, but one legend click restores it.
+        trajectory_figure = figures.trajectory_xy(
+            trajectory_series, legend_only_labels=(INERTIAL_TRAJECTORY_LABEL,)
+        )
         sections.append(
             "<section class='plot-section'><h2>Trajectory overlay (all sources, X-Y)</h2>"
             "<p>Visual and wheel are fused measurements; inertial odometry "
             "is shown for diagnostic comparison only -- the ESKF consumes "
-            "raw IMU directly, not this topic.</p>"
+            "raw IMU directly, not this topic. It starts hidden because its "
+            "unaided drift can dwarf every other trace; click it in the "
+            "legend to show it.</p>"
             f"{html.figure_to_fragment(trajectory_figure, 'kalman-trajectory')}</section>"
         )
 
