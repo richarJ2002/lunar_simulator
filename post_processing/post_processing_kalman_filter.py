@@ -34,13 +34,15 @@ TOPIC_INERTIAL = "/alpha/localisation/inertial/odometry"
 # Chi-square 99th-percentile thresholds by degrees of freedom, matching
 # selectNisThreshold.cc's fixed table, used to display the effective
 # threshold when a *_nis_threshold parameter is 0 (its "automatic" value).
+# 2026-09-23 correction: 6 DoF is 16.812 -- this table previously listed
+# the 7-DoF value (18.475) there, so the page overstated the visual gate.
 _CHI_SQUARE_99_PERCENT = {
     1: 6.635,
     2: 9.210,
     3: 11.345,
     4: 13.277,
     5: 15.086,
-    6: 18.475,
+    6: 16.812,
 }
 
 
