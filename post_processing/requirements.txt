@@ -1,0 +1,10 @@
+# Post-processing dependencies, installed via pip into the environment
+# used to run post_processing.py and the standalone post_processing_*.py
+# scripts. ROS Python modules and message definitions (rosbag2_py, rclpy,
+# rosidl_runtime_py, and every *_msgs package) come from the sourced
+# /opt/ros/jazzy/setup.bash and this workspace's install/setup.bash, not
+# from pip -- do not add them here.
+
+numpy>=1.24
+plotly>=5.18
+PyYAML>=6.0

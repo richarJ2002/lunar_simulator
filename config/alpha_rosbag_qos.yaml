@@ -1,0 +1,70 @@
+# Rosbag2 QoS profile overrides for the automatic "localisation" recording
+# started by scripts/launch_simulator.sh's start_recorder(). Passed as
+# --qos-profile-overrides-path.
+#
+# `ros2 bag record` subscribes RELIABLE + KEEP_LAST(10) + VOLATILE to every
+# topic by default. Most publishers in this project already use that exact
+# profile, but a few sensor topics publish best-effort, and two slip-ratio
+# topics latch their one message reliable + transient-local; both cases need
+# an explicit override here, or the recorder either silently receives
+# nothing (best-effort publisher vs. a reliable-only subscription is an
+# incompatible-QoS mismatch, not a fallback) or misses the latched value
+# entirely if it starts after that one publish. Only topics whose QoS
+# differs from the recorder's default are listed; every other core or
+# --record-images topic needs no entry here.
+
+# Alpha driver's noisy IMU: sensor_msgs/msg/Imu, rclcpp::SensorDataQoS()
+# (src/systems/alpha/alpha_drivers/.../configureImuInterface.cc).
+/alpha/imu:
+  history: keep_last
+  depth: 5
+  reliability: best_effort
+  durability: volatile
+
+# Inertial odometry's bias-corrected, gravity-free IMU stage:
+# sensor_msgs/msg/Imu, rclcpp::SensorDataQoS()
+# (src/localisation/inertial_odometry/.../InertialOdometryNode.h).
+/alpha/localisation/inertial/filtered_imu:
+  history: keep_last
+  depth: 5
+  reliability: best_effort
+  durability: volatile
+
+# Alpha driver's noisy joint states: sensor_msgs/msg/JointState,
+# rclcpp::SensorDataQoS()
+# (src/systems/alpha/alpha_drivers/.../configureJointStateInterface.cc).
+/alpha/joint_states:
+  history: keep_last
+  depth: 5
+  reliability: best_effort
+  durability: volatile
+
+# Wheel odometry's applied per-wheel slip ratio: std_msgs/msg/Float64MultiArray,
+# latched rclcpp::QoS(1).reliable().transient_local()
+# (src/localisation/wheel_odometry/.../WheelOdometryNode.h). Transient-local
+# so a recorder that starts after this topic's one publish still captures it.
+/alpha/localisation/wheel/slip_ratios:
+  history: keep_last
+  depth: 1
+  reliability: reliable
+  durability: transient_local
+
+# Wheel odometry's raw per-cycle slip observation:
+# std_msgs/msg/Float64MultiArray, rclcpp::SensorDataQoS()
+# (src/localisation/wheel_odometry/.../WheelOdometryNode.h).
+/alpha/localisation/wheel/slip_observation:
+  history: keep_last
+  depth: 5
+  reliability: best_effort
+  durability: volatile
+
+# Kalman filter's wheel-slip compatibility topic. Publishes a fixed neutral
+# all-zero vector (slip is no longer an ESKF state -- see
+# alpha_kalman_filter's publishWheelSlip.cc), latched
+# rclcpp::QoS(1).reliable().transient_local()
+# (src/systems/alpha/alpha_localisation/alpha_kalman_filter/.../AlphaKalmanFilterNode.h).
+/alpha/localisation/kalman_filter/wheel_slip_ratio:
+  history: keep_last
+  depth: 1
+  reliability: reliable
+  durability: transient_local

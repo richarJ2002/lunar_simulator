@@ -15,6 +15,11 @@ export GZ_PARTITION=lunar_simulator_73
 ./scripts/launch_simulator.sh
 ./scripts/launch_simulator.sh lunar_surface alpha
 
+# Also record the LocCam stereo and annotated feature image topics into
+# this run's rosbag (core telemetry is always recorded regardless of this
+# flag; see "Post-Processing Reports" below for the disk-space tradeoff)
+./scripts/launch_simulator.sh --record-images
+
 # Launch every node the Alpha system owns, plus Gazebo and the ROS bridge,
 # standalone (scripts/launch_simulator.sh instead delegates just the node
 # launching to this same file, after handling Gazebo spawn/pause/unpause
@@ -34,15 +39,19 @@ test_runs/YYYY-MM-DD-HH-mm-SS/
 |-- ros/
 |   |-- build_logs/   # Colcon logs
 |   |-- logs/         # ROS node logs
-|   `-- bags/         # Destination for rosbag recordings
+|   `-- bags/
+|       |-- localisation/     # Automatically recorded rosbag2/MCAP bag
+|       `-- manifest.json     # World/system/domain/profile/topics/revision for this recording
 |-- logs/
 |   `-- terminal.txt  # Complete launcher and simulation terminal output
-`-- post_processing/  # Reserved for later analysis outputs
+`-- post_processing/  # Generated report site (see "Post-Processing Reports")
 ```
 
 The launcher exports `TEST_RUN_DIR`, `ROS_LOG_DIR`, `COLCON_LOG_PATH`, and
 `LUNAR_SIMULATOR_ROSBAG_DIR` so child processes and future recording tools use
-the same run directory.
+the same run directory. Every launch automatically records a core telemetry
+bag to `ros/bags/localisation`; the launcher exits with an error rather than
+completing a run whose recorder failed to start or crashed immediately.
 
 When an interactive simulation ends, the launcher asks for an optional test-run
 name. Entering `straight-drive`, for example, renames the directory to
@@ -106,6 +115,75 @@ To add new functionality to existing system:
 - Update package.xml with new dependencies
 - Update `config/alpha_ros_gz_bridge.yaml` if new topics needed
 - Independent from other systems
+
+## Post-Processing Reports
+
+`post_processing/` is a source-tree Python tool (not a ROS executable) that
+turns one captured test run's bag and node logs into a portable, interactive
+Plotly HTML report site under that run's own `post_processing/` directory.
+Source scripts live in the checkout at `post_processing/`; the generated
+site lives with the run's other artifacts at
+`test_runs/<run>/post_processing/` — the two `post_processing` paths are
+different things with the same name.
+
+Required environment: source both `/opt/ros/jazzy/setup.bash` and this
+workspace's `install/setup.bash` first (the tool imports `rosbag2_py`,
+`rclpy` and every recorded `*_msgs` package from there, not from pip), then
+install the pip dependencies once:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+python3 -m pip install -r post_processing/requirements.txt
+```
+
+Generate the complete site (index plus all four subsystem pages) for one run:
+
+```bash
+python3 post_processing/post_processing.py --test-run test_runs/<run>
+```
+
+Each subsystem also has its own standalone script, generating only its own
+page plus the shared assets, without shelling out to the aggregate command:
+
+```bash
+python3 post_processing/post_processing_kalman_filter.py    --test-run test_runs/<run>
+python3 post_processing/post_processing_visual_odometry.py  --test-run test_runs/<run>
+python3 post_processing/post_processing_inertial_odometry.py --test-run test_runs/<run>
+python3 post_processing/post_processing_wheel_odometry.py   --test-run test_runs/<run>
+```
+
+Every script accepts `--output-dir` (default `<test-run>/post_processing`),
+`--bag` (default: the run's own `ros/bags/localisation`),
+`--maximum-alignment-gap-s`, and `--maximum-image-frames`; run any script
+with `-h` for the full flag reference. Regeneration only overwrites this
+tool's own fixed page/asset filenames — an analyst's own files already in
+the output directory are left alone.
+
+`--record-images` is opt-in because at 1024x1024/10 Hz the LocCam stereo and
+annotated-feature image topics can add multiple gigabytes to a normal system
+test; without it, the visual odometry page still renders fully, with a card
+explaining how to capture a future run with images included. Sampled frames
+are embedded as compressed PNG data URIs (bounded by `--maximum-image-frames`
+per topic, default 24) rather than raw pixel data, keeping the visual
+odometry page in the low tens of megabytes even with images included.
+
+### Troubleshooting
+
+- **"No default telemetry bag found"**: the run predates automatic
+  recording, or its recorder failed to start — check
+  `test_runs/<run>/logs/terminal.txt` and
+  `test_runs/<run>/ros/bags/rosbag_record.log`. Pass `--bag` explicitly if
+  the bag lives somewhere else.
+- **"not a valid rosbag2 bag: no metadata.yaml"**: the recording did not
+  shut down cleanly (metadata.yaml is only written on a finalized recorder
+  exit); the bag's messages may still be readable with `ros2 bag info`, but
+  this tool refuses to guess at an unfinalized bag's own metadata.
+- **"ROS message type ... is not available"**: `/opt/ros/jazzy/setup.bash`
+  and/or `install/setup.bash` were not sourced before running the script.
+- **Missing images on the visual odometry page**: the run was captured
+  without `--record-images`; the page says so and still renders every other
+  section — re-run the capture with `--record-images` to include frames.
 
 ## Verification Steps
 
