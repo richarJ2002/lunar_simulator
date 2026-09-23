@@ -329,6 +329,7 @@ rename_test_run() {
     return 1
   fi
 
+  local previous_test_run_dir="$TEST_RUN_DIR"
   TEST_RUN_DIR="$renamed_test_run_dir"
   RUN_ROS_DIR="$TEST_RUN_DIR/ros"
   RUN_LOGS_DIR="$TEST_RUN_DIR/logs"
@@ -336,7 +337,41 @@ rename_test_run() {
   export COLCON_LOG_PATH="$RUN_ROS_DIR/build_logs"
   export ROS_LOG_DIR="$RUN_ROS_DIR/logs"
   export LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+  # The recorder (already stopped by finalize_test_run) wrote manifest.json
+  # naming the bag under the timestamp-only directory; carry that path along
+  # so the manifest never points at a directory that no longer exists.
+  if [[ -n "$BAG_DESTINATION" && "$BAG_DESTINATION" == "$previous_test_run_dir"/* ]]; then
+    BAG_DESTINATION="$TEST_RUN_DIR${BAG_DESTINATION#"$previous_test_run_dir"}"
+  fi
+  relocate_recording_manifest "$previous_test_run_dir" "$TEST_RUN_DIR" ||
+    wrn "Unable to update manifest.json bag_destination after rename"
   msg "Named test run: $TEST_RUN_DIR"
+}
+
+#!
+# @brief          Rewrites manifest.json's bag_destination after the run
+#                 directory has been renamed, preserving every other field.
+#                 A missing manifest (no recording) is not an error.
+#
+# @param  $1      The run directory before the rename.
+# @param  $2      The run directory after the rename.
+relocate_recording_manifest() {
+  local manifest_path="$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
+  [ -f "$manifest_path" ] || return 0
+  python3 - "$manifest_path" "$1" "$2" <<'PYEOF'
+import json
+import sys
+
+manifest_path, previous_dir, renamed_dir = sys.argv[1:4]
+with open(manifest_path, encoding="utf-8") as manifest_file:
+    manifest = json.load(manifest_file)
+destination = manifest.get("bag_destination")
+if isinstance(destination, str) and destination.startswith(previous_dir + "/"):
+    manifest["bag_destination"] = renamed_dir + destination[len(previous_dir):]
+    with open(manifest_path, "w", encoding="utf-8") as manifest_file:
+        json.dump(manifest, manifest_file, indent=2, sort_keys=True)
+        manifest_file.write("\n")
+PYEOF
 }
 
 prompt_for_test_run_name() {

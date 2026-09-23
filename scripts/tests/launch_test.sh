@@ -159,7 +159,19 @@ bash -c '
     exit 1
   fi
   [ "$TEST_RUN_DIR" = "$timestamp_test_run_dir" ]
+  # A recorded run has already written manifest.json naming the bag under
+  # the timestamp-only directory; the rename must carry that path along.
+  BAG_DESTINATION="$LUNAR_SIMULATOR_ROSBAG_DIR/localisation"
+  printf "{\"bag_destination\": \"%s\", \"world\": \"lunar_surface\"}\n" \
+    "$BAG_DESTINATION" > "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
   rename_test_run "straight-drive"
+  [ "$BAG_DESTINATION" = "$TEST_RUN_DIR/ros/bags/localisation" ]
+  python3 -c "
+import json, sys
+manifest = json.load(open(sys.argv[1]))
+assert manifest[\"bag_destination\"] == sys.argv[2], manifest
+assert manifest[\"world\"] == \"lunar_surface\", manifest
+" "$TEST_RUN_DIR/ros/bags/manifest.json" "$TEST_RUN_DIR/ros/bags/localisation"
   [[ "$(basename "$TEST_RUN_DIR")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-straight-drive$ ]]
   [ "$COLCON_LOG_PATH" = "$TEST_RUN_DIR/ros/build_logs" ]
   [ "$ROS_LOG_DIR" = "$TEST_RUN_DIR/ros/logs" ]
