@@ -27,6 +27,7 @@ from python_tools.bag.reader import (
     read_bag,
     validate_test_run_dir,
 )
+from python_tools.diagnostics.bag_diagnostics import DIAGNOSTICS_TOPIC, diagnostic_log_from_bag
 from python_tools.diagnostics.log_parser import find_latest_log, parse_log_file
 from python_tools.data.models import DiagnosticLog, ParameterSnapshot, ReportContext, RunMetadata
 
@@ -201,12 +202,18 @@ def build_report_context(
         end_time_ns=bag.end_time_ns,
     )
 
-    log_path = find_latest_log(test_run_dir / "ros" / "logs", ALPHA_NODE_LOG_PREFIX)
-    diagnostics = (
-        parse_log_file(log_path)
-        if log_path is not None
-        else DiagnosticLog(log_path=test_run_dir / "ros" / "logs")
-    )
+    # Runs from WP-01 Phase 1 onward record diagnostics in the bag, in
+    # simulation time; older runs only have the node log's wall-clock lines.
+    recorded_diagnostics = bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+    if recorded_diagnostics is not None and recorded_diagnostics.samples:
+        diagnostics = diagnostic_log_from_bag(recorded_diagnostics, bag_path)
+    else:
+        log_path = find_latest_log(test_run_dir / "ros" / "logs", ALPHA_NODE_LOG_PREFIX)
+        diagnostics = (
+            parse_log_file(log_path)
+            if log_path is not None
+            else DiagnosticLog(log_path=test_run_dir / "ros" / "logs")
+        )
 
     resolved_output_dir = output_dir if output_dir is not None else test_run_dir / "post_processing"
     if resolved_output_dir.is_file():

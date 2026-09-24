@@ -10,6 +10,9 @@
 /* Matching Declaration Include */
 #include "objects/AlphaDriverNode.h"
 
+/* Other Project Module Includes */
+#include "console/console.h"
+
 namespace systems::alpha::alpha_drivers
 {
 
@@ -52,12 +55,11 @@ void AlphaDriverNode::configureWheelCommandInterface(
             { publishNoisyWheelCommandCallBack(*p_message); },
             subscriptionOptions);
 
-    /* Record the resolved topic names once at start-up for operators
-     * inspecting the node's log. */
-    RCLCPP_INFO(get_logger(),
-                "Alpha driver: wheel command %s -> %s",
-                wheelCommandTopic.c_str(),
-                rawWheelCommandTopic.c_str());
+    /* Topic wiring is already captured by the run's parameter snapshot. */
+    LUNAR_LOG_DEBUG(get_logger(),
+                    "Alpha driver: wheel command %s -> %s",
+                    wheelCommandTopic.c_str(),
+                    rawWheelCommandTopic.c_str());
 }
 
 } /* namespace systems::alpha::alpha_drivers */

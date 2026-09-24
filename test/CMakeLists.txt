@@ -38,3 +38,16 @@ target_link_libraries(test_corner_detector alpha_feature_tracking)
 ament_add_gtest(test_optical_flow_tracker test_optical_flow_tracker.cpp)
 target_compile_features(test_optical_flow_tracker PUBLIC cxx_std_17)
 target_link_libraries(test_optical_flow_tracker alpha_feature_tracking)
+
+ament_add_gtest(test_console_wrap test_console_wrap.cpp)
+target_compile_features(test_console_wrap PUBLIC cxx_std_17)
+target_link_libraries(test_console_wrap common_console)
+
+# WP-01 console rule: project C++ logs only through the 40-character
+# LUNAR_LOG_* macros; a direct RCLCPP_* call anywhere else fails this test.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME console_logging_lint
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/lint/check_console_logging.py
+    ${PROJECT_SOURCE_DIR}/src
+)

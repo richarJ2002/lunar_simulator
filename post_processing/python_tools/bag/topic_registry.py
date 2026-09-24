@@ -47,6 +47,8 @@ class MessageCategory(Enum):
     VISUAL_RESET = auto()
     # sensor_msgs/msg/Image: a camera or annotated-feature frame.
     IMAGE = auto()
+    # diagnostic_msgs/msg/DiagnosticArray: named key/value status records.
+    DIAGNOSTIC_ARRAY = auto()
 
 
 @dataclass(frozen=True)
@@ -177,6 +179,12 @@ CORE_TOPICS: tuple[TopicSpec, ...] = (
         "/alpha/localisation/kalman_filter/wheel_slip_ratio",
         "std_msgs/msg/Float64MultiArray",
         MessageCategory.WHEEL_SCALAR,
+        True,
+    ),
+    TopicSpec(
+        "/alpha/diagnostics",
+        "diagnostic_msgs/msg/DiagnosticArray",
+        MessageCategory.DIAGNOSTIC_ARRAY,
         True,
     ),
 )

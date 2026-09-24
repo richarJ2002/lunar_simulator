@@ -12,7 +12,7 @@
 #define LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 /* None */
@@ -161,10 +161,12 @@ class AckermannControllerNode final : public rclcpp::Node
                 [this](geometry_msgs::msg::Twist::ConstSharedPtr p_message)
                 { handleVelocityCommandCallBack(*p_message); });
 
-        /* Record the resolved topic names once at start-up for operators
-         * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(), "Ackermann controller: %s -> %s",
-                    velocityTopic.c_str(), wheelJointStatesTopic.c_str());
+        /* Topic wiring is already captured by the run's parameter
+         * snapshot, so it is debug detail rather than operator output. */
+        LUNAR_LOG_DEBUG(get_logger(),
+                        "Ackermann controller: %s -> %s",
+                        velocityTopic.c_str(),
+                        wheelJointStatesTopic.c_str());
     }
 
     /*! @brief Releases the node's ROS interfaces. */

@@ -9,7 +9,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/WheelOdometryNode.h"
@@ -37,13 +37,12 @@ void WheelOdometryNode::handleWheelSlipEstimateCallBack(
          * continuous_ekf always publishes exactly slipRatios.size()
          * elements (see AlphaKalmanFilterNode::publishWheelSlip()).
          */
-        RCLCPP_WARN_THROTTLE(
-            get_logger(),
-            *get_clock(),
-            3000,
-            "Ignoring wheel-slip estimate with %zu elements (expected %zu)",
-            message_in.data.size(),
-            slipRatios.size());
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                3000,
+                                "Slip estimate has %zu values, not %zu",
+                                message_in.data.size(),
+                                slipRatios.size());
 
         return;
     }

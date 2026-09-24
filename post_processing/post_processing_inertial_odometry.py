@@ -19,6 +19,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from python_tools.context import build_common_parser, build_report_context
 from python_tools.data import alignment, metrics
 from python_tools.data.models import ReportContext, ReportPage
+from python_tools.diagnostics.bag_diagnostics import (
+    DIAGNOSTICS_TOPIC,
+    inertial_calibration_complete_elapsed_s,
+)
 from python_tools.diagnostics.log_parser import find_inertial_calibration_complete_time_s
 from python_tools.reporting import figures, html, style
 
@@ -45,18 +49,31 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
     params = context.parameters.get("inertial_odometry")
     if params is not None:
         p = params.parameters
-        calibration_time_s = None
-        if context.diagnostics.log_path.is_file():
-            calibration_time_s = find_inertial_calibration_complete_time_s(
-                context.diagnostics.log_path
+        # Runs from WP-01 Phase 1 onward record calibration in simulation
+        # time; older runs only have the node log's wall-clock marker.
+        recorded = context.bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+        if recorded is not None and recorded.samples:
+            calibration_elapsed_s = inertial_calibration_complete_elapsed_s(
+                recorded, context.bag.start_time_ns
             )
-        calibration_status = (
-            # Relative to the node log's own first record, not this page's
-            # bag-elapsed-time axis -- see log_parser's module docstring.
-            f"complete {calibration_time_s:.2f}s into the node log"
-            if calibration_time_s is not None
-            else "not observed in the node log"
-        )
+            calibration_status = (
+                f"complete at {calibration_elapsed_s:.2f} s (bag-elapsed)"
+                if calibration_elapsed_s is not None
+                else "not reported complete in the recorded diagnostics"
+            )
+        else:
+            calibration_time_s = None
+            if context.diagnostics.log_path.is_file():
+                calibration_time_s = find_inertial_calibration_complete_time_s(
+                    context.diagnostics.log_path
+                )
+            calibration_status = (
+                # Relative to the node log's own first record, not this page's
+                # bag-elapsed-time axis -- see log_parser's module docstring.
+                f"complete {calibration_time_s:.2f}s into the node log"
+                if calibration_time_s is not None
+                else "not observed in the node log"
+            )
         sections.append(
             "<section class='plot-section'><h2>Calibration &amp; configuration</h2>"
             "<dl>"

@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
 from python_tools.data import alignment, metrics
-from python_tools.data.models import OdometrySeries, ReportContext, ReportPage
-from python_tools.diagnostics.log_parser import DIAGNOSTIC_TIME_AXIS_TITLE
+from python_tools.data.models import DiagnosticTimeBasis, OdometrySeries, ReportContext, ReportPage
+from python_tools.diagnostics.bag_diagnostics import diagnostic_time_axis_title
 from python_tools.reporting import figures, html, style
 
 TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
@@ -305,21 +305,25 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
             f"{TOPIC_ESTIMATE} published no messages"
         )
 
-    # localisation_diag periodic diagnostics, one section per source.
+    # Periodic estimator diagnostics, one section per source: recorded in
+    # the bag from WP-01 Phase 1 onward, parsed from the node log's
+    # localisation_diag lines before that.
     records = context.diagnostics.localisation_records
+    diagnostic_axis_title = diagnostic_time_axis_title(context.diagnostics)
     if records:
-        warnings.append(
-            "localisation_diag timing below is relative to the node log's "
-            "own first record, not aligned to this page's other "
-            "bag-elapsed-time plots -- no reliable wall-clock<->"
-            "simulated-time anchor exists in this run to convert one axis "
-            "into the other."
-        )
+        if context.diagnostics.time_basis is DiagnosticTimeBasis.LOG_RELATIVE:
+            warnings.append(
+                "localisation_diag timing below is relative to the node log's "
+                "own first record, not aligned to this page's other "
+                "bag-elapsed-time plots -- no reliable wall-clock<->"
+                "simulated-time anchor exists in this run to convert one axis "
+                "into the other."
+            )
         for source in ("imu", "visual", "wheel"):
             source_records = [r for r in records if r.source == source]
             if not source_records:
                 continue
-            times_s = np.array([r.log_relative_time_s for r in source_records])
+            times_s = np.array([r.time_s for r in source_records])
             received = np.array([r.received for r in source_records], dtype=float)
             accepted = np.array([r.accepted for r in source_records], dtype=float)
             fused = np.array([r.fused for r in source_records], dtype=float)
@@ -332,15 +336,15 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
                 [("Received/Accepted/Fused (interval delta)", np.stack([received_rate, np.diff(accepted, prepend=accepted[0]), fused_rate], axis=1), style.COLOR_PRIMARY_ESTIMATE)],
                 ("Received", "Accepted", "Fused"),
                 "count / interval",
-                x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+                x_title=diagnostic_axis_title,
             )
             nis_figure = figures.rate_count_plot(
                 times_s, np.array([r.nis for r in source_records]), "NIS",
-                x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+                x_title=diagnostic_axis_title,
             )
             correction_figure = figures.rate_count_plot(
                 times_s, np.array([r.correction_norm for r in source_records]), "Correction norm",
-                x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+                x_title=diagnostic_axis_title,
             )
             latest = source_records[-1]
             summary_rows = [
@@ -369,7 +373,7 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
                 ["Metric", "Latest cumulative value"], summary_rows
             )
             sections.append(
-                f"<section class='plot-section'><h2>{source.capitalize()} measurement diagnostics (5 s periodic)</h2>"
+                f"<section class='plot-section'><h2>{source.capitalize()} measurement diagnostics (periodic)</h2>"
                 f"{html.figure_to_fragment(summary_table, f'kalman-diag-table-{source}')}"
                 f"{html.figure_to_fragment(counts_figure, f'kalman-diag-counts-{source}')}"
                 f"{html.figure_to_fragment(nis_figure, f'kalman-diag-nis-{source}')}"
@@ -379,11 +383,11 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
         # Filter-wide snapshot (identical across all three sources' lines
         # per tick -- shown once, not per source).
         latest = records[-1]
-        times_s = np.array(sorted({r.log_relative_time_s for r in records}))
-        trace_by_time = {r.log_relative_time_s: r.covariance_trace for r in records}
+        times_s = np.array(sorted({r.time_s for r in records}))
+        trace_by_time = {r.time_s: r.covariance_trace for r in records}
         trace_series = np.array([trace_by_time[t] for t in times_s])
         trace_figure = figures.rate_count_plot(
-            times_s, trace_series, "Covariance trace", x_title=DIAGNOSTIC_TIME_AXIS_TITLE
+            times_s, trace_series, "Covariance trace", x_title=diagnostic_axis_title
         )
         bias_table = figures.summary_table(
             ["Metric", "Latest value"],
@@ -403,7 +407,7 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
             f"{html.figure_to_fragment(trace_figure, 'kalman-covariance-trace')}</section>"
         )
     else:
-        warnings.append("No localisation_diag diagnostic records found in the node log")
+        warnings.append("No estimator diagnostic records found in the bag or node log")
 
     body = "".join(sections) if sections else figures.empty_state_card_html(
         "No kalman filter data available in this run."

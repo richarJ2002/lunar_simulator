@@ -9,7 +9,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/WheelOdometryNode.h"
@@ -77,11 +77,10 @@ void WheelOdometryNode::handleJointStateCallBack(
              * transiently right after simulator startup while Gazebo is
              * still publishing the model's first joint states.
              */
-            RCLCPP_WARN_THROTTLE(
-                get_logger(),
-                *get_clock(),
-                3000,
-                "Waiting for all six drive and steering joints");
+            LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                    *get_clock(),
+                                    3000,
+                                    "Waiting for all 12 wheel joints");
 
             /* Skip this callback entirely; try again next message. */
             return;
@@ -234,12 +233,10 @@ void WheelOdometryNode::handleJointStateCallBack(
                                     0.0,
                                     longitudinalYawTwist.y());
         usedLongitudinalFallback = true;
-        RCLCPP_WARN_THROTTLE(
-            get_logger(),
-            *get_clock(),
-            3000,
-            "Wheel solve rejected amplified lateral geometry; using "
-            "longitudinal/yaw fallback");
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                3000,
+                                "Wheel solve fell back to vx/yaw only");
     }
 
     /* Propagate encoder and steering uncertainty through the conditioned
@@ -337,13 +334,12 @@ void WheelOdometryNode::handleJointStateCallBack(
              * displacement from a single instantaneous twist sample, so
              * the gap is skipped entirely rather than integrated.
              */
-            RCLCPP_WARN_THROTTLE(
-                get_logger(),
-                *get_clock(),
-                2000,
-                "Skipping %.3f s wheel integration gap (limit %.3f s)",
-                dtS,
-                maximumIntegrationDtS);
+            LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                    *get_clock(),
+                                    2000,
+                                    "Wheel gap %.2f s > %.2f s; skipped",
+                                    dtS,
+                                    maximumIntegrationDtS);
         }
     }
 

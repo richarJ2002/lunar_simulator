@@ -31,7 +31,7 @@ add_library(alpha_kalman_filter STATIC
   methods/measurementVariances.cc
   methods/wrapAngle.cc
   methods/logStepFailure.cc
-  methods/logDiagnostics.cc
+  methods/publishDiagnosticsCallBack.cc
   methods/publishEstimate.cc
   methods/handleImuCallBack.cc
   methods/handleMeasurementCallBack.cc
@@ -45,8 +45,14 @@ add_library(alpha_kalman_filter STATIC
 )
 target_compile_features(alpha_kalman_filter PUBLIC cxx_std_17)
 target_include_directories(alpha_kalman_filter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(alpha_kalman_filter ekf_continuous_kalman_filter Eigen3::Eigen)
+target_link_libraries(alpha_kalman_filter
+  common_console
+  common_diagnostics
+  ekf_continuous_kalman_filter
+  Eigen3::Eigen
+)
 ament_target_dependencies(alpha_kalman_filter
+  diagnostic_msgs
   geometry_msgs
   nav_msgs
   rclcpp

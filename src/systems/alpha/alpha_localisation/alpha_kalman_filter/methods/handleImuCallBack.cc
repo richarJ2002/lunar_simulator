@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            handleImuCallBack.cc
  *
  * @brief           Implements stationary initialization and raw-IMU prediction.
@@ -8,6 +8,9 @@
 
 /* Matching Declaration Include */
 #include "objects/AlphaKalmanFilterNode.h"
+
+/* Other Project Module Includes */
+#include "console/console.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -108,9 +111,9 @@ void AlphaKalmanFilterNode::handleImuCallBack(
             return;
         }
         ++imuDiagnostics.fusedCount;
-        RCLCPP_INFO(get_logger(),
-                    "Raw IMU stationary initialization complete (%zu samples)",
-                    imuInitializationSampleCount);
+        LUNAR_LOG_INFO(get_logger(),
+                       "EKF IMU init complete (%zu samples)",
+                       imuInitializationSampleCount);
         finishDiagnostics();
         return;
     }

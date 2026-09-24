@@ -11,7 +11,7 @@
 #define LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 /* None */
@@ -140,14 +140,14 @@ class GroundTruthNode final : public rclcpp::Node
             [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
             { handleOdometryCallBack(*p_message); });
 
-        /* Record the resolved topic names once at start-up for operators
-         * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(),
-                    "Ground truth: %s -> %s, %s in %s",
-                     odometryTopic.c_str(),
-                     outputOdometryTopic.c_str(),
-                     pathTopic.c_str(),
-                    startupFixedFrame.c_str());
+        /* Topic wiring is already captured by the run's parameter
+         * snapshot, so it is debug detail rather than operator output. */
+        LUNAR_LOG_DEBUG(get_logger(),
+                        "Ground truth: %s -> %s, %s in %s",
+                        odometryTopic.c_str(),
+                        outputOdometryTopic.c_str(),
+                        pathTopic.c_str(),
+                        startupFixedFrame.c_str());
     }
 
     /*!

@@ -262,10 +262,10 @@ bash -c '
   parse_arguments --record-images
   [ "$RECORD_IMAGES" -eq 1 ]
   assemble_record_topics
-  [ "${#RECORD_TOPICS[@]}" -eq 23 ]
+  [ "${#RECORD_TOPICS[@]}" -eq 24 ]
   RECORD_IMAGES=0
   assemble_record_topics
-  [ "${#RECORD_TOPICS[@]}" -eq 20 ]
+  [ "${#RECORD_TOPICS[@]}" -eq 21 ]
 ' _ "$LAUNCH_SH" >/dev/null || fail "recording argument parsing / topic assembly"
 pass "recording argument parsing / topic assembly"
 
@@ -393,7 +393,7 @@ assert manifest[\"world\"] == \"lunar_surface\", manifest
 assert manifest[\"system\"] == \"alpha\", manifest
 assert manifest[\"recording_profile\"] == \"core\", manifest
 assert manifest[\"storage_identifier\"] == \"mcap\", manifest
-assert len(manifest[\"topics\"]) == 20, manifest
+assert len(manifest[\"topics\"]) == 21, manifest
 assert manifest[\"bag_destination\"].endswith(\"/localisation\"), manifest
 " "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
   # The recorder is still alive and has not yet finalized its metadata.

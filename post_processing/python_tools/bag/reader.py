@@ -21,6 +21,7 @@ from rosidl_runtime_py.utilities import get_message
 from python_tools.bag.timestamps import header_stamp_to_ns, is_valid_timestamp_ns
 from python_tools.bag.topic_registry import ALL_TOPICS_BY_NAME, MessageCategory, topic_spec_for
 from python_tools.data.extractors import (
+    DiagnosticArrayCollector,
     ImageCollector,
     ImuCollector,
     JointStateCollector,
@@ -245,6 +246,7 @@ def read_bag(
             MessageCategory.WHEEL_ACTUATOR_COMMAND,
             MessageCategory.POINT_CLOUD,
             MessageCategory.IMAGE,
+            MessageCategory.DIAGNOSTIC_ARRAY,
         )
         if is_header_stamped:
             sample_time_ns = header_stamp_to_ns(
@@ -268,6 +270,8 @@ def read_bag(
         elif spec.category is MessageCategory.POINT_CLOUD:
             collectors[topic_name].append(msg, sample_time_ns)
         elif spec.category is MessageCategory.IMAGE:
+            collectors[topic_name].append(msg)
+        elif spec.category is MessageCategory.DIAGNOSTIC_ARRAY:
             collectors[topic_name].append(msg)
         # MessageCategory.CLOCK carries no per-message extraction; only its
         # health (message count/rate) is tracked, using bag receive time.
@@ -369,6 +373,7 @@ def read_bag(
     visual_reset = None
     point_cloud = None
     images: dict[str, object] = {}
+    diagnostic_arrays: dict[str, object] = {}
     for topic_name, collector in collectors.items():
         spec = topic_spec_for(topic_name)
         if spec.category is MessageCategory.ODOMETRY:
@@ -401,6 +406,8 @@ def read_bag(
             point_cloud = collector.finalize(run_start_time_ns)
         elif spec.category is MessageCategory.IMAGE:
             images[topic_name] = collector.finalize(run_start_time_ns)
+        elif spec.category is MessageCategory.DIAGNOSTIC_ARRAY:
+            diagnostic_arrays[topic_name] = collector.finalize(run_start_time_ns)
 
     return BagIngestResult(
         start_time_ns=run_start_time_ns,
@@ -417,6 +424,7 @@ def read_bag(
         visual_reset=visual_reset,
         point_cloud=point_cloud,
         images=images,
+        diagnostic_arrays=diagnostic_arrays,
     )
 
 
@@ -455,6 +463,8 @@ def _make_collector(
         return PointCloudCollector(maximum_image_frames)
     if category is MessageCategory.IMAGE:
         return ImageCollector(topic_name, maximum_image_frames)
+    if category is MessageCategory.DIAGNOSTIC_ARRAY:
+        return DiagnosticArrayCollector(topic_name)
     # MessageCategory.CLOCK: health-only, no extraction collector needed;
     # reader.py still needs a placeholder so the topic is loop-tracked.
     return _NullCollector()

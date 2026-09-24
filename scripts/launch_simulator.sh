@@ -577,13 +577,16 @@ unpause_simulation() {
 # ---------------------------------------------------------------------------- #
 
 # Core telemetry, always recorded: ground truth, every subsystem's raw
-# sensor input and odometry output, commands, and the slip topics. Excludes
+# sensor input and odometry output, commands, the slip topics, and the
+# shared diagnostics topic that carries every node's periodic machine
+# records in simulation time (WP-01 moved them off the console). Excludes
 # retained `Path` topics (nav_msgs/Path duplicates odometry history and
 # makes later bag messages progressively larger for no post-processing
 # benefit -- report trajectories are drawn from the odometry topics
 # instead).
 CORE_RECORD_TOPICS=(
   /clock
+  /alpha/diagnostics
   /alpha/drivers/ground_truth/odometry
   /alpha/localisation/ground_truth/odometry
   /alpha/drivers/imu

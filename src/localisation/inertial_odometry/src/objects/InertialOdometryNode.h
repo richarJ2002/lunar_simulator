@@ -11,18 +11,20 @@
 #define LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 /* None */
 
 /* Data include */
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 
 /* Generic Libraries */
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <string>
 
@@ -77,6 +79,12 @@ class InertialOdometryNode final : public rclcpp::Node
             "filtered_imu_topic",
             "/" + systemName + "/localisation/inertial/filtered_imu");
 
+        /* Output topic: periodic calibration status, shared by every node
+         * of the owning system and recorded with every run. */
+        const std::string diagnosticsTopic =
+            declare_parameter<std::string>("diagnostics_topic",
+                                           "/" + systemName + "/diagnostics");
+
         /* Fixed world frame shared with Gazebo and every other node. */
         odomFrame = declare_parameter<std::string>(
             "odom_frame", systemName + "/startup_fixed");
@@ -128,18 +136,29 @@ class InertialOdometryNode final : public rclcpp::Node
             [this](sensor_msgs::msg::Imu::ConstSharedPtr p_message)
             { handleImuCallBack(*p_message); });
 
-        /* Record the resolved topics and tuning once at start-up for
-         * operators inspecting the node's log. */
-        RCLCPP_INFO(get_logger(),
-                    "IMU calibration requires a stationary rover for %d "
-                    "samples; filtered samples are temporally correlated",
-                    calibrationSampleTarget);
-        RCLCPP_INFO(get_logger(),
-                    "IMU odometry: %s -> %s (LPF %.1f Hz, gravity %.2f m/s^2)",
-                    imuTopic.c_str(),
-                    odometryTopic.c_str(),
-                    cutoffHz,
-                    gravityMps2);
+        /* Report calibration status once per simulated second, on the
+         * same clock as every other recorded topic. */
+        p_diagnosticsPublisher =
+            create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                diagnosticsTopic,
+                rclcpp::QoS(10));
+        p_diagnosticsTimer =
+            create_timer(std::chrono::seconds(1),
+                         [this]() { publishDiagnosticsCallBack(); });
+
+        /* The operator must keep the rover still until calibration ends. */
+        LUNAR_LOG_INFO(get_logger(),
+                       "IMU calibrating: %d samples, keep still",
+                       calibrationSampleTarget);
+
+        /* Topic wiring and tuning are in the run's parameter snapshot. */
+        LUNAR_LOG_DEBUG(
+            get_logger(),
+            "IMU odometry: %s -> %s (LPF %.1f Hz, gravity %.2f m/s^2)",
+            imuTopic.c_str(),
+            odometryTopic.c_str(),
+            cutoffHz,
+            gravityMps2);
     }
 
     /*!
@@ -192,6 +211,15 @@ class InertialOdometryNode final : public rclcpp::Node
      * @param[in]       message Raw IMU measurement in the body frame.
      */
     void handleImuCallBack(const sensor_msgs::msg::Imu &message);
+
+    /*!
+     * @brief           Publishes this node's calibration status on the
+     *                  diagnostics topic.
+     *
+     *                  Runs from a simulation-time timer once per second in
+     *                  the node's mutually exclusive default callback group.
+     */
+    void publishDiagnosticsCallBack();
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
@@ -246,6 +274,34 @@ class InertialOdometryNode final : public rclcpp::Node
      * @brief       Receives raw (noisy) IMU measurements.
      */
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imuSubscription;
+
+    /*!
+     * @brief           Publishes the periodic calibration status.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_diagnosticsPublisher;
+
+    /*!
+     * @brief           Simulation-time timer driving
+     *                  publishDiagnosticsCallBack() once per second.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::TimerBase::SharedPtr p_diagnosticsTimer;
+
+    /*!
+     * @brief           Stamp of the IMU sample that completed calibration;
+     *                  meaningful only once calibrationSampleCount has
+     *                  reached calibrationSampleTarget.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double calibrationCompleteStampS{0.0};
 
     /*!
      * @brief       Fixed frame in which integrated odometry is expressed.

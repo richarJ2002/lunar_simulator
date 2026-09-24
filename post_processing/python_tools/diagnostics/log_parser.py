@@ -1,9 +1,12 @@
 """!
 @brief  Parses the periodic "visual_diag" (visual_odometry) and
         "localisation_diag" (alpha_kalman_filter) five-second diagnostic
-        log records out of a node's ROS log file.
+        log records out of a node's ROS log file. Only runs captured before
+        WP-01 Phase 1 carry these lines; later runs record the same fields
+        on /alpha/diagnostics (see python_tools.diagnostics.bag_diagnostics)
+        and log only a short console health line.
 
-        Every parsed record's `log_relative_time_s` is elapsed seconds
+        Every parsed record's `time_s` is elapsed seconds
         since this log file's own first parsed record -- NOT the same axis
         as a bag-derived plot's elapsed simulation seconds. RCLCPP_INFO
         stamps its own console/file output in wall-clock time regardless of
@@ -16,10 +19,11 @@
         (header stamp - bag receive time); that offset is invalid under
         `--use-sim-time` (both operands are already simulated time) and
         produced diagnostic timestamps off by the wall-clock epoch (see the
-        plan's 2026-09-22 audit). Every caller must display
-        `log_relative_time_s` on its own explicitly-labeled axis and must
-        not overlay it on a bag-elapsed-time plot. Pure text parsing; no
-        ROS or bag access here.
+        plan's 2026-09-22 audit). Every caller must display these records'
+        `time_s` on its own explicitly-labeled axis and must not overlay it
+        on a bag-elapsed-time plot; the returned DiagnosticLog says so via
+        `DiagnosticTimeBasis.LOG_RELATIVE`. Pure text parsing; no ROS or
+        bag access here.
 """
 
 from __future__ import annotations
@@ -32,18 +36,22 @@ from typing import Optional, Sequence
 from python_tools.data.models import (
     AgeRejectionBreakdown,
     DiagnosticLog,
+    DiagnosticTimeBasis,
     LocalisationDiagnosticRecord,
     VisualDiagnosticRecord,
 )
 
-# Shared x-axis title for any figure plotting a diagnostic record's
-# log_relative_time_s, so every caller states the same explicit caveat
-# rather than letting a figure imply this is the bag's elapsed-time axis.
+# Shared x-axis title for any figure plotting a log-relative diagnostic
+# record's time_s, so every caller states the same explicit caveat rather
+# than letting a figure imply this is the bag's elapsed-time axis.
 DIAGNOSTIC_TIME_AXIS_TITLE = "Time since first log record (s) - not bag-elapsed time"
 
-# One rclcpp log line's fixed prefix: "[LEVEL] [sec.nanosec] [node]: message".
+# One rclcpp log line's prefix. Runs before WP-01 Phase 1 used the default
+# "[LEVEL] [sec.nanosec] [node]: message"; later runs use the compact
+# "[LEVEL] [node]: message", whose lines carry no time and so cannot be
+# placed on any time axis.
 _LOG_LINE_PATTERN = re.compile(
-    r"^\[(?P<level>\w+)\] \[(?P<timestamp>\d+\.\d+)\] \[(?P<node>[^\]]+)\]: (?P<message>.*)$"
+    r"^\[(?P<level>\w+)\] (?:\[(?P<timestamp>\d+\.\d+)\] )?\[(?P<node>[^\]]+)\]: (?P<message>.*)$"
 )
 
 # Matches a plain decimal or %e-style scientific-notation float, covering
@@ -72,9 +80,10 @@ _VISUAL_DIAG_PATTERN = re.compile(
 
 # One-time (not periodic) marker: inertial_odometry's handleImuCallBack.cc
 # logs this exactly once, the instant its startup stationary calibration
-# window completes.
+# window completes. WP-01 Phase 1 shortened "IMU stationary calibration
+# complete" to fit the 40-character console limit; both spellings match.
 _INERTIAL_CALIBRATION_COMPLETE_PATTERN = re.compile(
-    r"^IMU stationary calibration complete \((?P<sample_count>\d+) samples\)$"
+    r"^IMU (?:stationary )?calibration complete \((?P<sample_count>\d+) samples\)$"
 )
 
 _LOCALISATION_DIAG_PATTERN = re.compile(
@@ -131,7 +140,7 @@ def parse_log_file(log_path: Path) -> DiagnosticLog:
              `<run>/ros/logs/alpha_node_*.log`).
 
     @return  The assembled `DiagnosticLog`, whose records'
-             `log_relative_time_s` is relative to this log file's own
+             `time_s` is relative to this log file's own
              first parsed record (see this module's docstring).
     """
     visual_records: list[VisualDiagnosticRecord] = []
@@ -144,10 +153,16 @@ def parse_log_file(log_path: Path) -> DiagnosticLog:
             line_match = _LOG_LINE_PATTERN.match(line.rstrip("\n"))
             if line_match is None:
                 continue
+            message = line_match.group("message")
+            # A compact, timeless line cannot be placed in time; count it
+            # only if it claims to be a diagnostic record.
+            if line_match.group("timestamp") is None:
+                if message.startswith(("visual_diag ", "localisation_diag ")):
+                    unparsed_line_count += 1
+                continue
             log_wall_clock_s = float(line_match.group("timestamp"))
             if first_log_wall_clock_s is None:
                 first_log_wall_clock_s = log_wall_clock_s
-            message = line_match.group("message")
 
             # Only attempt the expensive diagnostic-specific regexes on a
             # line whose message actually starts with one of the tags.
@@ -179,11 +194,12 @@ def parse_log_file(log_path: Path) -> DiagnosticLog:
         visual_records=tuple(visual_records),
         localisation_records=tuple(localisation_records),
         unparsed_line_count=unparsed_line_count,
+        time_basis=DiagnosticTimeBasis.LOG_RELATIVE,
     )
 
 
 def _build_visual_record(
-    match: re.Match, log_relative_time_s: float
+    match: re.Match, time_s: float
 ) -> VisualDiagnosticRecord:
     """!
     @brief   Builds a `VisualDiagnosticRecord` from a matched regex group
@@ -191,7 +207,7 @@ def _build_visual_record(
 
     @param   match
              A successful `_VISUAL_DIAG_PATTERN` match.
-    @param   log_relative_time_s
+    @param   time_s
              The record's elapsed time since the log file's own first
              record, seconds.
 
@@ -199,7 +215,7 @@ def _build_visual_record(
     """
     g = match.groupdict()
     return VisualDiagnosticRecord(
-        log_relative_time_s=log_relative_time_s,
+        time_s=time_s,
         received=int(g["received"]),
         accepted=int(g["accepted"]),
         failed=int(g["failed"]),
@@ -234,7 +250,7 @@ def _build_visual_record(
 
 
 def _build_localisation_record(
-    match: re.Match, log_relative_time_s: float
+    match: re.Match, time_s: float
 ) -> LocalisationDiagnosticRecord:
     """!
     @brief   Builds a `LocalisationDiagnosticRecord` from a matched regex
@@ -242,7 +258,7 @@ def _build_localisation_record(
 
     @param   match
              A successful `_LOCALISATION_DIAG_PATTERN` match.
-    @param   log_relative_time_s
+    @param   time_s
              The record's elapsed time since the log file's own first
              record, seconds.
 
@@ -250,7 +266,7 @@ def _build_localisation_record(
     """
     g = match.groupdict()
     return LocalisationDiagnosticRecord(
-        log_relative_time_s=log_relative_time_s,
+        time_s=time_s,
         source=g["source"],
         received=int(g["received"]),
         accepted=int(g["accepted"]),
@@ -315,7 +331,8 @@ def find_inertial_calibration_complete_time_s(log_path: Path) -> Optional[float]
     with log_path.open("r", encoding="utf-8", errors="replace") as log_file:
         for line in log_file:
             line_match = _LOG_LINE_PATTERN.match(line.rstrip("\n"))
-            if line_match is None:
+            # Timeless compact lines cannot give a log-relative time.
+            if line_match is None or line_match.group("timestamp") is None:
                 continue
             log_wall_clock_s = float(line_match.group("timestamp"))
             if first_log_wall_clock_s is None:

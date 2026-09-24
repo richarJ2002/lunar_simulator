@@ -20,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
 from python_tools.data import alignment, metrics
-from python_tools.data.models import ReportContext, ReportPage
-from python_tools.diagnostics.log_parser import DIAGNOSTIC_TIME_AXIS_TITLE
+from python_tools.data.models import DiagnosticTimeBasis, ReportContext, ReportPage
+from python_tools.diagnostics.bag_diagnostics import diagnostic_time_axis_title
 from python_tools.reporting import figures, html, style
 
 TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
@@ -148,16 +148,19 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
     else:
         warnings.append(f"{TOPIC_POINT_CLOUD} published no messages")
 
-    # visual_diag periodic diagnostics.
+    # Periodic pipeline diagnostics: recorded in the bag from WP-01 Phase 1
+    # onward, parsed from the node log's visual_diag lines before that.
     records = context.diagnostics.visual_records
+    diagnostic_axis_title = diagnostic_time_axis_title(context.diagnostics)
     if records:
-        warnings.append(
-            "visual_diag timing below is relative to the node log's own "
-            "first record, not aligned to this page's other bag-elapsed-"
-            "time plots -- no reliable wall-clock<->simulated-time anchor "
-            "exists in this run to convert one axis into the other."
-        )
-        times_s = np.array([r.log_relative_time_s for r in records])
+        if context.diagnostics.time_basis is DiagnosticTimeBasis.LOG_RELATIVE:
+            warnings.append(
+                "visual_diag timing below is relative to the node log's own "
+                "first record, not aligned to this page's other bag-elapsed-"
+                "time plots -- no reliable wall-clock<->simulated-time anchor "
+                "exists in this run to convert one axis into the other."
+            )
+        times_s = np.array([r.time_s for r in records])
         detected = np.array([r.detected for r in records], dtype=float)
         tracked = np.array([r.tracked for r in records], dtype=float)
         stereo_valid = np.array([r.stereo_valid for r in records], dtype=float)
@@ -170,27 +173,27 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
             ],
             ("Detected", "Tracked", "Stereo-valid"),
             "count",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         correspondence_figure = figures.rate_count_plot(
             times_s, correspondences, "Correspondences (count)",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         inlier_pipeline_figure = figures.rate_count_plot(
             times_s, inliers, "PnP inliers (count, diagnostic snapshot)",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         reprojection_figure = figures.rate_count_plot(
             times_s,
             np.array([r.reprojection_rms_px for r in records]),
             "Reprojection RMS (px)",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         condition_figure = figures.rate_count_plot(
             times_s,
             np.array([r.normal_condition for r in records]),
             "Normal matrix condition number",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         timing_series = np.stack(
             [
@@ -203,7 +206,7 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
         timing_figure = figures.three_axis_time_series(
             times_s, [("Detection/Tracking/PnP", timing_series, style.COLOR_PRIMARY_ESTIMATE)],
             ("Detection (ms)", "Tracking (ms)", "PnP (ms)"), "ms",
-            x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
+            x_title=diagnostic_axis_title,
         )
         diag_table = figures.summary_table(
             ["Metric", "Latest value"],
@@ -217,7 +220,7 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
             ],
         )
         sections.append(
-            "<section class='plot-section'><h2>Feature pipeline diagnostics (5 s periodic snapshots)</h2>"
+            "<section class='plot-section'><h2>Feature pipeline diagnostics (periodic snapshots)</h2>"
             "<p>These summarize roughly the preceding five seconds, not a per-frame measurement.</p>"
             f"{html.figure_to_fragment(diag_table, 'visual-diag-table')}"
             f"{html.figure_to_fragment(counts_figure, 'visual-diag-counts')}"
@@ -229,7 +232,7 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
             "</section>"
         )
     else:
-        warnings.append("No visual_diag diagnostic records found in the node log")
+        warnings.append("No visual pipeline diagnostic records found in the bag or node log")
 
     # Sampled images, only present when --record-images was used.
     any_images = False

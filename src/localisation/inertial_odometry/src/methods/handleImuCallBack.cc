@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/InertialOdometryNode.h"
@@ -62,11 +62,11 @@ void InertialOdometryNode::handleImuCallBack(
          * messages, simulation reset) would corrupt the integrators below,
          * so the sample is discarded rather than integrated.
          */
-        RCLCPP_WARN_THROTTLE(get_logger(),
-                             *get_clock(),
-                             2000,
-                             "Ignoring IMU sample with invalid dt %.6f s",
-                             dtS);
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                2000,
+                                "IMU dt %.3f s invalid; sample ignored",
+                                dtS);
 
         /* Skip integration entirely for this sample. */
         return;
@@ -142,8 +142,8 @@ void InertialOdometryNode::handleImuCallBack(
                     gravityMps2);
             if (gravitySpecificForceFixedMps2.length2() <= 1.0e-24)
             {
-                RCLCPP_ERROR(get_logger(),
-                             "IMU calibration measured no gravity direction");
+                LUNAR_LOG_ERROR(get_logger(),
+                                "IMU calibration found no gravity");
                 calibrationSampleCount = 0;
                 accelerationCalibrationSum = {0.0, 0.0, 0.0};
                 angularCalibrationSum = {0.0, 0.0, 0.0};
@@ -161,10 +161,12 @@ void InertialOdometryNode::handleImuCallBack(
                 filteredAngularRate[index] = 0.0;
             }
 
-            /* Record calibration completion once, for the operator log. */
-            RCLCPP_INFO(get_logger(),
-                        "IMU stationary calibration complete (%d samples)",
-                        calibrationSampleTarget);
+            /* Record calibration completion once, for the operator log and
+             * the recorded calibration status. */
+            calibrationCompleteStampS = stampS;
+            LUNAR_LOG_INFO(get_logger(),
+                           "IMU calibration complete (%d samples)",
+                           calibrationSampleTarget);
         }
 
         /* No integration happens until calibration has completed. */

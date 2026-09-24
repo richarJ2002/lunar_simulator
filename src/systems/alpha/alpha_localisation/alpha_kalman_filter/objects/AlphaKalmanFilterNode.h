@@ -12,7 +12,7 @@
 #define LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/ContinuousExtendedKalmanFilter.h"
@@ -24,6 +24,7 @@
 #include "objects/StateIndex.h"
 
 /* Data include */
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -117,6 +118,12 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         const std::string estimatedPathTopic = declare_parameter<std::string>(
             "estimated_path_topic",
             "/" + systemName + "/localisation/kalman_filter/path");
+
+        /* Output topic: periodic estimator diagnostics, shared by every
+         * node of the owning system and recorded with every run. */
+        const std::string diagnosticsTopic =
+            declare_parameter<std::string>("diagnostics_topic",
+                                           "/" + systemName + "/diagnostics");
 
         /* Compatibility output retained as a neutral no-slip diagnostic. */
         const std::string wheelSlipEstimateTopic =
@@ -378,16 +385,23 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                                   publishEstimate(stamp);
                               });
 
-        /* Report bounded counters separately from the high-rate data path. */
-        p_diagnosticsTimer = create_wall_timer(std::chrono::seconds(5),
-                                               [this]() { logDiagnostics(); });
+        /* Report bounded counters separately from the high-rate data path,
+         * once per simulated second so the recorded diagnostics share the
+         * clock of every other recorded topic. */
+        p_diagnosticsPublisher =
+            create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                diagnosticsTopic,
+                rclcpp::QoS(10));
+        p_diagnosticsTimer =
+            create_timer(std::chrono::seconds(1),
+                         [this]() { publishDiagnosticsCallBack(); });
 
-        /* Record the resolved fusion rate once at start-up for operators
-         * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(),
-                    "Bias-aware ESKF fusing raw IMU, visual pose and wheel "
-                    "measurements; publishing at %.1f Hz",
-                    safeRateHz);
+        /* The resolved configuration is in the run's parameter snapshot, so
+         * it is debug detail rather than operator output. */
+        LUNAR_LOG_DEBUG(get_logger(),
+                        "Bias-aware ESKF fusing raw IMU, visual pose and "
+                        "wheel measurements; publishing at %.1f Hz",
+                        safeRateHz);
     }
 
     /*!
@@ -405,7 +419,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         if (status != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             /* Log at error severity since this indicates a lifecycle bug. */
-            RCLCPP_ERROR(get_logger(), "Continuous EKF termination failed");
+            LUNAR_LOG_ERROR(get_logger(), "EKF termination failed");
         }
     }
 
@@ -432,7 +446,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     using FilterStatus =
         localisation::kalman_filter::ekf_continuous_kalman_filter::FilterStatus;
 
-    /**
+    /*!
      * @brief           Fixed-size nominal state for Alpha's SE(3) estimate.
      *
      * The state stores fixed-frame position, a body-to-fixed unit quaternion,
@@ -444,7 +458,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                       static_cast<Eigen::Index>(StateIndex::STATE_INDEX_COUNT),
                       1>;
 
-    /**
+    /*!
      * @brief           Fixed-size Euclidean error state corrected by the EKF.
      *
      * The vector stores fixed-frame position and velocity error, body-frame
@@ -456,7 +470,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                           ErrorStateIndex::ERROR_STATE_INDEX_COUNT),
                       1>;
 
-    /**
+    /*!
      * @brief           Error-state covariance and process-noise matrix type.
      *
      * Row and column order matches ErrorStateVector. Diagonal entries use the
@@ -467,7 +481,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         static_cast<Eigen::Index>(ErrorStateIndex::ERROR_STATE_INDEX_COUNT),
         static_cast<Eigen::Index>(ErrorStateIndex::ERROR_STATE_INDEX_COUNT)>;
 
-    /**
+    /*!
      * @brief           Per-axis pose and twist measurement-variance vector.
      *
      * The first six entries follow ROS pose covariance order and the final
@@ -475,20 +489,22 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     using MeasurementVarianceVector = Eigen::Matrix<double, 12, 1>;
 
-    /** @brief Two-axis wheel body-velocity observation Jacobian type. */
+    /*!
+     * @brief           Two-axis wheel body-velocity observation Jacobian type.
+     */
     using WheelVelocityObservationMatrix =
         Eigen::Matrix<double,
                       2,
                       static_cast<Eigen::Index>(
                           ErrorStateIndex::ERROR_STATE_INDEX_COUNT)>;
 
-    /**
+    /*!
      * @brief           Number of scalar components in the nominal state.
      */
     static constexpr Eigen::Index NOMINAL_STATE_SIZE =
         static_cast<Eigen::Index>(StateIndex::STATE_INDEX_COUNT);
 
-    /**
+    /*!
      * @brief           Number of scalar components in the error state.
      */
     static constexpr Eigen::Index ERROR_STATE_SIZE =
@@ -497,7 +513,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     /*! @brief Number of wheels in the retained neutral compatibility output. */
     static constexpr Eigen::Index WHEEL_COUNT = 6;
 
-    /**
+    /*!
      * @brief           Evaluates the bias-aware nominal process and Jacobian.
      *
      * @param[in]       state_in
@@ -526,7 +542,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         NominalStateVector       &predictedState_out,
         ErrorStateMatrix         &processJacobian_out);
 
-    /**
+    /*!
      * @brief           Calculates the wheel body-velocity prediction/Jacobian.
      *
      * @param[in]       state_in
@@ -541,7 +557,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         Eigen::Vector2d                &predictedVelocityBodyMps_out,
         WheelVelocityObservationMatrix &observationMatrix_out);
 
-    /**
+    /*!
      * @brief           Calculates the right-multiplicative attitude reset
      *                  Jacobian.
      *
@@ -555,7 +571,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     static Eigen::Matrix3d calculateAttitudeResetJacobian(
         const Eigen::Vector3d &attitudeCorrectionBodyRad_in);
 
-    /**
+    /*!
      * @brief           Computes normalized innovation squared with an LDLT
      *                  solve.
      *
@@ -569,7 +585,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         const Eigen::MatrixXd &measurementNoise_in,
         double                &nis_out);
 
-    /**
+    /*!
      * @brief           Selects a configured or dimension-dependent NIS gate.
      *
      * @param[in]       configuredThreshold_in
@@ -582,20 +598,50 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                                      Eigen::Index measurementDimension_in);
 
   private:
-    /** @brief Complete estimator state retained for bounded-lag rollback. */
+    /*!
+     * @brief           Complete estimator state retained for bounded-lag
+     *                  rollback.
+     */
     struct FilterCheckpoint
     {
-        double             timestamp_s{0.0};
+        /*!
+         * @brief           Epoch at which the checkpoint is valid.
+         *
+         * @frame           N/A
+         * @units           ROS seconds
+         */
+        double timestamp_s{0.0};
+
+        /*!
+         * @brief           Nominal state at the epoch.
+         *
+         * @frame           Mixed; see StateIndex
+         * @units           Mixed; see StateIndex
+         */
         NominalStateVector nominalState{NominalStateVector::Zero()};
-        ErrorStateVector   errorState{ErrorStateVector::Zero()};
-        ErrorStateMatrix   covariance{ErrorStateMatrix::Identity()};
+
+        /*!
+         * @brief           Error-state mean at the epoch.
+         *
+         * @frame           Mixed; see ErrorStateIndex
+         * @units           Mixed; see ErrorStateIndex
+         */
+        ErrorStateVector errorState{ErrorStateVector::Zero()};
+
+        /*!
+         * @brief           Error-state covariance at the epoch.
+         *
+         * @frame           Mixed; see ErrorStateIndex
+         * @units           Squared error-state units
+         */
+        ErrorStateMatrix covariance{ErrorStateMatrix::Identity()};
     };
 
     /* ---------------------------------------------------------------------- *
      * CALLBACK METHODS
      * ---------------------------------------------------------------------- */
 
-    /**
+    /*!
      * @brief           Calibrates from or propagates with one raw IMU sample.
      *
      * Raw specific force and angular rate are corrected by the nominal bias
@@ -628,6 +674,17 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     void handleMeasurementCallBack(const nav_msgs::msg::Odometry &message_in,
                                    MeasurementKind                kind_in);
 
+    /*!
+     * @brief           Publishes per-source counters, timing and filter
+     *                  health on the diagnostics topic and, every fifth
+     *                  call, a compact console health line.
+     *
+     *                  Runs from a simulation-time timer once per second in
+     *                  the node's mutually exclusive default callback group,
+     *                  so it reads the filter state without locking.
+     */
+    void publishDiagnosticsCallBack();
+
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
      * ---------------------------------------------------------------------- */
@@ -648,7 +705,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                                 Eigen::Index      firstIndex_in,
                                 double            variance_in);
 
-    /**
+    /*!
      * @brief           Evaluates Alpha's nominal dynamics and error Jacobian.
      *
      * Position and velocity are expressed in startup-fixed. Raw body-frame
@@ -700,23 +757,34 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     [[nodiscard]] FilterStatus initializeFilter(double timestampS_in);
 
-    /** @brief Saves or replaces the checkpoint at the current filter epoch. */
+    /*!
+     * @brief           Saves or replaces the checkpoint at the current filter
+     *                  epoch.
+     */
     void saveFilterCheckpoint();
 
-    /**
+    /*!
      * @brief           Restores the newest checkpoint no later than a target.
      * @return          True when a suitable valid checkpoint was restored.
      */
     [[nodiscard]] bool
         restoreFilterCheckpointAtOrBefore(double targetTimestampS_in);
 
-    /** @brief Discards checkpoints newer than the supplied epoch. */
+    /*!
+     * @brief           Discards checkpoints newer than the supplied epoch.
+     *
+     * @param[in]       targetTimestampS_in
+     *                  Epoch after which checkpoints are discarded, ROS
+     *                  seconds.
+     */
     void discardFilterCheckpointsAfter(double targetTimestampS_in) noexcept;
 
-    /** @brief Removes all retained rollback checkpoints. */
+    /*!
+     * @brief           Removes all retained rollback checkpoints.
+     */
     void clearFilterCheckpoints() noexcept;
 
-    /**
+    /*!
      * @brief           Injects one posterior error into the nominal state.
      *
      * Position, velocity and both sensor biases use additive correction. The
@@ -729,7 +797,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     [[nodiscard]] FilterStatus injectErrorState();
 
-    /**
+    /*!
      * @brief           Computes the body-frame attitude innovation.
      *
      * @param[in]       measuredQuaternion_in
@@ -815,11 +883,6 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                  predictTo().
      */
     void logStepFailure(FilterStatus status_in);
-
-    /*!
-     * @brief           Logs per-source counters, timing and filter health.
-     */
-    void logDiagnostics();
 
     /*!
      * @brief           Publishes the latest fused estimate as odometry, then
@@ -935,10 +998,16 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     static constexpr double NANOSECONDS_PER_SECOND = 1.0e9;
 
-    /** @brief Fixed checkpoint capacity, matching the retained IMU history. */
+    /*!
+     * @brief           Fixed checkpoint capacity, matching the retained IMU
+     *                  history.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     static constexpr std::size_t FILTER_CHECKPOINT_CAPACITY = 512U;
 
-    /**
+    /*!
      * @brief           Owned continuous-discrete error-state EKF engine.
      *
      * The engine stores the zero-centred 15-component Euclidean error state
@@ -950,7 +1019,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     Filter filter;
 
-    /**
+    /*!
      * @brief           Current nominal pose, velocity, and IMU-bias estimate.
      *
      * This state is propagated separately from the Euclidean error state and
@@ -961,7 +1030,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     NominalStateVector nominalState{NominalStateVector::Zero()};
 
-    /**
+    /*!
      * @brief           Most recently cached nominal state for publication.
      *
      * @frame           Mixed; see StateIndex
@@ -969,7 +1038,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     NominalStateVector latestState{NominalStateVector::Zero()};
 
-    /**
+    /*!
      * @brief           Most recently cached error-state covariance.
      *
      * @frame           Mixed; see ErrorStateIndex
@@ -977,7 +1046,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     ErrorStateMatrix latestCovariance{ErrorStateMatrix::Identity()};
 
-    /**
+    /*!
      * @brief           Continuous error-state process-noise density.
      *
      * @frame           Mixed; see ErrorStateIndex
@@ -985,7 +1054,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     ErrorStateMatrix processNoise{ErrorStateMatrix::Zero()};
 
-    /**
+    /*!
      * @brief           ROS timestamp at which the nominal state and error
      *                  covariance are valid.
      *
@@ -994,7 +1063,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     double stateTimestamp_s{0.0};
 
-    /**
+    /*!
      * @brief           Recent raw IMU samples retained for prediction.
      *
      * Samples are copied from ROS messages and consumed chronologically by
@@ -1006,17 +1075,37 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     ImuRingBuffer imuBuffer;
 
-    /** @brief Fixed-capacity chronological rollback checkpoints. */
+    /*!
+     * @brief           Fixed-capacity chronological rollback checkpoints.
+     *
+     * @frame           Mixed; see FilterCheckpoint
+     * @units           Mixed; see FilterCheckpoint
+     */
     std::array<FilterCheckpoint, FILTER_CHECKPOINT_CAPACITY>
         filterCheckpoints{};
 
-    /** @brief Storage index where the next checkpoint is written. */
+    /*!
+     * @brief           Storage index where the next checkpoint is written.
+     *
+     * @frame           N/A
+     * @units           index
+     */
     std::size_t nextFilterCheckpointIndex{0U};
 
-    /** @brief Storage index of the oldest retained checkpoint. */
+    /*!
+     * @brief           Storage index of the oldest retained checkpoint.
+     *
+     * @frame           N/A
+     * @units           index
+     */
     std::size_t oldestFilterCheckpointIndex{0U};
 
-    /** @brief Number of valid retained checkpoints. */
+    /*!
+     * @brief           Number of valid retained checkpoints.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t filterCheckpointCount{0U};
 
     /*!
@@ -1024,7 +1113,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr p_outputPublisher;
 
-    /**
+    /*!
      * @brief           Subscribes to inertial_odometry's filtered IMU output.
      *
      * @frame           body
@@ -1044,7 +1133,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr
         p_wheelSubscription;
 
-    /**
+    /*!
      * @brief           Publishes the latest IMU-driven posterior estimate.
      *
      * @frame           N/A
@@ -1053,9 +1142,23 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr p_outputTimer;
 
     /*!
-     * @brief       Periodically reports diagnostics outside sensor callbacks.
+     * @brief           Simulation-time timer driving
+     *                  publishDiagnosticsCallBack() once per second.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     rclcpp::TimerBase::SharedPtr p_diagnosticsTimer;
+
+    /*!
+     * @brief           Publishes periodic estimator diagnostics on the
+     *                  system's shared diagnostics topic.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_diagnosticsPublisher;
 
     /*!
      * @brief       Publishes the estimated map-to-body transform; used by
@@ -1136,34 +1239,82 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     double wheelVariance{0.10};
 
-    /** @brief Known lunar gravitational-acceleration magnitude. */
+    /*!
+     * @brief           Known lunar gravitational-acceleration magnitude.
+     *
+     * @frame           N/A
+     * @units           metres per second squared
+     */
     double gravityMagnitudeMps2{1.62};
 
-    /** @brief Physical gravitational acceleration in startup-fixed. */
+    /*!
+     * @brief           Physical gravitational acceleration.
+     *
+     * @frame           startup-fixed
+     * @units           metres per second squared
+     */
     Eigen::Vector3d gravityAcceleration_fixed_mPerS2{
         Eigen::Vector3d(0.0, 0.0, -1.62)};
 
-    /** @brief Sum of stationary raw specific-force initialization samples. */
+    /*!
+     * @brief           Sum of stationary raw specific-force initialization
+     *                  samples.
+     *
+     * @frame           body
+     * @units           metres per second squared
+     */
     Eigen::Vector3d initializationSpecificForceSum_body_mPerS2{
         Eigen::Vector3d::Zero()};
 
-    /** @brief Sum of stationary raw angular-rate initialization samples. */
+    /*!
+     * @brief           Sum of stationary raw angular-rate initialization
+     *                  samples.
+     *
+     * @frame           body
+     * @units           radians per second
+     */
     Eigen::Vector3d initializationAngularVelocitySum_body_radPerS{
         Eigen::Vector3d::Zero()};
 
-    /** @brief Required number of stationary initialization samples. */
+    /*!
+     * @brief           Required number of stationary initialization samples.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t imuInitializationSampleTarget{100U};
 
-    /** @brief Number of stationary initialization samples received. */
+    /*!
+     * @brief           Number of stationary initialization samples received.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t imuInitializationSampleCount{0U};
 
-    /** @brief Initial accelerometer-bias covariance diagonal. */
+    /*!
+     * @brief           Initial accelerometer-bias covariance diagonal.
+     *
+     * @frame           body
+     * @units           (metres per second squared)^2
+     */
     double initialAccelerometerBiasVariance{0.01};
 
-    /** @brief Initial gyroscope-bias covariance diagonal. */
+    /*!
+     * @brief           Initial gyroscope-bias covariance diagonal.
+     *
+     * @frame           body
+     * @units           (radians per second)^2
+     */
     double initialGyroscopeBiasVariance{0.001};
 
-    /** @brief Latest bias-corrected body angular velocity for publication. */
+    /*!
+     * @brief           Latest bias-corrected body angular velocity for
+     *                  publication.
+     *
+     * @frame           body
+     * @units           radians per second
+     */
     Eigen::Vector3d latestAngularVelocity_body_radPerS{Eigen::Vector3d::Zero()};
 
     /*!
@@ -1171,7 +1322,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     double maximumVisualMeasurementAgeS{0.75};
 
-    /**
+    /*!
      * @brief           Maximum permitted age of a held IMU sample.
      *
      * @frame           N/A
@@ -1179,25 +1330,62 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     double maximumImuMeasurementAgeS{0.25};
 
-    /** @brief Visual update NIS override; zero selects the automatic limit. */
+    /*!
+     * @brief           Visual update NIS override; zero selects the automatic
+     *                  limit.
+     *
+     * @frame           N/A
+     * @units           dimensionless
+     */
     double visualNisThreshold{0.0};
 
-    /** @brief Wheel update NIS override; zero selects the automatic limit. */
+    /*!
+     * @brief           Wheel update NIS override; zero selects the automatic
+     *                  limit.
+     *
+     * @frame           N/A
+     * @units           dimensionless
+     */
     double wheelNisThreshold{0.0};
 
-    /** @brief Whether visual pose channels are fused. */
+    /*!
+     * @brief           Whether visual pose channels are fused.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
     bool shouldFuseVisualPose{true};
 
-    /** @brief Whether wheel body-twist channels are fused. */
+    /*!
+     * @brief           Whether wheel body-twist channels are fused.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
     bool shouldFuseWheelTwist{true};
 
-    /** @brief Diagnostics for raw IMU process input. */
+    /*!
+     * @brief           Diagnostics for raw IMU process input.
+     *
+     * @frame           N/A
+     * @units           Mixed; see SourceDiagnostics
+     */
     SourceDiagnostics imuDiagnostics;
 
-    /** @brief Diagnostics for visual odometry corrections. */
+    /*!
+     * @brief           Diagnostics for visual odometry corrections.
+     *
+     * @frame           N/A
+     * @units           Mixed; see SourceDiagnostics
+     */
     SourceDiagnostics visualDiagnostics;
 
-    /** @brief Diagnostics for wheel odometry corrections. */
+    /*!
+     * @brief           Diagnostics for wheel odometry corrections.
+     *
+     * @frame           N/A
+     * @units           Mixed; see SourceDiagnostics
+     */
     SourceDiagnostics wheelDiagnostics;
 
     /*!
@@ -1211,6 +1399,49 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *              seeded.
      */
     bool hasInitialState{false};
+
+    /*!
+     * @brief           Number of diagnostics records between console health
+     *                  lines: one line every five simulated seconds.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    static constexpr std::uint64_t CONSOLE_HEALTH_PERIOD_TICKS = 5U;
+
+    /*!
+     * @brief           Number of diagnostics records published.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t diagnosticsRecordCount{0U};
+
+    /*!
+     * @brief           Visual fused count at the previous console health
+     *                  line.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t previousConsoleVisualFusedCount{0U};
+
+    /*!
+     * @brief           Wheel fused count at the previous console health line.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t previousConsoleWheelFusedCount{0U};
+
+    /*!
+     * @brief           Visual and wheel rejections (age, NIS and numerical)
+     *                  at the previous console health line.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t previousConsoleRejectedCount{0U};
 };
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

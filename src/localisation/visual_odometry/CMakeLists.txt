@@ -37,7 +37,7 @@ add_library(visual_odometry STATIC
   src/visual_odometry_node/methods/calculateVisualPoseQuality.cc
   src/visual_odometry_node/methods/handleResetCallBack.cc
   src/visual_odometry_node/methods/handleStereoCallBack.cc
-  src/visual_odometry_node/methods/logPipelineDiagnostics.cc
+  src/visual_odometry_node/methods/publishPipelineDiagnosticsCallBack.cc
   src/visual_odometry_node/methods/publishFeatureImage.cc
   src/visual_odometry_node/methods/updatePose.cc
   src/visual_odometry_node/methods/publishPointCloud.cc
@@ -55,6 +55,7 @@ target_include_directories(visual_odometry SYSTEM PUBLIC
 )
 ament_target_dependencies(visual_odometry
   cv_bridge
+  diagnostic_msgs
   geometry_msgs
   message_filters
   nav_msgs
@@ -64,6 +65,8 @@ ament_target_dependencies(visual_odometry
 )
 target_link_libraries(visual_odometry
   alpha_feature_tracking
+  common_console
+  common_diagnostics
   ${OpenCV_LIBRARIES}
 )
 install(TARGETS alpha_feature_tracking visual_odometry

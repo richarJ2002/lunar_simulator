@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/AlphaKalmanFilterNode.h"
@@ -32,8 +32,10 @@ bool AlphaKalmanFilterNode::prepareOdometry(const nav_msgs::msg::Odometry &odome
     if (!isPoseValid(odometry_in.pose.pose))
     {
         /* Bound log spam if the estimator keeps producing bad poses. */
-        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                             "Ignoring an invalid Alpha pose");
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                2000,
+                                "Ignoring an invalid Alpha pose");
 
         /* Nothing further can be done with this sample; tell the caller
          * so it also stops. */

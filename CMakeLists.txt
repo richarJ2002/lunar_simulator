@@ -51,6 +51,7 @@ find_package(actuator_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -61,10 +62,13 @@ find_package(tf2_ros REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 
-# Localisation and control build first: both produce the static libraries
-# the Alpha system's composed entry point (src/systems/alpha/
-# alpha_node/main.cpp) links against, and CMake requires a target to
-# already exist when a later add_subdirectory() links against it.
+# Shared support modules (wrapped console logging, diagnostics entries)
+# build first because every other library links them. Localisation and
+# control follow: both produce the static libraries the Alpha system's
+# composed entry point (src/systems/alpha/alpha_node/main.cpp) links
+# against, and CMake requires a target to already exist when a later
+# add_subdirectory() links against it.
+add_subdirectory(src/common)
 add_subdirectory(src/localisation)
 add_subdirectory(src/control)
 add_subdirectory(src/systems/alpha)

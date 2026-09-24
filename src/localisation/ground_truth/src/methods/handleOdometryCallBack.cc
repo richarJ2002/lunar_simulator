@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/GroundTruthNode.h"
@@ -32,10 +32,10 @@ void GroundTruthNode::handleOdometryCallBack(
          * Drop the sample rather than publish a corrupt TF/path point; the
          * throttle bounds log spam if Gazebo keeps producing bad poses.
          */
-        RCLCPP_WARN_THROTTLE(get_logger(),
-                             *get_clock(),
-                             2000,
-                             "Ignoring an invalid ground-truth pose");
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                2000,
+                                "Ignoring an invalid ground-truth pose");
 
         /* Nothing further can be done with this sample; stop here. */
         return;

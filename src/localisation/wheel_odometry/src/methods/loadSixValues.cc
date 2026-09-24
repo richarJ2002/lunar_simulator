@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/WheelOdometryNode.h"
@@ -44,9 +44,9 @@ void WheelOdometryNode::loadSixValues(const std::string &name_in,
          * to the known-good Alpha defaults so the node still starts and
          * produces plausible odometry.
          */
-        RCLCPP_WARN(get_logger(),
-                    "Parameter %s needs six values; using defaults",
-                    name_in.c_str());
+        LUNAR_LOG_WARN(get_logger(),
+                       "%s needs 6 values; using defaults",
+                       name_in.c_str());
 
         /* Discard the invalid override and use the caller's defaults. */
         configured = defaults_in;

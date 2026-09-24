@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "visual_odometry_node/objects/VisualOdometryNode.h"
@@ -86,7 +86,7 @@ std::vector<cv::Point2f> toPoint2fVector(
  * the numbered Step comments below), already delegating each
  * self-contained concern (visualization, pose update, point-cloud
  * publish) to its own method; the count is additionally inflated by
- * RCLCPP_*_THROTTLE macro expansion, not by genuinely nested human
+ * LUNAR_LOG_*_THROTTLE macro expansion, not by genuinely nested human
  * logic. VisualOdometryNode.h/handleStereoCallBack.cc are outside the JSF AV
  * profile scope (see docs/compliance/feature_tracking/
  * JSF_AV_APPLICABILITY_PROFILE.md), so no further exception process
@@ -163,11 +163,11 @@ void VisualOdometryNode::handleStereoCallBack(
     catch (const cv_bridge::Exception &error)
     {
         /* Log the failure (throttled) and give up on this frame only. */
-        RCLCPP_ERROR_THROTTLE(get_logger(),
-                              *get_clock(),
-                              2000,
-                              "LocCam conversion failed: %s",
-                              error.what());
+        LUNAR_LOG_ERROR_THROTTLE(get_logger(),
+                                 *get_clock(),
+                                 2000,
+                                 "LocCam conversion failed: %s",
+                                 error.what());
         finishDiagnostics(false);
         return;
     }
@@ -681,11 +681,10 @@ void VisualOdometryNode::handleStereoCallBack(
                           worldFromOptical);
 
         /* Let an operator know odometry did not advance this cycle. */
-        RCLCPP_WARN_THROTTLE(
-            get_logger(),
-            *get_clock(),
-            3000,
-            "Visual odometry lacks stereo/temporal correspondences");
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                3000,
+                                "VO: too few correspondences");
     }
 
     const KeyframeAction keyframeAction =
@@ -706,12 +705,11 @@ void VisualOdometryNode::handleStereoCallBack(
          * diagnostics until an explicit reset starts a new visual epoch. */
         isVisualPoseAvailable = false;
         storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
-        RCLCPP_WARN_THROTTLE(
-            get_logger(),
-            *get_clock(),
-            2000,
-            "Visual pose unavailable after %.3f s failed keyframe gap",
-            dtS);
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                2000,
+                                "VO pose lost after %.2f s gap",
+                                dtS);
     }
     /* A recoverable PnP failure deliberately retains the accepted keyframe so
      * the next solve spans all motion since the last accepted pose. */

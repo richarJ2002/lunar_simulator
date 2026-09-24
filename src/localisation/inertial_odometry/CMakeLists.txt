@@ -4,6 +4,7 @@ add_library(inertial_odometry STATIC
   src/methods/calculateGravitySpecificForceFixed.cc
   src/methods/calculateGravityFreeAccelerationFixed.cc
   src/methods/handleImuCallBack.cc
+  src/methods/publishDiagnosticsCallBack.cc
   src/methods/publishFilteredImu.cc
   src/methods/publishOdometry.cc
   src/methods/stampToSeconds.cc
@@ -11,7 +12,9 @@ add_library(inertial_odometry STATIC
 )
 target_compile_features(inertial_odometry PUBLIC cxx_std_17)
 target_include_directories(inertial_odometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(inertial_odometry common_console common_diagnostics)
 ament_target_dependencies(inertial_odometry
+  diagnostic_msgs
   geometry_msgs
   nav_msgs
   rclcpp

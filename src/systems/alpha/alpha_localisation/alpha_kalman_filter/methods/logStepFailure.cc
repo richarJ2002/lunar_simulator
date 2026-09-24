@@ -8,7 +8,7 @@
  */
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "objects/AlphaKalmanFilterNode.h"
@@ -25,9 +25,11 @@ void AlphaKalmanFilterNode::logStepFailure(FilterStatus status_in)
      * Throttled to avoid flooding the log if the filter rejects steps
      * repeatedly (e.g. during a sustained numerical failure).
      */
-    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                         "Continuous EKF step failed with status %u",
-                         static_cast<unsigned int>(status_in));
+    LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                            *get_clock(),
+                            2000,
+                            "EKF step failed (status %u)",
+                            static_cast<unsigned int>(status_in));
 }
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

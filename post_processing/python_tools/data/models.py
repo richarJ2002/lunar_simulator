@@ -56,6 +56,23 @@ class ResetReason(Enum):
     VISUAL_RESET_EVENT = auto()
 
 
+class DiagnosticTimeBasis(Enum):
+    """!
+    @brief  Which clock a `DiagnosticLog`'s record times are measured on,
+            so a page labels its axis correctly and only overlays records
+            on bag-elapsed plots when they genuinely share that axis.
+    """
+
+    # Seconds since the node log file's own first parsed record, from the
+    # log line's wall-clock stamp (runs captured before WP-01 Phase 1). No
+    # wall-clock<->simulated-time anchor exists, so this axis cannot be
+    # aligned with bag-elapsed plots.
+    LOG_RELATIVE = auto()
+    # Elapsed simulation seconds from the recorded /alpha/diagnostics
+    # header stamps, on the same axis as every other bag-derived series.
+    BAG_ELAPSED = auto()
+
+
 @dataclass(frozen=True)
 class SeriesSegment:
     """!
@@ -425,22 +442,19 @@ class ImageFrameSeries:
 @dataclass(frozen=True)
 class VisualDiagnosticRecord:
     """!
-    @brief  One parsed "visual_diag" five-second periodic log record
-            (src/localisation/visual_odometry/.../logPipelineDiagnostics.cc).
-            These are periodic diagnostics, not per-frame measurements —
-            each record summarizes roughly the preceding five seconds.
+    @brief  One periodic visual-odometry pipeline diagnostic record:
+            either a parsed "visual_diag" log line (runs before WP-01
+            Phase 1, every five wall seconds) or one "visual_odometry"
+            status on the recorded /alpha/diagnostics topic (every
+            simulated second). Records are periodic snapshots, not
+            per-frame measurements.
     """
 
-    # Elapsed seconds since this log file's own first parsed record (from
-    # the ROS log entry's own wall-clock timestamp, not a field inside the
-    # message). NOT the same axis as any bag-derived plot's elapsed
-    # simulation seconds -- RCLCPP_INFO stamps its own console/file output
-    # in wall-clock time regardless of a node's use_sim_time setting, and no
-    # reliable wall-clock<->simulated-time anchor exists in a
-    # --use-sim-time recording to convert one into the other (see the
-    # plan's 2026-09-22 audit). Display this on its own explicitly-labeled
-    # axis; never overlay it on a bag-elapsed-time plot.
-    log_relative_time_s: float
+    # Record time in seconds on the owning DiagnosticLog's time_basis:
+    # log-relative wall seconds for parsed log lines (never overlay those
+    # on a bag-elapsed plot -- see DiagnosticTimeBasis.LOG_RELATIVE), or
+    # bag-elapsed simulation seconds for recorded diagnostics.
+    time_s: float
     # Cumulative frames received by the node at this tick.
     received: int
     # Cumulative frames accepted (passed quality gating) at this tick.
@@ -526,19 +540,19 @@ class AgeRejectionBreakdown:
 @dataclass(frozen=True)
 class LocalisationDiagnosticRecord:
     """!
-    @brief  One parsed "localisation_diag" five-second periodic log record
-            (alpha_kalman_filter/.../logDiagnostics.cc), for one source
-            ("imu", "visual" or "wheel"). The covariance/quaternion/bias
-            fields are computed once per tick and repeated identically
-            across all three sources' lines in the underlying log — callers
-            shall treat them as one filter-wide snapshot rather than
-            attributing them to the individual source.
+    @brief  One periodic estimator diagnostic record for one source
+            ("imu", "visual" or "wheel"): either a parsed
+            "localisation_diag" log line (runs before WP-01 Phase 1) or the
+            recorded "continuous_ekf/<source>" /alpha/diagnostics status
+            joined with that tick's filter-wide "continuous_ekf" status.
+            The covariance/quaternion/bias fields are one filter-wide
+            snapshot repeated for every source -- callers shall not
+            attribute them to the individual source.
     """
 
-    # Elapsed seconds since this log file's own first parsed record. Same
-    # caveat as VisualDiagnosticRecord.log_relative_time_s: NOT the same
-    # axis as any bag-derived plot's elapsed simulation seconds.
-    log_relative_time_s: float
+    # Record time in seconds on the owning DiagnosticLog's time_basis; see
+    # VisualDiagnosticRecord.time_s.
+    time_s: float
     # Which measurement source this record's counters describe.
     source: str
     # Cumulative messages received from this source.
@@ -553,14 +567,13 @@ class LocalisationDiagnosticRecord:
     numerical_rejected: int
     # Cumulative messages actually fused into the filter state.
     fused: int
-    # Wall-clock publication rate observed for this source, Hz-equivalent
-    # (the raw "publication" field from the log line).
+    # Header stamp of the source's latest message, ROS seconds.
     publication: float
-    # Wall-clock admission rate observed for this source.
+    # ROS time at which the estimator admitted that message, seconds.
     admission: float
-    # Tick window start time, seconds (estimator clock).
+    # ROS time at which processing of that message started, seconds.
     start: float
-    # Tick window end time, seconds (estimator clock).
+    # ROS time at which processing of that message finished, seconds.
     end: float
     # Estimator epoch (filter's own internal clock) at this tick, seconds.
     estimator_epoch: float
@@ -606,6 +619,8 @@ class DiagnosticLog:
     # Number of log lines that matched a diagnostic tag but failed to parse,
     # surfaced as a report warning rather than silently dropped.
     unparsed_line_count: int = 0
+    # Clock every record's time_s is measured on.
+    time_basis: DiagnosticTimeBasis = DiagnosticTimeBasis.LOG_RELATIVE
 
 
 @dataclass(frozen=True)
@@ -624,6 +639,42 @@ class ParameterSnapshot:
     node_name: str
     # The node's ros__parameters mapping, as loaded from YAML.
     parameters: dict[str, object]
+
+
+@dataclass(frozen=True)
+class DiagnosticStatusSample:
+    """!
+    @brief  One diagnostic_msgs/msg/DiagnosticStatus from a recorded
+            DiagnosticArray, with every key/value kept as text exactly as
+            published.
+    """
+
+    # Elapsed simulation seconds of the enclosing array's header stamp.
+    time_s: float
+    # The enclosing array's header stamp, nanoseconds.
+    time_ns: int
+    # Status name, e.g. "visual_odometry" or "continuous_ekf/wheel".
+    name: str
+    # diagnostic_msgs level: 0 OK, 1 WARN, 2 ERROR, 3 STALE.
+    level: int
+    # Short human-readable summary published with the status.
+    message: str
+    # Every key/value pair, in publication order of first occurrence.
+    values: dict[str, str]
+
+
+@dataclass(frozen=True)
+class DiagnosticStatusSeries:
+    """!
+    @brief  Every DiagnosticStatus recorded on one DiagnosticArray topic,
+            flattened and sorted by time.
+    """
+
+    # Source topic name.
+    topic_name: str
+    # Statuses in ascending time order; statuses from one array share a
+    # time.
+    samples: tuple[DiagnosticStatusSample, ...]
 
 
 @dataclass(frozen=True)
@@ -659,6 +710,10 @@ class BagIngestResult:
     visual_reset: Optional[VisualResetSeries]
     point_cloud: Optional[VisualPointCloudSeries]
     images: dict[str, ImageFrameSeries]
+    # Recorded DiagnosticArray topics (/alpha/diagnostics and
+    # /alpha/system/state), keyed by topic; empty for runs captured before
+    # WP-01 Phase 1.
+    diagnostic_arrays: dict[str, DiagnosticStatusSeries] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

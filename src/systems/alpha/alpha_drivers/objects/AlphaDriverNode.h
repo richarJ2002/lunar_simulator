@@ -26,6 +26,9 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 
+/* Other Project Module Includes */
+#include "console/console.h"
+
 namespace systems::alpha::alpha_drivers
 {
 
@@ -160,10 +163,9 @@ class AlphaDriverNode final : public rclcpp::Node
          * Record whether noise is active for operators inspecting the log;
          * the seed itself is fixed by the random_seed parameter.
          */
-        RCLCPP_INFO(
-            get_logger(),
-            "Alpha driver noise %s (seed fixed by random_seed parameter)",
-            noiseEnabled ? "enabled" : "disabled");
+        LUNAR_LOG_INFO(get_logger(),
+                       "Driver noise %s",
+                       noiseEnabled ? "enabled" : "disabled");
     }
 
     /*!

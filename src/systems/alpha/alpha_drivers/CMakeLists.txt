@@ -18,6 +18,7 @@ add_library(alpha_drivers STATIC
 )
 target_compile_features(alpha_drivers PUBLIC cxx_std_17)
 target_include_directories(alpha_drivers PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(alpha_drivers common_console)
 ament_target_dependencies(alpha_drivers
   actuator_msgs
   rclcpp

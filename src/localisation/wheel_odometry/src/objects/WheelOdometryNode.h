@@ -11,7 +11,7 @@
 #define LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 /* None */
@@ -298,14 +298,15 @@ class WheelOdometryNode final : public rclcpp::Node
                     std_msgs::msg::Float64MultiArray::ConstSharedPtr p_message)
                 { handleWheelSlipEstimateCallBack(*p_message); });
 
-        /* Record the resolved topic names once at start-up for operators
-         * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(),
-                    "Wheel odometry: %s -> %s; visual slip reference: %s -> %s",
-                    inputTopic.c_str(),
-                    outputTopic.c_str(),
-                    visualOdometryTopic.c_str(),
-                    slipRatioTopic.c_str());
+        /* Topic wiring is already captured by the run's parameter
+         * snapshot, so it is debug detail rather than operator output. */
+        LUNAR_LOG_DEBUG(
+            get_logger(),
+            "Wheel odometry: %s -> %s; visual slip reference: %s -> %s",
+            inputTopic.c_str(),
+            outputTopic.c_str(),
+            visualOdometryTopic.c_str(),
+            slipRatioTopic.c_str());
     }
 
     /*! @brief Releases the node without external side effects. */

@@ -11,7 +11,7 @@
 #define LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_H
 
 /* Function Includes */
-/* None */
+#include "console/console.h"
 
 /* Object Include */
 #include "feature_tracking/objects/FeatureTrackingStatus.h"
@@ -22,6 +22,7 @@
 
 /* Data include */
 #include <builtin_interfaces/msg/time.hpp>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -67,18 +68,33 @@ namespace localisation::visual_odometry
 class VisualOdometryNode final : public rclcpp::Node
 {
   public:
-    /** @brief Action applied to the retained stereo keyframe after a frame. */
+    /*!
+     * @brief           Action applied to the retained stereo keyframe after
+     *                  a frame.
+     */
     enum class KeyframeAction : std::uint8_t
     {
-        RETAIN_KEYFRAME       = 0U,
-        ADVANCE_KEYFRAME      = 1U,
+        /*! Keep the keyframe so the next solve spans all motion since it. */
+        RETAIN_KEYFRAME = 0U,
+
+        /*! Replace the keyframe with the current frame. */
+        ADVANCE_KEYFRAME = 1U,
+
+        /*! Declare the accumulated pose discontinuous. */
         MARK_POSE_UNAVAILABLE = 2U
     };
 
-    /** @brief Six-dimensional covariance ordered translation then rotation. */
+    /*!
+     * @brief           Six-dimensional covariance ordered translation then
+     *                  rotation.
+     */
     using PoseCovariance = cv::Matx<double, 6, 6>;
 
-    /** @brief Tunable thresholds used to assess one PnP solution. */
+    /*!
+     * @brief           Tunable thresholds used to assess one PnP solution;
+     *                  each field mirrors the ROS parameter of the same
+     *                  meaning declared in the constructor.
+     */
     struct VisualQualityConfiguration
     {
         int    imageWidthPx{1024};
@@ -100,7 +116,9 @@ class VisualOdometryNode final : public rclcpp::Node
         double maximumRotationVarianceRad2{0.25};
     };
 
-    /** @brief Geometry diagnostics and covariance for one accepted PnP solve.
+    /*!
+     * @brief           Geometry diagnostics and covariance for one accepted
+     *                  PnP solve.
      */
     struct VisualPoseQuality
     {
@@ -170,6 +188,12 @@ class VisualOdometryNode final : public rclcpp::Node
         const std::string resetTopic = declare_parameter<std::string>(
             "reset_topic",
             "/" + systemName + "/localisation/visual/reset");
+
+        /* Output topic: periodic pipeline diagnostics, shared by every node
+         * of the owning system and recorded with every run. */
+        const std::string diagnosticsTopic =
+            declare_parameter<std::string>("diagnostics_topic",
+                                           "/" + systemName + "/diagnostics");
 
         /* Fixed world frame in which odometry and point clouds publish. */
         odomFrame =
@@ -470,21 +494,26 @@ class VisualOdometryNode final : public rclcpp::Node
                       std::placeholders::_1,
                       std::placeholders::_2));
 
-        /* Emit bounded stage/rate diagnostics outside expensive processing. */
-        diagnosticsStartTime = std::chrono::steady_clock::now();
+        /* Publish bounded stage/rate diagnostics outside expensive
+         * processing, once per simulated second, so their stamps and rates
+         * share the clock of every other recorded topic. */
+        p_diagnosticsPublisher =
+            create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                diagnosticsTopic,
+                rclcpp::QoS(10));
         p_diagnosticsTimer =
-            create_wall_timer(std::chrono::seconds(5),
-                              [this]() { logPipelineDiagnostics(); });
+            create_timer(std::chrono::seconds(1),
+                         [this]() { publishPipelineDiagnosticsCallBack(); });
 
-        /* Record the resolved topic names once at start-up for operators
-         * inspecting the node's log. */
-        RCLCPP_INFO(get_logger(),
-                    "Stereo visual odometry: [%s, %s] -> [%s, %s, %s]",
-                    leftTopic.c_str(),
-                    rightTopic.c_str(),
-                    outputTopic.c_str(),
-                    pointCloudTopic.c_str(),
-                    featureImageTopic.c_str());
+        /* Topic wiring is already captured by the run's parameter snapshot,
+         * so it is debug detail rather than operator output. */
+        LUNAR_LOG_DEBUG(get_logger(),
+                        "Stereo visual odometry: [%s, %s] -> [%s, %s, %s]",
+                        leftTopic.c_str(),
+                        rightTopic.c_str(),
+                        outputTopic.c_str(),
+                        pointCloudTopic.c_str(),
+                        featureImageTopic.c_str());
     }
 
     /*!
@@ -505,8 +534,7 @@ class VisualOdometryNode final : public rclcpp::Node
         if (cornerDetectorStatus != feature_tracking::FeatureTrackingStatus::
                                         FEATURE_TRACKING_STATUS_SUCCESS)
         {
-            RCLCPP_ERROR(get_logger(),
-                         "ShiTomasiCornerDetector termination failed");
+            LUNAR_LOG_ERROR(get_logger(), "Corner detector termination failed");
         }
 
         const feature_tracking::FeatureTrackingStatus opticalFlowStatus =
@@ -514,8 +542,7 @@ class VisualOdometryNode final : public rclcpp::Node
         if (opticalFlowStatus != feature_tracking::FeatureTrackingStatus::
                                      FEATURE_TRACKING_STATUS_SUCCESS)
         {
-            RCLCPP_ERROR(get_logger(),
-                         "PyramidalLucasKanadeTracker termination failed");
+            LUNAR_LOG_ERROR(get_logger(), "LK tracker termination failed");
         }
     }
 
@@ -525,7 +552,7 @@ class VisualOdometryNode final : public rclcpp::Node
     VisualOdometryNode(VisualOdometryNode &&otherNode_in)            = delete;
     VisualOdometryNode &operator=(VisualOdometryNode &&otherNode_in) = delete;
 
-    /**
+    /*!
      * @brief           Selects keyframe handling for one processed frame.
      *
      * @param[in]       estimationSucceeded_in
@@ -544,13 +571,55 @@ class VisualOdometryNode final : public rclcpp::Node
                              double keyframeIntervalS_in,
                              double maximumKeyframeIntervalS_in);
 
-    /** @brief Returns the fixed optical-to-body transform for a camera mount.
+    /*!
+     * @brief           Returns the fixed optical-to-body transform for a
+     *                  camera mount.
+     *
+     * @param[in]       cameraXM_in
+     *                  Camera mount x offset from the body origin, metres.
+     *
+     * @param[in]       cameraZM_in
+     *                  Camera mount z offset from the body origin, metres.
+     *
+     * @param[in]       cameraPitchRad_in
+     *                  Camera mount pitch about the body y axis, radians.
+     *
+     * @return          Rigid transform from the optical frame (x right,
+     *                  y down, z forward) to the body frame.
      */
     static cv::Matx44d calculateBodyFromOptical(double cameraXM_in,
                                                 double cameraZM_in,
                                                 double cameraPitchRad_in);
 
-    /** @brief Evaluates PnP geometry and estimates its local pose covariance.
+    /*!
+     * @brief           Evaluates PnP geometry and estimates its local pose
+     *                  covariance.
+     *
+     * @param[in]       objectPoints_in
+     *                  Reconstructed previous-frame points, optical frame,
+     *                  metres.
+     *
+     * @param[in]       imagePoints_in
+     *                  Tracked current-frame pixels aligned with
+     *                  objectPoints_in.
+     *
+     * @param[in]       inlierIndices_in
+     *                  PnP RANSAC inlier indices into both point lists.
+     *
+     * @param[in]       rotationVector_in
+     *                  PnP Rodrigues rotation, previous to current optical.
+     *
+     * @param[in]       translationVector_in
+     *                  PnP translation, previous to current optical, metres.
+     *
+     * @param[in]       cameraMatrix_in
+     *                  Pinhole intrinsic matrix, pixels.
+     *
+     * @param[in]       configuration_in
+     *                  Geometry-quality thresholds.
+     *
+     * @return          Quality diagnostics and the relative covariance;
+     *                  isValid is false when a gate fails.
      */
     static VisualPoseQuality calculateVisualPoseQuality(
         const std::vector<cv::Point3f>   &objectPoints_in,
@@ -589,15 +658,25 @@ class VisualOdometryNode final : public rclcpp::Node
         const sensor_msgs::msg::Image::ConstSharedPtr &p_left_in,
         const sensor_msgs::msg::Image::ConstSharedPtr &p_right_in);
 
-    /**
+    /*!
      * @brief           Clears retained visual history and begins a new epoch.
+     *
+     * @param[in]       message_in
+     *                  Reset request; it carries no fields.
      */
     void handleResetCallBack(const std_msgs::msg::Empty &message_in);
 
     /*!
-     * @brief           Logs visual publication, processing and fusion inputs.
+     * @brief           Publishes one pipeline diagnostics record on the
+     *                  diagnostics topic and, every fifth call, a compact
+     *                  console health line.
+     *
+     *                  Runs from a simulation-time timer once per second.
+     *                  Rates are computed over the simulated interval since
+     *                  the previous record (and, for the console line,
+     *                  since the previous console line).
      */
-    void logPipelineDiagnostics();
+    void publishPipelineDiagnosticsCallBack();
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
@@ -822,263 +901,555 @@ class VisualOdometryNode final : public rclcpp::Node
      * ---------------------------------------------------------------------- */
 
     /*!
-     * @brief       Maximum Lucas-Kanade tracking error, in pixels, before a
-     *              feature is treated as a lost/mismatched track rather
-     *              than a genuine correspondence (see `handleStereoCallBack`).
+     * @brief           Maximum Lucas-Kanade tracking error before a feature
+     *                  is treated as a lost or mismatched track rather than
+     *                  a genuine correspondence (see handleStereoCallBack).
+     *
+     * @frame           Image
+     * @units           pixels (mean absolute intensity residual)
      */
     static constexpr float MAXIMUM_TRACKING_ERROR_PX = 30.0F;
 
     /*!
-     * @brief       Maximum reprojection error, in pixels, `solvePnPRansac`
-     *              may accept when classifying a correspondence as an
-     *              inlier (see `handleStereoCallBack`).
+     * @brief           Maximum reprojection error solvePnPRansac may accept
+     *                  when classifying a correspondence as an inlier.
+     *
+     * @frame           Image
+     * @units           pixels
      */
     static constexpr double PNP_RANSAC_REPROJECTION_ERROR_PX = 2.5;
 
     /*!
-     * @brief       RANSAC confidence probability passed to
-     *              `solvePnPRansac` (see `handleStereoCallBack`).
+     * @brief           RANSAC confidence probability passed to
+     *                  solvePnPRansac.
+     *
+     * @frame           N/A
+     * @units           probability
      */
     static constexpr double PNP_RANSAC_CONFIDENCE = 0.99;
 
     /*!
-     * @brief       Maximum RANSAC iterations passed to `solvePnPRansac`
-     *              (see `handleStereoCallBack`).
+     * @brief           Maximum RANSAC iterations passed to solvePnPRansac.
+     *
+     * @frame           N/A
+     * @units           count
      */
     static constexpr int PNP_RANSAC_MAXIMUM_ITERATIONS = 100;
 
     /*!
-     * @brief       Publishes accumulated visual odometry.
+     * @brief           Number of diagnostics records between console health
+     *                  lines: one line every five simulated seconds.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    static constexpr std::uint64_t CONSOLE_HEALTH_PERIOD_TICKS = 5U;
+
+    /*!
+     * @brief           Publishes accumulated visual odometry.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr p_odometryPublisher;
 
     /*!
-     * @brief       Publishes the sparse inlier feature point cloud.
+     * @brief           Publishes the sparse inlier feature point cloud.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
         p_pointCloudPublisher;
 
     /*!
-     * @brief       Publishes the annotated feature/track visualization image.
+     * @brief           Publishes the annotated feature/track visualization
+     *                  image.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr
         p_featureImagePublisher;
 
-    /** @brief Receives explicit visual-epoch reset requests. */
+    /*!
+     * @brief           Publishes periodic pipeline diagnostics on the
+     *                  system's shared diagnostics topic.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_diagnosticsPublisher;
+
+    /*!
+     * @brief           Receives explicit visual-epoch reset requests.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr p_resetSubscription;
 
     /*!
-     * @brief       Left LocCam image subscriber feeding the stereo
-     *              synchronizer.
+     * @brief           Left LocCam image subscriber feeding the stereo
+     *                  synchronizer.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     message_filters::Subscriber<sensor_msgs::msg::Image> leftSubscriber;
 
     /*!
-     * @brief       Right LocCam image subscriber feeding the stereo
-     *              synchronizer.
+     * @brief           Right LocCam image subscriber feeding the stereo
+     *                  synchronizer.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     message_filters::Subscriber<sensor_msgs::msg::Image> rightSubscriber;
 
     /*!
-     * @brief       Approximate-time synchronizer pairing left and right LocCam
-     *              frames.
+     * @brief           Approximate-time synchronizer pairing left and right
+     *                  LocCam frames.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     std::unique_ptr<message_filters::Synchronizer<StereoPolicy>> p_synchronizer;
 
     /*!
-     * @brief       Periodically reports bounded pipeline diagnostics.
+     * @brief           Simulation-time timer driving
+     *                  publishPipelineDiagnosticsCallBack() once per second.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     rclcpp::TimerBase::SharedPtr p_diagnosticsTimer;
 
     /*!
-     * @brief       Owned block-matching stereo disparity estimator.
+     * @brief           Owned block-matching stereo disparity estimator.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     cv::Ptr<cv::StereoBM> p_stereoMatcher;
 
     /*!
-     * @brief       Owned, reusable Shi-Tomasi corner detector, initialized
-     *              once at construction for the fixed LocCam resolution
-     *              (see `docs/compliance/feature_tracking/`).
+     * @brief           Owned, reusable Shi-Tomasi corner detector,
+     *                  initialized once at construction for the fixed
+     *                  LocCam resolution (see
+     *                  docs/compliance/feature_tracking/).
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     feature_tracking::ShiTomasiCornerDetector cornerDetector;
 
     /*!
-     * @brief       Owned, reusable pyramidal Lucas-Kanade optical-flow
-     *              tracker, initialized once at construction for the
-     *              fixed LocCam resolution (see
-     *              `docs/compliance/feature_tracking/`).
+     * @brief           Owned, reusable pyramidal Lucas-Kanade optical-flow
+     *                  tracker, initialized once at construction for the
+     *                  fixed LocCam resolution (see
+     *                  docs/compliance/feature_tracking/).
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     feature_tracking::PyramidalLucasKanadeTracker opticalFlowTracker;
 
     /*!
-     * @brief       Pinhole camera intrinsic matrix shared by both LocCam
-     *              sensors.
+     * @brief           Pinhole camera intrinsic matrix shared by both LocCam
+     *                  sensors.
+     *
+     * @frame           Optical
+     * @units           pixels
      */
     cv::Mat cameraMatrix;
 
     /*!
-     * @brief       Previous-frame left LocCam image retained for the next
-     *              callback.
+     * @brief           Previous-frame left LocCam image retained for the
+     *                  next callback.
+     *
+     * @frame           Image
+     * @units           8-bit intensity
      */
     cv::Mat previousLeft;
 
     /*!
-     * @brief       Previous-frame right LocCam image retained for the next
-     *              callback.
+     * @brief           Previous-frame right LocCam image retained for the
+     *                  next callback.
+     *
+     * @frame           Image
+     * @units           8-bit intensity
      */
     cv::Mat previousRight;
 
     /*!
-     * @brief       Fixed rigid transform from the camera optical frame to the
-     *              body frame.
+     * @brief           Fixed rigid transform from the camera optical frame
+     *                  to the body frame.
+     *
+     * @frame           Optical to body
+     * @units           metres (translation)
      */
     cv::Matx44d bodyFromOptical{cv::Matx44d::eye()};
 
     /*!
-     * @brief       Accumulated rigid transform from the start-up optical
-     *              frame to the current optical frame.
+     * @brief           Accumulated rigid transform from the start-up optical
+     *                  frame to the current optical frame.
+     *
+     * @frame           Current optical to startup-fixed
+     * @units           metres (translation)
      */
     cv::Matx44d worldFromOptical{cv::Matx44d::eye()};
 
-    /** @brief Accumulated fixed-frame body-pose covariance. */
+    /*!
+     * @brief           Accumulated body-pose covariance, translation then
+     *                  rotation.
+     *
+     * @frame           startup-fixed
+     * @units           m^2 and rad^2
+     */
     PoseCovariance accumulatedPoseCovariance{PoseCovariance::zeros()};
 
-    /** @brief Geometry-quality thresholds for visual covariance. */
+    /*!
+     * @brief           Geometry-quality thresholds for visual covariance.
+     *
+     * @frame           N/A
+     * @units           Mixed; see VisualQualityConfiguration
+     */
     VisualQualityConfiguration visualQualityConfiguration;
 
     /*!
-     * @brief       Fixed frame in which published odometry and point clouds are
-     *              expressed.
+     * @brief           Fixed frame in which published odometry and point
+     *                  clouds are expressed.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     std::string odomFrame;
 
     /*!
-     * @brief       Child body frame published in odometry messages.
+     * @brief           Child body frame published in odometry messages.
+     *
+     * @frame           N/A
+     * @units           N/A
      */
     std::string baseFrame;
 
     /*!
-     * @brief       Horizontal focal length in pixels.
+     * @brief           Horizontal focal length.
+     *
+     * @frame           Image
+     * @units           pixels
      */
     double fxPx{800.0};
 
     /*!
-     * @brief       Vertical focal length in pixels.
+     * @brief           Vertical focal length.
+     *
+     * @frame           Image
+     * @units           pixels
      */
     double fyPx{800.0};
 
     /*!
-     * @brief       Principal-point horizontal pixel coordinate.
+     * @brief           Principal-point horizontal coordinate.
+     *
+     * @frame           Image
+     * @units           pixels
      */
     double cxPx{512.0};
 
     /*!
-     * @brief       Principal-point vertical pixel coordinate.
+     * @brief           Principal-point vertical coordinate.
+     *
+     * @frame           Image
+     * @units           pixels
      */
     double cyPx{512.0};
 
     /*!
-     * @brief       Stereo baseline distance between LocCam sensors, in metres.
+     * @brief           Stereo baseline distance between the LocCam sensors.
+     *
+     * @frame           N/A
+     * @units           metres
      */
     double baselineM{0.15};
 
     /*!
-     * @brief       Maximum accepted reconstructed feature depth, in metres.
+     * @brief           Maximum accepted reconstructed feature depth.
+     *
+     * @frame           Optical
+     * @units           metres
      */
     double maximumDepthM{25.0};
 
-    /** @brief Maximum image age admitted for processing, in seconds. */
+    /*!
+     * @brief           Maximum image age admitted for processing.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
     double maximumInputAgeS{0.25};
 
-    /** @brief Maximum recoverable accepted-keyframe gap, in seconds. */
+    /*!
+     * @brief           Maximum recoverable accepted-keyframe gap.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
     double maximumKeyframeIntervalS{0.75};
 
     /*!
-     * @brief       Timestamp in seconds of the retained previous stereo frame.
+     * @brief           Timestamp of the retained previous stereo frame.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
      */
     double previousStampS{0.0};
 
     /*!
-     * @brief       Maximum number of corner features detected per frame.
+     * @brief           Maximum number of corner features detected per frame.
+     *
+     * @frame           N/A
+     * @units           count
      */
     int maximumFeatures{640};
 
     /*!
-     * @brief       Minimum stereo/temporal correspondences required to attempt
-     *              PnP.
+     * @brief           Minimum stereo/temporal correspondences required to
+     *                  attempt PnP.
+     *
+     * @frame           N/A
+     * @units           count
      */
     int minimumCorrespondences{20};
 
-    /** @brief Maximum reconstructed correspondences retained per image cell. */
+    /*!
+     * @brief           Maximum reconstructed correspondences retained per
+     *                  image cell.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     int maximumFeaturesPerCell{40};
 
-    /** @brief Whether accumulated visual pose remains continuous. */
+    /*!
+     * @brief           Whether the accumulated visual pose remains
+     *                  continuous.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
     bool isVisualPoseAvailable{true};
 
-    /** @brief Steady-clock origin for diagnostic rates. */
-    std::chrono::steady_clock::time_point diagnosticsStartTime;
-
-    /** @brief Number of synchronized pairs admitted. */
+    /*!
+     * @brief           Number of synchronized pairs admitted.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t receivedPairCount{0U};
 
-    /** @brief Number of accepted visual pose updates. */
+    /*!
+     * @brief           Number of accepted visual pose updates.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t acceptedPoseCount{0U};
 
-    /** @brief Number of callbacks that failed to produce a pose. */
+    /*!
+     * @brief           Number of callbacks that failed to produce a pose.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t failedPoseCount{0U};
 
-    /** @brief Pair count at the previous diagnostic report. */
+    /*!
+     * @brief           Pair count at the previous diagnostics record.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t previousReportedPairCount{0U};
 
-    /** @brief Accepted count at the previous diagnostic report. */
+    /*!
+     * @brief           Accepted count at the previous diagnostics record.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t previousReportedAcceptedCount{0U};
 
-    /** @brief Consecutive callbacks without an accepted pose. */
+    /*!
+     * @brief           Simulation time of the previous diagnostics record;
+     *                  zero before the first record.
+     *
+     * @frame           N/A
+     * @units           ROS time
+     */
+    rclcpp::Time previousReportTime{0, 0, RCL_ROS_TIME};
+
+    /*!
+     * @brief           Number of diagnostics records published.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t diagnosticsRecordCount{0U};
+
+    /*!
+     * @brief           Accepted count at the previous console health line.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t previousConsoleAcceptedCount{0U};
+
+    /*!
+     * @brief           Failed count at the previous console health line.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t previousConsoleFailedCount{0U};
+
+    /*!
+     * @brief           Simulation time of the previous console health line;
+     *                  zero before the first line.
+     *
+     * @frame           N/A
+     * @units           ROS time
+     */
+    rclcpp::Time previousConsoleTime{0, 0, RCL_ROS_TIME};
+
+    /*!
+     * @brief           Consecutive callbacks without an accepted pose.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t consecutiveFailureCount{0U};
 
-    /** @brief Latest PnP input correspondence count. */
+    /*!
+     * @brief           Latest PnP input correspondence count.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t latestCorrespondenceCount{0U};
 
-    /** @brief Latest accepted PnP inlier count. */
+    /*!
+     * @brief           Latest accepted PnP inlier count.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t latestInlierCount{0U};
 
-    /** @brief Latest current-frame detected feature count. */
+    /*!
+     * @brief           Latest current-frame detected feature count.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t latestDetectedCount{0U};
 
-    /** @brief Latest successfully tracked feature count. */
+    /*!
+     * @brief           Latest successfully tracked feature count.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t latestTrackedCount{0U};
 
-    /** @brief Latest valid stereo reconstruction count before PnP. */
+    /*!
+     * @brief           Latest valid stereo reconstruction count before PnP.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::size_t latestStereoValidCount{0U};
 
-    /** @brief Geometry quality for the latest accepted PnP solve. */
+    /*!
+     * @brief           Geometry quality for the latest accepted PnP solve.
+     *
+     * @frame           N/A
+     * @units           Mixed; see VisualPoseQuality
+     */
     VisualPoseQuality latestVisualQuality;
 
-    /** @brief Latest accepted keyframe interval in seconds. */
+    /*!
+     * @brief           Latest accepted keyframe interval.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
     double latestAcceptedInterval_s{0.0};
 
-    /** @brief Latest image age at callback admission in seconds. */
+    /*!
+     * @brief           Latest image age at callback admission.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
     double latestAdmissionAge_s{0.0};
 
-    /** @brief Latest full callback duration in milliseconds. */
+    /*!
+     * @brief           Latest full callback duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestProcessingDuration_ms{0.0};
 
-    /** @brief Latest image-conversion duration in milliseconds. */
+    /*!
+     * @brief           Latest image-conversion duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestConversionDuration_ms{0.0};
 
-    /** @brief Latest disparity duration in milliseconds. */
+    /*!
+     * @brief           Latest disparity duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestDisparityDuration_ms{0.0};
 
-    /** @brief Latest corner-detection duration in milliseconds. */
+    /*!
+     * @brief           Latest corner-detection duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestDetectionDuration_ms{0.0};
 
-    /** @brief Latest feature-tracking duration in milliseconds. */
+    /*!
+     * @brief           Latest feature-tracking duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestTrackingDuration_ms{0.0};
 
-    /** @brief Latest reconstruction duration in milliseconds. */
+    /*!
+     * @brief           Latest reconstruction duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestReconstructionDuration_ms{0.0};
 
-    /** @brief Latest PnP duration in milliseconds. */
+    /*!
+     * @brief           Latest PnP duration.
+     *
+     * @frame           N/A
+     * @units           wall milliseconds
+     */
     double latestPnpDuration_ms{0.0};
 };
 

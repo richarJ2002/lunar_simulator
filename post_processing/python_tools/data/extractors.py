@@ -37,6 +37,8 @@ from python_tools.bag.timestamps import (
 from python_tools.data.models import (
     WHEEL_COUNT,
     WHEEL_ORDER,
+    DiagnosticStatusSample,
+    DiagnosticStatusSeries,
     ImageFrame,
     ImageFrameSeries,
     ImuSeries,
@@ -640,6 +642,74 @@ class VisualResetCollector:
         times_ns = times_ns[filter_finite_timestamps(times_ns)]
         times_s = elapsed_seconds(times_ns, start_time_ns)
         return VisualResetSeries(times_s=times_s, times_ns=times_ns)
+
+
+class DiagnosticArrayCollector:
+    """!
+    @brief  Flattens diagnostic_msgs/msg/DiagnosticArray messages into
+            per-status samples stamped by the array's header, keeping every
+            key/value as published text so later conversion (see
+            python_tools.diagnostics.bag_diagnostics) owns all parsing.
+    """
+
+    def __init__(self, topic_name: str) -> None:
+        """!
+        @brief  Initializes an empty collector for one topic.
+
+        @param  topic_name
+                The source topic, carried into the final series.
+        """
+        # The topic this collector serves, kept for the final series.
+        self._topic_name = topic_name
+        # One (stamp_ns, name, level, message, values) tuple per status.
+        self._statuses: list[tuple[int, str, int, str, dict[str, str]]] = []
+
+    def append(self, msg: object) -> None:
+        """!
+        @brief   Records every status of one deserialized DiagnosticArray.
+
+        @param   msg
+                 The deserialized message.
+
+        @return  None
+        """
+        # Every status in one array shares the array's header stamp.
+        stamp_ns = header_stamp_to_ns(msg.header.stamp.sec, msg.header.stamp.nanosec)
+        for status in msg.status:
+            # rclpy maps the IDL `byte` level to a length-1 bytes object.
+            level = status.level
+            level_value = int.from_bytes(level, "little") if isinstance(level, bytes) else int(level)
+            # Keep the first value of a key if a publisher ever repeats it.
+            values: dict[str, str] = {}
+            for key_value in status.values:
+                values.setdefault(key_value.key, key_value.value)
+            self._statuses.append((stamp_ns, status.name, level_value, status.message, values))
+
+    def finalize(self, start_time_ns: int) -> DiagnosticStatusSeries:
+        """!
+        @brief   Builds the time-sorted status series.
+
+        @param   start_time_ns
+                 The run's elapsed-zero reference timestamp.
+
+        @return  The assembled `DiagnosticStatusSeries` (possibly empty);
+                 statuses with an unset or invalid stamp are dropped.
+        """
+        # Drop never-stamped arrays, then order by stamp (stable per array).
+        valid = [entry for entry in self._statuses if is_valid_timestamp_ns(entry[0])]
+        valid.sort(key=lambda entry: entry[0])
+        samples = tuple(
+            DiagnosticStatusSample(
+                time_s=float(elapsed_seconds(np.array([stamp_ns], dtype=np.int64), start_time_ns)[0]),
+                time_ns=stamp_ns,
+                name=name,
+                level=level,
+                message=message,
+                values=values,
+            )
+            for stamp_ns, name, level, message, values in valid
+        )
+        return DiagnosticStatusSeries(topic_name=self._topic_name, samples=samples)
 
 
 class _BoundedEvenSampler:

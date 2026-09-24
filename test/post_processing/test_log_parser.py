@@ -97,6 +97,21 @@ class ParseVisualDiagTests(unittest.TestCase):
         self.assertEqual(len(log.localisation_records), 0)
         self.assertEqual(log.unparsed_line_count, 0)
 
+    def test_compact_lines_are_read_but_carry_no_records(self) -> None:
+        """!
+        @brief  Compact timeless lines (WP-01 Phase 1 console format) parse
+                without error; a timeless diagnostic-tagged line cannot be
+                placed in time, so it is counted as unparsed, not guessed.
+        """
+        log = self._write_and_parse(
+            [
+                "[INFO] [continuous_ekf]: EKF fused v9 w245 rej 0",
+                "[INFO] [visual_odometry]: " + _REAL_VISUAL_DIAG_LINE.split(": ", 1)[1],
+            ]
+        )
+        self.assertEqual(len(log.visual_records), 0)
+        self.assertEqual(log.unparsed_line_count, 1)
+
     def test_malformed_tagged_line_counts_as_unparsed(self) -> None:
         """!
         @brief  A line that starts with the visual_diag tag but does not
@@ -200,7 +215,7 @@ class ParseLocalisationDiagTests(unittest.TestCase):
 
 class LogRelativeTimingTests(unittest.TestCase):
     """!
-    @brief  Tests for log_relative_time_s: elapsed seconds since a log
+    @brief  Tests for log-relative time_s: elapsed seconds since a log
             file's own first parsed record. This is the derivation-and-
             application regression coverage for Defect 1 in the plan's
             2026-09-22 audit: `parse_log_file` no longer accepts, derives,
@@ -213,7 +228,7 @@ class LogRelativeTimingTests(unittest.TestCase):
 
     def test_first_record_is_zero_and_second_reflects_the_wall_clock_gap(self) -> None:
         """!
-        @brief  The first record's log_relative_time_s is 0, and a second
+        @brief  The first record's time_s is 0, and a second
                 record five wall-clock seconds later reads 5.0 -- ordering
                 and spacing are preserved from the raw log.
         """
@@ -223,8 +238,8 @@ class LogRelativeTimingTests(unittest.TestCase):
             second = f"[INFO] [15.000000000] [visual_odometry]: {_REAL_VISUAL_DIAG_LINE.split(': ', 1)[1]}"
             log_path.write_text(first + "\n" + second + "\n")
             log = log_parser.parse_log_file(log_path)
-            self.assertAlmostEqual(log.visual_records[0].log_relative_time_s, 0.0, places=6)
-            self.assertAlmostEqual(log.visual_records[1].log_relative_time_s, 5.0, places=6)
+            self.assertAlmostEqual(log.visual_records[0].time_s, 0.0, places=6)
+            self.assertAlmostEqual(log.visual_records[1].time_s, 5.0, places=6)
 
     def test_realistic_epoch_scale_timestamps_never_produce_a_billion_second_value(self) -> None:
         """!
@@ -232,7 +247,7 @@ class LogRelativeTimingTests(unittest.TestCase):
                 bracketed timestamps are ~1.79e9 (real wall-clock epoch
                 seconds -- the exact scale that leaked into a real
                 generated report's Plotly x-axis before this fix),
-                log_relative_time_s for every record stays small and
+                time_s for every record stays small and
                 bounded by the log's own span, not anywhere near the raw
                 epoch value.
         """
@@ -242,9 +257,9 @@ class LogRelativeTimingTests(unittest.TestCase):
             log = log_parser.parse_log_file(log_path)
             for record in (*log.visual_records, *log.localisation_records):
                 self.assertLess(
-                    abs(record.log_relative_time_s),
+                    abs(record.time_s),
                     60.0,
-                    "log_relative_time_s must stay within the log's own short "
+                    "time_s must stay within the log's own short "
                     "span, never anywhere near a raw epoch timestamp",
                 )
 
@@ -284,6 +299,32 @@ class CalibrationMarkerTests(unittest.TestCase):
             self.assertAlmostEqual(
                 result, complete_wall_clock_s - first_wall_clock_s, places=6
             )
+
+    def test_finds_the_shortened_marker(self) -> None:
+        """!
+        @brief  The WP-01 40-character spelling "IMU calibration complete"
+                is recognised as well as the original one.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "alpha_node_1_1.log"
+            log_path.write_text(
+                "[INFO] [10.0] [inertial_odometry]: IMU calibrating: 100 samples\n"
+                "[INFO] [12.5] [inertial_odometry]: IMU calibration complete (100 samples)\n"
+            )
+            result = log_parser.find_inertial_calibration_complete_time_s(log_path)
+            self.assertAlmostEqual(result, 2.5)
+
+    def test_timeless_compact_lines_give_no_time(self) -> None:
+        """!
+        @brief  A compact "[LEVEL] [node]: message" log has no per-line
+                time, so no log-relative marker time can be derived.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "alpha_node_1_1.log"
+            log_path.write_text(
+                "[INFO] [inertial_odometry]: IMU calibration complete (100 samples)\n"
+            )
+            self.assertIsNone(log_parser.find_inertial_calibration_complete_time_s(log_path))
 
     def test_returns_none_when_absent(self) -> None:
         """!

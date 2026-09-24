@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            handleResetCallBack.cc
  *
  * @brief           Implements explicit visual-odometry epoch reset.
@@ -8,6 +8,9 @@
 
 /* Matching Declaration Include */
 #include "visual_odometry_node/objects/VisualOdometryNode.h"
+
+/* Other Project Module Includes */
+#include "console/console.h"
 
 namespace localisation::visual_odometry
 {
@@ -24,7 +27,7 @@ void VisualOdometryNode::handleResetCallBack(
     isVisualPoseAvailable     = true;
     latestAcceptedInterval_s  = 0.0;
     consecutiveFailureCount   = 0U;
-    RCLCPP_INFO(get_logger(), "Visual odometry epoch reset");
+    LUNAR_LOG_INFO(get_logger(), "Visual odometry epoch reset");
 }
 
 } /* namespace localisation::visual_odometry */

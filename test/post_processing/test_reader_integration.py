@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "post_processing"))
 
 import rosbag2_py
 from builtin_interfaces.msg import Time
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import Odometry
 from rclpy.serialization import serialize_message
 from std_msgs.msg import Header
@@ -63,6 +64,28 @@ def _write_minimal_bag(bag_path: Path) -> None:
             serialize_message(message),
             1_000_000_000 + i * 100_000_000,
         )
+    # One recorded diagnostics array carrying two statuses, stamped between
+    # the odometry samples, exercises the DiagnosticArray routing end to end.
+    writer.create_topic(
+        rosbag2_py.TopicMetadata(
+            id=1,
+            name="/alpha/diagnostics",
+            type="diagnostic_msgs/msg/DiagnosticArray",
+            serialization_format="cdr",
+        )
+    )
+    diagnostics = DiagnosticArray()
+    diagnostics.header = Header(stamp=Time(sec=1, nanosec=150_000_000))
+    diagnostics.status = [
+        DiagnosticStatus(
+            level=DiagnosticStatus.WARN,
+            name="inertial_odometry",
+            message="IMU calibrating 40/100",
+            values=[KeyValue(key="calibrated", value="false")],
+        ),
+        DiagnosticStatus(level=DiagnosticStatus.OK, name="visual_odometry"),
+    ]
+    writer.write("/alpha/diagnostics", serialize_message(diagnostics), 1_150_000_000)
     del writer
 
 
@@ -94,6 +117,18 @@ class ReadBagTests(unittest.TestCase):
         series = result.odometry["/alpha/localisation/ground_truth/odometry"]
         self.assertEqual(series.times_s.tolist(), [0.0, 0.1, 0.2])
         self.assertEqual(result.storage_identifier, "mcap")
+
+    def test_reads_recorded_diagnostics(self) -> None:
+        """!
+        @brief  A recorded DiagnosticArray is flattened into per-status
+                samples on the bag-elapsed axis, with levels decoded.
+        """
+        result = reader.read_bag(self.bag_path)
+        series = result.diagnostic_arrays["/alpha/diagnostics"]
+        self.assertEqual([sample.name for sample in series.samples], ["inertial_odometry", "visual_odometry"])
+        self.assertAlmostEqual(series.samples[0].time_s, 0.15)
+        self.assertEqual(series.samples[0].level, 1)
+        self.assertEqual(series.samples[0].values, {"calibrated": "false"})
 
     def test_health_reported_for_never_published_registered_topic(self) -> None:
         """!
