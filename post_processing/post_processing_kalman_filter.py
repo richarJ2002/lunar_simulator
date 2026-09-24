@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import numpy as np
+import numpy.typing as npt
+import plotly.graph_objects as go
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
 from python_tools.data import alignment, metrics
-from python_tools.data.models import ReportContext, ReportPage
+from python_tools.data.models import OdometrySeries, ReportContext, ReportPage
 from python_tools.diagnostics.log_parser import DIAGNOSTIC_TIME_AXIS_TITLE
 from python_tools.reporting import figures, html, style
 
@@ -65,6 +67,95 @@ def _effective_nis_threshold(configured: float, degrees_of_freedom: int) -> floa
     if configured > 0.0:
         return configured
     return _CHI_SQUARE_99_PERCENT[degrees_of_freedom]
+
+
+def _smoothness_and_consistency_table(
+    estimate: OdometrySeries,
+    truth: OdometrySeries,
+    truth_position_m: npt.NDArray[np.float64],
+    position_error_m: npt.NDArray[np.float64],
+    valid: npt.NDArray[np.bool_],
+    summary_stats: dict[str, str],
+) -> go.Figure:
+    """!
+    @brief   Builds the fused estimate's smoothness and consistency table
+             (the WP-01 baseline metrics) and records its headline values
+             in the page summary.
+
+    @param   estimate
+             The fused estimate series.
+    @param   truth
+             The ground-truth series, used for its own jitter baseline.
+    @param   truth_position_m
+             Ground-truth position interpolated to the estimate's sample
+             times, metres, shape (N, 3).
+    @param   position_error_m
+             Signed estimate-minus-truth position error, metres, shape
+             (N, 3); NaN where `valid` is False.
+    @param   valid
+             Per-sample ground-truth alignment validity, shape (N,).
+    @param   summary_stats
+             Page summary statistics, updated in place.
+
+    @return  A Plotly summary-table figure.
+    """
+    # Fast jitter of each series' own position, in millimetres per axis.
+    estimate_jitter_mm = 1000.0 * np.nanstd(
+        metrics.high_frequency_residual(estimate.times_s, estimate.position_m), axis=0
+    )
+    truth_jitter_mm = 1000.0 * np.nanstd(
+        metrics.high_frequency_residual(truth.times_s, truth.position_m), axis=0
+    )
+    # Staircase publication shows up as repeated stamps and repeated states.
+    repeated_state_count = metrics.identical_sample_count(
+        np.hstack(
+            [estimate.position_m, estimate.orientation_xyzw, estimate.linear_velocity_mps]
+        )
+    )
+    repeated_state_percent = 100.0 * repeated_state_count / max(1, estimate.times_s.size - 1)
+    duplicate_stamps = metrics.duplicate_stamp_count(estimate.times_ns)
+    largest_step_m = metrics.maximum_step_norm(estimate.position_m)
+    # Coverage of the reported position sigma, per horizontal axis.
+    position_std_dev_m = metrics.covariance_std_dev(estimate.pose_covariance)[:, :3]
+    coverage = [
+        metrics.sigma_coverage(position_error_m[:, axis], position_std_dev_m[:, axis])
+        for axis in (0, 1)
+    ]
+    # Final horizontal error at the last aligned sample.
+    valid_indices = np.nonzero(valid)[0]
+    final_error_m = (
+        float(np.linalg.norm(position_error_m[valid_indices[-1], :2]))
+        if valid_indices.size
+        else float("nan")
+    )
+    # Largest direction-of-travel error across all defined windows.
+    direction_error_deg = metrics.direction_of_travel_error_deg(
+        estimate.times_s, estimate.position_m, truth_position_m, valid
+    )
+    maximum_direction_error_deg = (
+        float(np.nanmax(np.abs(direction_error_deg)))
+        if np.any(np.isfinite(direction_error_deg))
+        else float("nan")
+    )
+    # Headline values also appear on the index page.
+    summary_stats["Repeated messages"] = f"{repeated_state_percent:.1f} %"
+    summary_stats["Y jitter"] = f"{estimate_jitter_mm[1]:.1f} mm"
+    summary_stats["Final horizontal error"] = f"{final_error_m:.3f} m"
+    return figures.summary_table(
+        ["Metric", "Fused estimate", "Ground truth"],
+        [
+            ["Messages (effective rate)", f"{estimate.times_s.size} ({metrics.sample_rate_hz(estimate.times_s) or float('nan'):.1f} Hz)", "-"],
+            ["Duplicate stamps", str(duplicate_stamps), "-"],
+            ["Repeated consecutive states", f"{repeated_state_count} ({repeated_state_percent:.1f} %)", "-"],
+            ["Largest per-message step (m)", f"{largest_step_m:.4f}", "-"],
+            ["Position jitter std X/Y/Z (mm)", "/".join(f"{v:.2f}" for v in estimate_jitter_mm), "/".join(f"{v:.2f}" for v in truth_jitter_mm)],
+            ["Body lateral velocity std (m/s)", f"{np.nanstd(estimate.linear_velocity_mps[:, 1]):.4f}", f"{np.nanstd(truth.linear_velocity_mps[:, 1]):.4f}"],
+            ["X error inside 1/3 sigma (%)", f"{100 * coverage[0].within_one_sigma:.1f} / {100 * coverage[0].within_three_sigma:.1f}", "-"],
+            ["Y error inside 1/3 sigma (%)", f"{100 * coverage[1].within_one_sigma:.1f} / {100 * coverage[1].within_three_sigma:.1f}", "-"],
+            ["Final horizontal error (m)", f"{final_error_m:.3f}", "-"],
+            ["Max direction-of-travel error, 30 s (deg)", f"{maximum_direction_error_deg:.1f}", "-"],
+        ],
+    )
 
 
 def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
@@ -194,6 +285,19 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
             f"{html.figure_to_fragment(error_summary_table, 'kalman-error-summary')}</section>"
             "<section class='plot-section'><h2>Fused body velocity error</h2>"
             f"{html.figure_to_fragment(velocity_figure, 'kalman-velocity-error')}</section>"
+        )
+        quality_table = _smoothness_and_consistency_table(
+            estimate, truth, position, position_error, valid, summary_stats
+        )
+        sections.append(
+            "<section class='plot-section'><h2>Smoothness &amp; consistency</h2>"
+            "<p>Publication artifacts (repeated stamps and messages), fast "
+            "jitter (residual against a centred 2 s moving mean of each "
+            "series' own position), covariance consistency (a consistent "
+            "Gaussian error lies inside 1-sigma about 68 % and inside "
+            "3-sigma about 99.7 % of the time) and the direction of travel "
+            "over 30 s windows with at least 0.25 m of true travel.</p>"
+            f"{html.figure_to_fragment(quality_table, 'kalman-quality-table')}</section>"
         )
     else:
         warnings.append(

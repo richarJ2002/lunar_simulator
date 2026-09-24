@@ -84,6 +84,34 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
             "<section class='plot-section'><h2>Trajectory (X-Y)</h2>"
             f"{html.figure_to_fragment(trajectory_figure, 'visual-trajectory')}</section>"
         )
+        # Translation-direction bias: compare where visual odometry says the
+        # rover travelled with where it actually travelled, per 30 s window.
+        direction_error_deg = metrics.direction_of_travel_error_deg(
+            estimate.times_s, estimate.position_m, position, valid
+        )
+        has_direction = np.isfinite(direction_error_deg)
+        if np.any(has_direction):
+            summary_stats["Max direction-of-travel error"] = (
+                f"{float(np.max(np.abs(direction_error_deg[has_direction]))):.1f} deg"
+            )
+            direction_figure = figures.rate_count_plot(
+                estimate.times_s[has_direction],
+                direction_error_deg[has_direction],
+                "Direction-of-travel error (deg)",
+            )
+            sections.append(
+                "<section class='plot-section'><h2>Direction of travel vs ground truth (30 s windows)</h2>"
+                "<p>Signed angle from the true horizontal displacement to the "
+                "visual displacement over the preceding 30 s, shown only for "
+                "windows with at least 0.25 m of true travel. A persistent "
+                "offset while heading stays accurate indicates sideways "
+                "translation mistaken for rotation.</p>"
+                f"{html.figure_to_fragment(direction_figure, 'visual-direction-error')}</section>"
+            )
+        else:
+            warnings.append(
+                "Direction of travel not assessed: no 30 s window had at least 0.25 m of true travel"
+            )
         if gaps.size:
             gap_figure = figures.rate_count_plot(
                 estimate.times_s[1:], gaps, "Inter-sample gap (s)"
