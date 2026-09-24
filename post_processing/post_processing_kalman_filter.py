@@ -239,16 +239,30 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
                 x_title=DIAGNOSTIC_TIME_AXIS_TITLE,
             )
             latest = source_records[-1]
+            summary_rows = [
+                ["Received", str(latest.received)],
+                ["Accepted", str(latest.accepted)],
+                ["Age-rejected", str(latest.age_rejected)],
+                ["NIS-rejected", str(latest.nis_rejected)],
+                ["Numerical-rejected", str(latest.numerical_rejected)],
+                ["Fused", str(latest.fused)],
+            ]
+            # Runs captured after the estimator split its age rejections by
+            # reason show each reason; older runs keep only the total.
+            breakdown = latest.age_rejection_breakdown
+            if breakdown is not None:
+                summary_rows.extend(
+                    [
+                        ["Age-rejected: pre-init", str(breakdown.pre_init)],
+                        ["Age-rejected: negative age", str(breakdown.negative_age)],
+                        ["Age-rejected: too old", str(breakdown.too_old)],
+                        ["Age-rejected: state gap", str(breakdown.state_gap)],
+                        ["Age-rejected: rollback failed", str(breakdown.rollback_failed)],
+                        ["Age-rejected: predict failed", str(breakdown.predict_failed)],
+                    ]
+                )
             summary_table = figures.summary_table(
-                ["Metric", "Latest cumulative value"],
-                [
-                    ["Received", str(latest.received)],
-                    ["Accepted", str(latest.accepted)],
-                    ["Age-rejected", str(latest.age_rejected)],
-                    ["NIS-rejected", str(latest.nis_rejected)],
-                    ["Numerical-rejected", str(latest.numerical_rejected)],
-                    ["Fused", str(latest.fused)],
-                ],
+                ["Metric", "Latest cumulative value"], summary_rows
             )
             sections.append(
                 f"<section class='plot-section'><h2>{source.capitalize()} measurement diagnostics (5 s periodic)</h2>"

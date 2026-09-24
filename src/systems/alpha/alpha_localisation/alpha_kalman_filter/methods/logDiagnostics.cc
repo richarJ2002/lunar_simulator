@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            logDiagnostics.cc
  *
  * @brief           Implements periodic estimator diagnostics logging.
@@ -66,7 +66,9 @@ void AlphaKalmanFilterNode::logDiagnostics()
             "covariance_trace=%.6f covariance_min_eigenvalue=%.6e "
             "covariance_diagonal_range=[%.6e,%.6e] quaternion_norm=%.12f "
             "accel_bias_body_mps2=[%.6f,%.6f,%.6f] "
-            "gyro_bias_body_radps=[%.6f,%.6f,%.6f]",
+            "gyro_bias_body_radps=[%.6f,%.6f,%.6f] "
+            "pre_init=%llu negative_age=%llu too_old=%llu state_gap=%llu "
+            "rollback_failed=%llu predict_failed=%llu",
             names[sourceIndex],
             static_cast<unsigned long long>(source.receivedCount),
             static_cast<unsigned long long>(source.acceptedCount),
@@ -91,7 +93,13 @@ void AlphaKalmanFilterNode::logDiagnostics()
             accelerometerBias.z(),
             gyroscopeBias.x(),
             gyroscopeBias.y(),
-            gyroscopeBias.z());
+            gyroscopeBias.z(),
+            static_cast<unsigned long long>(source.preInitRejectedCount),
+            static_cast<unsigned long long>(source.negativeAgeRejectedCount),
+            static_cast<unsigned long long>(source.tooOldRejectedCount),
+            static_cast<unsigned long long>(source.stateGapRejectedCount),
+            static_cast<unsigned long long>(source.rollbackFailedCount),
+            static_cast<unsigned long long>(source.predictFailedCount));
     }
 }
 

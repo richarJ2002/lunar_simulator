@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from python_tools.data.models import (
+    AgeRejectionBreakdown,
     DiagnosticLog,
     LocalisationDiagnosticRecord,
     VisualDiagnosticRecord,
@@ -90,7 +91,12 @@ _LOCALISATION_DIAG_PATTERN = re.compile(
     rf"covariance_diagonal_range=\[(?P<covariance_diagonal_min>{_FLOAT}),(?P<covariance_diagonal_max>{_FLOAT})\] "
     rf"quaternion_norm=(?P<quaternion_norm>{_FLOAT}) "
     rf"accel_bias_body_mps2=\[(?P<accel_bias_x>{_FLOAT}),(?P<accel_bias_y>{_FLOAT}),(?P<accel_bias_z>{_FLOAT})\] "
-    rf"gyro_bias_body_radps=\[(?P<gyro_bias_x>{_FLOAT}),(?P<gyro_bias_y>{_FLOAT}),(?P<gyro_bias_z>{_FLOAT})\]$"
+    rf"gyro_bias_body_radps=\[(?P<gyro_bias_x>{_FLOAT}),(?P<gyro_bias_y>{_FLOAT}),(?P<gyro_bias_z>{_FLOAT})\]"
+    # Optional reason-specific age-rejection split, appended by WP-01 Phase
+    # 0; absent from older runs' logs, which must keep parsing.
+    r"(?: pre_init=(?P<pre_init>\d+) negative_age=(?P<negative_age>\d+) "
+    r"too_old=(?P<too_old>\d+) state_gap=(?P<state_gap>\d+) "
+    r"rollback_failed=(?P<rollback_failed>\d+) predict_failed=(?P<predict_failed>\d+))?$"
 )
 
 
@@ -273,6 +279,20 @@ def _build_localisation_record(
             float(g["gyro_bias_x"]),
             float(g["gyro_bias_y"]),
             float(g["gyro_bias_z"]),
+        ),
+        # The breakdown group matches as a whole or not at all, so testing
+        # one of its fields is enough to know whether it was present.
+        age_rejection_breakdown=(
+            AgeRejectionBreakdown(
+                pre_init=int(g["pre_init"]),
+                negative_age=int(g["negative_age"]),
+                too_old=int(g["too_old"]),
+                state_gap=int(g["state_gap"]),
+                rollback_failed=int(g["rollback_failed"]),
+                predict_failed=int(g["predict_failed"]),
+            )
+            if g["pre_init"] is not None
+            else None
         ),
     )
 

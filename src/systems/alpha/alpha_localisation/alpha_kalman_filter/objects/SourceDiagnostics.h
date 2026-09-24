@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            SourceDiagnostics.h
  *
  * @brief           Declares bounded estimator source diagnostics.
@@ -15,49 +15,178 @@
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
-/**
+/*!
  * @brief           Accumulates one source's counts and latest timing values.
  */
 struct SourceDiagnostics
 {
-public:
-    /** @brief Number of callbacks admitted. */
+  public:
+    /*!
+     * @brief           Number of callbacks admitted.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t receivedCount{0U};
 
-    /** @brief Number of measurements passing boundary and age validation. */
+    /*!
+     * @brief           Number of measurements passing boundary and age
+     *                  validation.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t acceptedCount{0U};
 
-    /** @brief Number of measurements rejected for age or timestamp order. */
+    /*!
+     * @brief           Number of measurements rejected for age or timestamp
+     *                  order.
+     *
+     *                  For the visual and wheel sources this is always the
+     *                  sum of the six reason-specific counters below, kept
+     *                  so existing consumers still see one total. The IMU
+     *                  source instead counts backwards clock jumps here.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t ageRejectedCount{0U};
 
-    /** @brief Number of measurements rejected by a statistical gate. */
+    /*!
+     * @brief           Number of measurements rejected before the
+     *                  IMU-seeded initial state existed.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t preInitRejectedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected because their stamp
+     *                  was ahead of this node's ROS clock.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t negativeAgeRejectedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected because their stamp
+     *                  was older than the maximum measurement age.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t tooOldRejectedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected because their stamp
+     *                  was too far from the estimator epoch.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t stateGapRejectedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected because no rollback
+     *                  checkpoint could be restored and replayed to their
+     *                  stamp.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t rollbackFailedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected because forward
+     *                  prediction to their stamp failed.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t predictFailedCount{0U};
+
+    /*!
+     * @brief           Number of measurements rejected by a statistical gate.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t nisRejectedCount{0U};
 
-    /** @brief Number of malformed or numerically rejected measurements. */
+    /*!
+     * @brief           Number of malformed or numerically rejected
+     *                  measurements.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t numericalRejectedCount{0U};
 
-    /** @brief Number of measurements successfully applied to the estimate. */
+    /*!
+     * @brief           Number of measurements successfully applied to the
+     *                  estimate.
+     *
+     * @frame           N/A
+     * @units           count
+     */
     std::uint64_t fusedCount{0U};
 
-    /** @brief Latest source publication timestamp in ROS seconds. */
+    /*!
+     * @brief           Latest source publication timestamp.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
     double publicationTimestamp_s{0.0};
 
-    /** @brief Latest callback admission timestamp in ROS seconds. */
+    /*!
+     * @brief           Latest callback admission timestamp.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
     double callbackAdmissionTimestamp_s{0.0};
 
-    /** @brief Latest processing-start timestamp in ROS seconds. */
+    /*!
+     * @brief           Latest processing-start timestamp.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
     double processingStartTimestamp_s{0.0};
 
-    /** @brief Latest callback completion timestamp in ROS seconds. */
+    /*!
+     * @brief           Latest callback completion timestamp.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
     double processingEndTimestamp_s{0.0};
 
-    /** @brief Estimator epoch after the latest callback, in ROS seconds. */
+    /*!
+     * @brief           Estimator epoch after the latest callback.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
     double estimatorTimestamp_s{0.0};
 
-    /** @brief Latest normalized innovation squared value. */
+    /*!
+     * @brief           Latest normalized innovation squared value.
+     *
+     * @frame           N/A
+     * @units           dimensionless
+     */
     double normalizedInnovationSquared{0.0};
 
-    /** @brief Norm of the latest posterior error-state correction. */
+    /*!
+     * @brief           Norm of the latest posterior error-state correction.
+     *
+     * @frame           Mixed; see ErrorStateIndex
+     * @units           Mixed; see ErrorStateIndex
+     */
     double correctionNorm{0.0};
 };
 

@@ -136,6 +136,51 @@ class ParseLocalisationDiagTests(unittest.TestCase):
         self.assertAlmostEqual(record.accel_bias_body_mps2[1], -0.007037)
         self.assertAlmostEqual(record.gyro_bias_body_radps[2], 0.001520)
 
+    def test_legacy_line_has_no_age_rejection_breakdown(self) -> None:
+        """!
+        @brief  A line captured before the reason-specific split existed
+                still parses, and reports the breakdown as absent rather
+                than as six zeros.
+        """
+        log = self._write_and_parse([_REAL_LOCALISATION_DIAG_LINE])
+        self.assertIsNone(log.localisation_records[0].age_rejection_breakdown)
+
+    def test_parses_age_rejection_breakdown(self) -> None:
+        """!
+        @brief  The six reason-specific age-rejection counters appended
+                after the bias vectors are extracted in order.
+        """
+        line = (
+            _REAL_LOCALISATION_DIAG_LINE
+            + " pre_init=100 negative_age=250 too_old=40 state_gap=5"
+            + " rollback_failed=2 predict_failed=0"
+        )
+        log = self._write_and_parse([line])
+        self.assertEqual(log.unparsed_line_count, 0)
+        breakdown = log.localisation_records[0].age_rejection_breakdown
+        self.assertIsNotNone(breakdown)
+        self.assertEqual(
+            (
+                breakdown.pre_init,
+                breakdown.negative_age,
+                breakdown.too_old,
+                breakdown.state_gap,
+                breakdown.rollback_failed,
+                breakdown.predict_failed,
+            ),
+            (100, 250, 40, 5, 2, 0),
+        )
+
+    def test_partial_age_rejection_breakdown_is_unparsed(self) -> None:
+        """!
+        @brief  A truncated breakdown (only some reasons present) is a
+                malformed line and is counted, not half-parsed.
+        """
+        line = _REAL_LOCALISATION_DIAG_LINE + " pre_init=100 negative_age=250"
+        log = self._write_and_parse([line])
+        self.assertEqual(len(log.localisation_records), 0)
+        self.assertEqual(log.unparsed_line_count, 1)
+
     def test_multiple_sources_all_parsed(self) -> None:
         """!
         @brief  Three consecutive per-source lines all parse, distinct by

@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            handleMeasurementCallBack.cc
  *
  * @brief           Implements visual-pose and wheel-velocity corrections.
@@ -57,6 +57,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     if (!hasInitialState)
     {
         ++diagnostics.ageRejectedCount;
+        ++diagnostics.preInitRejectedCount;
         finishDiagnostics();
         return;
     }
@@ -64,11 +65,28 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     const double measurementTimestamp_s =
         rclcpp::Time(message_in.header.stamp, RCL_ROS_TIME).seconds();
     const double callbackAge_s = now().seconds() - measurementTimestamp_s;
-    if (!std::isfinite(measurementTimestamp_s) ||
-        !std::isfinite(callbackAge_s) || callbackAge_s < 0.0 ||
-        callbackAge_s > maximumVisualMeasurementAgeS)
+    if (!std::isfinite(measurementTimestamp_s) || !std::isfinite(callbackAge_s))
+    {
+        /* A non-finite stamp is malformed input, not a timing decision. */
+        ++diagnostics.numericalRejectedCount;
+        finishDiagnostics();
+        return;
+    }
+
+    /* Age rejections are split by reason so a dominant cause (a stamp
+     * slightly ahead of a lagging /clock versus a genuinely stale message)
+     * can be told apart from the periodic diagnostics alone. */
+    if (callbackAge_s < 0.0)
     {
         ++diagnostics.ageRejectedCount;
+        ++diagnostics.negativeAgeRejectedCount;
+        finishDiagnostics();
+        return;
+    }
+    if (callbackAge_s > maximumVisualMeasurementAgeS)
+    {
+        ++diagnostics.ageRejectedCount;
+        ++diagnostics.tooOldRejectedCount;
         finishDiagnostics();
         return;
     }
@@ -80,6 +98,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     if (std::abs(stateAgeFromMeasurement_s) > maximumVisualMeasurementAgeS)
     {
         ++diagnostics.ageRejectedCount;
+        ++diagnostics.stateGapRejectedCount;
         finishDiagnostics();
         return;
     }
@@ -104,6 +123,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
             latestState      = nominalState;
             latestCovariance = filter.getCovariance();
             ++diagnostics.ageRejectedCount;
+            ++diagnostics.rollbackFailedCount;
             finishDiagnostics();
             return;
         }
@@ -115,6 +135,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         if (predictionStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             ++diagnostics.ageRejectedCount;
+            ++diagnostics.predictFailedCount;
             finishDiagnostics();
             return;
         }

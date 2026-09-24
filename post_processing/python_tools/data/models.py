@@ -501,6 +501,29 @@ class VisualDiagnosticRecord:
 
 
 @dataclass(frozen=True)
+class AgeRejectionBreakdown:
+    """!
+    @brief  The six reasons alpha_kalman_filter's handleMeasurementCallBack
+            rejects a visual or wheel measurement on timing grounds. Their
+            sum equals the record's `age_rejected` total. Only runs
+            captured after WP-01 Phase 0 carry this breakdown.
+    """
+
+    # Rejected before the IMU-seeded initial state existed.
+    pre_init: int
+    # Rejected because the stamp was ahead of the estimator node's clock.
+    negative_age: int
+    # Rejected because the stamp was older than the maximum age.
+    too_old: int
+    # Rejected because the stamp was too far from the estimator epoch.
+    state_gap: int
+    # Rejected because no rollback checkpoint could be restored/replayed.
+    rollback_failed: int
+    # Rejected because forward prediction to the stamp failed.
+    predict_failed: int
+
+
+@dataclass(frozen=True)
 class LocalisationDiagnosticRecord:
     """!
     @brief  One parsed "localisation_diag" five-second periodic log record
@@ -558,6 +581,9 @@ class LocalisationDiagnosticRecord:
     accel_bias_body_mps2: tuple[float, float, float]
     # Estimated gyroscope bias, body frame, rad/s.
     gyro_bias_body_radps: tuple[float, float, float]
+    # Reason-specific split of `age_rejected`, or None for a run captured
+    # before the estimator reported it.
+    age_rejection_breakdown: Optional[AgeRejectionBreakdown] = None
 
 
 @dataclass(frozen=True)
