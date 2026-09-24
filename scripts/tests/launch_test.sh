@@ -285,6 +285,36 @@ images_from_bash="$(bash -c 'source "$1"; RECORD_IMAGES=1; assemble_record_topic
 pass "core+images topic list matches python_tools registry"
 
 # ---------------------------------------------------------------------------- #
+# 8b. Console width: every launcher message line carries at most 40
+#     characters of text after its "[MSG] " style prefix (WP-01).
+# ---------------------------------------------------------------------------- #
+
+bash -c '
+  set -euo pipefail
+  source "$1"
+  ROOT="/home/example/lunar_simulator"
+  msg "Run: $(rel_path "$ROOT/test_runs/2026-09-24-21-31-06-a-long-run-name")"
+  wrn "a b c"
+  err "Recorder exited without metadata.yaml: test_runs/2026-09-24-21-31-06/ros/bags/localisation" 2>&1
+  msg ""
+' _ "$LAUNCH_SH" > "$stub_dir/console_width.txt" || fail "console width helpers"
+python3 - "$stub_dir/console_width.txt" <<'PYEOF' || fail "launcher lines exceed 40 characters of text"
+import sys
+lines = open(sys.argv[1]).read().splitlines()
+# A word that cannot share the first line moves to an indented continuation
+# line and is split there; no text is lost.
+assert lines[0] == "[MSG] Run:", lines
+assert lines[1] == "[MSG]   test_runs/2026-09-24-21-31-06-a-long-r", lines
+assert lines[2] == "[MSG]   un-name", lines
+assert "[WRN] a b c" in lines, lines
+for line in lines:
+    prefix, text = line[:6], line[6:]
+    assert prefix in ("[MSG] ", "[WRN] ", "[ERR] "), line
+    assert len(text) <= 40, line
+PYEOF
+pass "launcher messages wrap at 40 characters of text"
+
+# ---------------------------------------------------------------------------- #
 # 9. Recorder lifecycle: bag destination, manifest, PID-scoped SIGTERM+wait,
 #    bounded retry/failure, and the launcher's own INT/TERM trap handling.
 # ---------------------------------------------------------------------------- #

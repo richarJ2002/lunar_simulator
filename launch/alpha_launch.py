@@ -89,6 +89,15 @@ def generate_launch_description():
         default_value='false',
         description='Open RViz with src/systems/alpha/alpha.rviz.',
     )
+    # WP-01 console rule: a short fixed prefix and no 20-digit timestamp, so
+    # each wrapped node line carries at most 40 characters of text after
+    # it. rcl uses the same format for the node's file log; per-line wall
+    # timestamps remain in the launch log, which prefixes every line.
+    console_format_arg = DeclareLaunchArgument(
+        'console_format',
+        default_value='[{severity}] [{name}]: {message}',
+        description='RCUTILS_CONSOLE_OUTPUT_FORMAT for alpha_node.',
+    )
 
     # Hardcoded Alpha parameter tree: 7 files. use_sim_time is wired as a
     # Node parameter below, and the bridge is exempt per D5.
@@ -122,6 +131,12 @@ def generate_launch_description():
             {'system_name': LaunchConfiguration('system_name')},
             {'use_sim_time': LaunchConfiguration('use_sim_time')},
         ],
+        # Print each node line as-is: the "[alpha_node-1] " process prefix
+        # would otherwise push every line past the console width.
+        output_format='{line}',
+        additional_env={
+            'RCUTILS_CONSOLE_OUTPUT_FORMAT': LaunchConfiguration('console_format'),
+        },
     )
 
     # The bridge reads share/lunar_simulator/config/alpha_ros_gz_bridge.yaml
@@ -139,11 +154,14 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('launch_bridge')),
     )
 
+    # RViz output goes to the launch log only, keeping the terminal for
+    # project node lines; scripts/launch_simulator.sh starts its own RViz.
     rviz = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
         arguments=['-d', PathJoinSubstitution([pkg_share, 'alpha', 'alpha.rviz'])],
+        output='log',
         condition=IfCondition(LaunchConfiguration('launch_rviz')),
     )
 
@@ -156,6 +174,7 @@ def generate_launch_description():
         launch_gazebo_arg,
         launch_bridge_arg,
         launch_rviz_arg,
+        console_format_arg,
         SetEnvironmentVariable(
             name='ROS_DOMAIN_ID',
             value=LaunchConfiguration('ros_domain_id'),

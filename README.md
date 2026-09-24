@@ -43,7 +43,12 @@ test_runs/YYYY-MM-DD-HH-mm-SS/
 |       |-- localisation/     # Automatically recorded rosbag2/MCAP bag
 |       `-- manifest.json     # World/system/domain/profile/topics/revision for this recording
 |-- logs/
-|   `-- terminal.txt  # Complete launcher and simulation terminal output
+|   |-- terminal.txt  # Complete launcher and simulation terminal output
+|   |-- build.txt     # colcon build output (kept off the terminal)
+|   |-- gazebo.txt    # Full `gz sim -v4` output (kept off the terminal)
+|   |-- bridge.txt    # ros_gz_bridge output
+|   |-- rviz.txt      # RViz output, when --rviz was given
+|   `-- rosbag_record.log
 `-- post_processing/  # Generated report site (see "Post-Processing Reports")
 ```
 
@@ -52,6 +57,18 @@ The launcher exports `TEST_RUN_DIR`, `ROS_LOG_DIR`, `COLCON_LOG_PATH`, and
 the same run directory. Every launch automatically records a core telemetry
 bag to `ros/bags/localisation`; the launcher exits with an error rather than
 completing a run whose recorder failed to start or crashed immediately.
+
+The terminal shows only short operator lines: every launcher and node
+message carries at most 40 characters of text per line after a fixed
+`[MSG] ` or `[LEVEL] [node]: ` prefix, and longer messages wrap onto
+indented continuation lines. Gazebo, bridge and RViz output goes to the
+run's `logs/` files instead. Nodes print a compact health line every five
+simulated seconds (for example `VO 3.3Hz inl 180 fail 0` or
+`EKF fused v16 w250 rej 1`); the full per-second counters, timings and
+calibration status are recorded on `/alpha/diagnostics`
+(`diagnostic_msgs/DiagnosticArray`, simulation time) and plotted by the
+report pages. Node file logs use the same compact prefix, so per-line
+wall-clock times live in the launch log under `ros/logs/`.
 
 When an interactive simulation ends, the launcher asks for an optional test-run
 name. Entering `straight-drive`, for example, renames the directory to
@@ -173,7 +190,7 @@ odometry page in the low tens of megabytes even with images included.
 - **"No default telemetry bag found"**: the run predates automatic
   recording, or its recorder failed to start — check
   `test_runs/<run>/logs/terminal.txt` and
-  `test_runs/<run>/ros/bags/rosbag_record.log`. Pass `--bag` explicitly if
+  `test_runs/<run>/logs/rosbag_record.log`. Pass `--bag` explicitly if
   the bag lives somewhere else.
 - **"not a valid rosbag2 bag: no metadata.yaml"**: the recording did not
   shut down cleanly (metadata.yaml is only written on a finalized recorder

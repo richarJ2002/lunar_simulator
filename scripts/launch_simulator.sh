@@ -13,16 +13,82 @@ set -euo pipefail
 # HELPER FUNCTIONS
 # ---------------------------------------------------------------------------- #
 
+# Longest message text, in characters, printed on one terminal line after
+# the "[MSG] " style prefix (WP-01 console rule, shared with the C++ nodes'
+# LUNAR_LOG_* macros). Continuation lines are indented two spaces and the
+# indent counts toward the limit.
+readonly CONSOLE_TEXT_WIDTH=40
+
+#!
+# @brief          Prints text word-wrapped to CONSOLE_TEXT_WIDTH characters
+#                 per line, each line behind the same prefix. Words longer
+#                 than a line are split.
+#
+# @param  $1      Prefix printed before every line (e.g. "[MSG] ").
+# @param  $2      Text to wrap.
+print_wrapped() {
+  local prefix="$1"
+  local text="$2"
+  local capacity="$CONSOLE_TEXT_WIDTH"
+  local indent=""
+  local line=""
+  local word
+  local -a words=()
+
+  read -r -a words <<< "$text"
+  for word in "${words[@]}"; do
+    while [ -n "$word" ]; do
+      if [ -z "$line" ] && [ "${#word}" -gt "$capacity" ]; then
+        # Split a word that cannot fit on any line.
+        printf '%s%s%s\n' "$prefix" "$indent" "${word:0:capacity}"
+        word="${word:capacity}"
+        indent="  "
+        capacity=$((CONSOLE_TEXT_WIDTH - 2))
+      elif [ -z "$line" ]; then
+        line="$word"
+        word=""
+      elif [ $(( ${#line} + 1 + ${#word} )) -le "$capacity" ]; then
+        line="$line $word"
+        word=""
+      else
+        # Start a continuation line for the word that did not fit.
+        printf '%s%s%s\n' "$prefix" "$indent" "$line"
+        line=""
+        indent="  "
+        capacity=$((CONSOLE_TEXT_WIDTH - 2))
+      fi
+    done
+  done
+  if [ -n "$line" ] || [ "${#words[@]}" -eq 0 ]; then
+    printf '%s%s%s\n' "$prefix" "$indent" "$line"
+  fi
+}
+
 msg() {
-  echo "[MSG] ${1}"
+  print_wrapped "[MSG] " "${1}"
 }
 
 wrn() {
-  echo "[WRN] ${1}"
+  print_wrapped "[WRN] " "${1}"
 }
 
 err() {
-  echo "[ERR] ${1}" >&2
+  print_wrapped "[ERR] " "${1}" >&2
+}
+
+#!
+# @brief          Prints a path relative to the repository root when it lies
+#                 inside it, so terminal lines stay short; other paths are
+#                 printed unchanged.
+#
+# @param  $1      Absolute path.
+rel_path() {
+  local path="$1"
+  if [ -n "$ROOT" ] && [[ "$path" == "$ROOT"/* ]]; then
+    printf '%s' "${path#"$ROOT"/}"
+  else
+    printf '%s' "$path"
+  fi
 }
 
 usage() {
@@ -107,6 +173,7 @@ MODEL_NAME=""          # Model name extracted from model.config
 GENERATED_MODEL_FILE="" # Temporary SDF with camera noise patched
 GAZEBO_PID=""          # Gazebo process ID
 RECORDER_PID=""        # Background `ros2 bag record` process ID, once started
+RVIZ_PID=""            # RViz process ID when --rviz started it
 BAG_DESTINATION=""     # Path passed to `ros2 bag record -o`
 RECORD_TOPICS=()       # Assembled by assemble_record_topics() from the profile
 ORIGINAL_ARGS=()       # This invocation's argv, captured before parsing/shifting
@@ -209,7 +276,7 @@ validate_source_files() {
   )
 
   for f in "${required_files[@]}"; do
-    [ -f "$f" ] || { err "Missing required file: $f"; exit 1; }
+    [ -f "$f" ] || { err "Missing file: $(rel_path "$f")"; exit 1; }
   done
 
   # RViz config is optional; if missing, disable RViz
@@ -232,7 +299,7 @@ create_test_run() {
       break
     fi
     if [ ! -d "$TEST_RUN_DIR" ]; then
-      err "Unable to create test run directory: $TEST_RUN_DIR"
+      err "Cannot create $(rel_path "$TEST_RUN_DIR")"
       return 1
     fi
     sleep 1
@@ -305,7 +372,7 @@ start_terminal_capture() {
   fi
   exec {TERMINAL_LOG_FD}>>"$RUN_LOGS_DIR/terminal.txt"
   exec > >(trap '' INT TERM; exec tee -a "/dev/fd/$TERMINAL_LOG_FD") 2>&1
-  msg "Recording test run in $TEST_RUN_DIR"
+  msg "Run: $(rel_path "$TEST_RUN_DIR")"
 }
 
 rename_test_run() {
@@ -315,17 +382,17 @@ rename_test_run() {
   [ -n "$run_name" ] || return 0
   if [[ ! "$run_name" =~ ^[A-Za-z0-9._-]+$ ]] ||
     [ "${#run_name}" -gt 100 ]; then
-    err "Test run names must be 1-100 characters using only letters, numbers, '.', '_' or '-'"
+    err "Name: 1-100 of A-Z a-z 0-9 . _ -"
     return 1
   fi
 
   renamed_test_run_dir="${TEST_RUN_DIR}-${run_name}"
   if [ -e "$renamed_test_run_dir" ]; then
-    err "Test run directory already exists: $renamed_test_run_dir"
+    err "Already exists: $(rel_path "$renamed_test_run_dir")"
     return 1
   fi
   if ! mv -- "$TEST_RUN_DIR" "$renamed_test_run_dir"; then
-    err "Unable to rename test run directory to: $renamed_test_run_dir"
+    err "Cannot rename to $(rel_path "$renamed_test_run_dir")"
     return 1
   fi
 
@@ -344,8 +411,8 @@ rename_test_run() {
     BAG_DESTINATION="$TEST_RUN_DIR${BAG_DESTINATION#"$previous_test_run_dir"}"
   fi
   relocate_recording_manifest "$previous_test_run_dir" "$TEST_RUN_DIR" ||
-    wrn "Unable to update manifest.json bag_destination after rename"
-  msg "Named test run: $TEST_RUN_DIR"
+    wrn "manifest.json bag path not updated"
+  msg "Named: $(rel_path "$TEST_RUN_DIR")"
 }
 
 #!
@@ -379,7 +446,7 @@ prompt_for_test_run_name() {
 
   [ "$INTERACTIVE_RUN" -eq 1 ] || return 0
   while true; do
-    printf "Name this test run (Enter to keep only the timestamp): "
+    printf "Run name (Enter to skip): "
     if ! IFS= read -r run_name; then
       return 0
     fi
@@ -413,7 +480,7 @@ prompt_for_test_run_name() {
 handle_termination_signal() {
   local signal_name="$1"
   trap - INT TERM
-  err "Received SIG${signal_name}; shutting down..."
+  err "Received SIG${signal_name}; shutting down"
   SIGNAL_EXIT_CODE=$((128 + $(kill -l "$signal_name")))
   exit "$SIGNAL_EXIT_CODE"
 }
@@ -447,6 +514,10 @@ finalize_test_run() {
   if [ -n "$GENERATED_MODEL_FILE" ]; then
     rm -f -- "$GENERATED_MODEL_FILE"
   fi
+  # RViz belongs to this launcher now; close it on every exit path.
+  if [ -n "$RVIZ_PID" ] && kill -0 "$RVIZ_PID" 2>/dev/null; then
+    kill -TERM "$RVIZ_PID" 2>/dev/null || true
+  fi
   if [ "$SIMULATION_STARTED" -eq 1 ]; then
     prompt_for_test_run_name || true
   fi
@@ -458,11 +529,17 @@ finalize_test_run() {
 # ---------------------------------------------------------------------------- #
 
 build_workspace() {
-  msg "Building workspace..."
+  msg "Building workspace (logs/build.txt)"
   set +u
   source /opt/ros/jazzy/setup.bash
   set -u
-  colcon build --symlink-install --base-paths "$ROOT"
+  # Compiler output (including the documented -Wconversion baseline) stays
+  # in the run's log; only a failure is surfaced on the terminal.
+  if ! colcon build --symlink-install --base-paths "$ROOT" \
+      >"$RUN_LOGS_DIR/build.txt" 2>&1; then
+    err "Build failed; see logs/build.txt"
+    return 1
+  fi
   set +u
   source "$ROOT/install/setup.bash"
   set -u
@@ -473,7 +550,7 @@ build_workspace() {
 # ---------------------------------------------------------------------------- #
 
 extract_model_name() {
-  msg "Extracting model name from model.config..."
+  msg "Reading model name"
   MODEL_NAME="$(python3 -c "
 import xml.etree.ElementTree as ET, sys
 tree = ET.parse(sys.argv[1])
@@ -481,7 +558,7 @@ print((tree.getroot().findtext('name') or '').strip())
 " "$MODEL_CONFIG")"
 
   [[ -n "$MODEL_NAME" && "$MODEL_NAME" =~ ^[A-Za-z0-9_-]+$ ]] || {
-    err "Bad model name in $MODEL_CONFIG"
+    err "Bad model name in $(rel_path "$MODEL_CONFIG")"
     exit 1
   }
 }
@@ -513,20 +590,22 @@ patch_camera_noise() {
 # ---------------------------------------------------------------------------- #
 
 start_gazebo() {
-  msg "Starting Gazebo..."
+  msg "Starting Gazebo (logs/gazebo.txt)"
   export GZ_SIM_RESOURCE_PATH="$ROOT/worlds:$MODEL_DIR"
 
+  # Full -v4 output goes to the run's log, not the operator's terminal;
+  # readiness is detected through `gz service -l`, never by reading it.
   if [ "$RUN_SIMULATION_HEADLESS" = "1" ]; then
-    gz sim -s -v4 "$WORLD_FILE" &
+    gz sim -s -v4 "$WORLD_FILE" >>"$RUN_LOGS_DIR/gazebo.txt" 2>&1 &
   else
-    gz sim -v4 "$WORLD_FILE" &
+    gz sim -v4 "$WORLD_FILE" >>"$RUN_LOGS_DIR/gazebo.txt" 2>&1 &
   fi
   GAZEBO_PID=$!
   SIMULATION_STARTED=1
 }
 
 wait_for_world() {
-  msg "Waiting for Gazebo world '$WORLD'..."
+  msg "Waiting for world '$WORLD'"
   local ready=0
   for _ in {1..30}; do
     if gz service -l 2>/dev/null | grep -q "/world/$WORLD/create"; then
@@ -535,25 +614,30 @@ wait_for_world() {
     fi
     sleep 1
   done
-  [ "$ready" = "1" ] || { err "Gazebo world did not become ready"; exit 1; }
+  [ "$ready" = "1" ] || { err "World not ready; see logs/gazebo.txt"; exit 1; }
 }
 
 pause_simulation() {
-  msg "Pausing simulation..."
+  msg "Pausing simulation"
   gz service -s "/world/$WORLD/control" \
     --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
     -r "pause: true" | grep -q "data: true"
 }
 
 spawn_model() {
-  msg "Spawning model '$MODEL_NAME'..."
-  gz service -s "/world/$WORLD/create" \
-    --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 5000 \
-    -r "sdf_filename: \"$GENERATED_MODEL_FILE\", name: \"$MODEL_NAME\", allow_renaming: false, pose: {position: {x: 0.0, y: 0.0, z: 0.02}}"
+  msg "Spawning '$MODEL_NAME'"
+  # The reply is checked rather than printed, like pause_simulation's.
+  if ! gz service -s "/world/$WORLD/create" \
+      --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 5000 \
+      -r "sdf_filename: \"$GENERATED_MODEL_FILE\", name: \"$MODEL_NAME\", allow_renaming: false, pose: {position: {x: 0.0, y: 0.0, z: 0.02}}" \
+      | grep -q "data: true"; then
+    err "Spawn request was rejected"
+    exit 1
+  fi
 }
 
 wait_for_spawn() {
-  msg "Waiting for model to spawn..."
+  msg "Waiting for spawn"
   local spawned=0
   for _ in {1..15}; do
     if gz model --list 2>/dev/null | sed -n 's/^[[:space:]]*-[[:space:]]*//p' | grep -Fxq "$MODEL_NAME"; then
@@ -562,11 +646,11 @@ wait_for_spawn() {
     fi
     sleep 1
   done
-  [ "$spawned" = "1" ] || { err "Model not found after spawn"; exit 1; }
+  [ "$spawned" = "1" ] || { err "Model missing after spawn"; exit 1; }
 }
 
 unpause_simulation() {
-  msg "Starting simulation..."
+  msg "Starting simulation"
   gz service -s "/world/$WORLD/control" \
     --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
     -r "pause: false" >/dev/null
@@ -726,7 +810,7 @@ start_recorder() {
 
   local recording_profile="core"
   [ "$RECORD_IMAGES" = "1" ] && recording_profile="core+images"
-  msg "Starting rosbag recording ($recording_profile profile, ${#RECORD_TOPICS[@]} topics) -> $BAG_DESTINATION"
+  msg "Recording $recording_profile: ${#RECORD_TOPICS[@]} topics"
 
   # -s mcap: Jazzy's default, chosen explicitly per D6 (no second rosbag
   # implementation or direct MCAP/SQLite parsing -- rosbag2_py owns this).
@@ -749,11 +833,11 @@ start_recorder() {
   # storage backend opens, independent of whether any message has arrived.
   sleep 2
   if ! kill -0 "$RECORDER_PID" 2>/dev/null; then
-    err "rosbag recorder exited immediately; see $RUN_LOGS_DIR/rosbag_record.log"
+    err "Recorder exited; see logs/rosbag_record.log"
     exit 1
   fi
   if [ ! -d "$BAG_DESTINATION" ]; then
-    err "rosbag recorder did not create its bag destination: $BAG_DESTINATION"
+    err "Recorder made no bag: $(rel_path "$BAG_DESTINATION")"
     exit 1
   fi
 
@@ -829,7 +913,7 @@ stop_recorder() {
   if kill -0 "$recorder_pid" 2>/dev/null; then
     local attempt
     for attempt in 1 2; do
-      msg "Stopping rosbag recorder (pid $recorder_pid, attempt $attempt)..."
+      msg "Stopping rosbag recorder (try $attempt)"
       kill -TERM "$recorder_pid" 2>/dev/null || true
       _wait_for_recorder_exit "$recorder_pid" && break
     done
@@ -837,12 +921,11 @@ stop_recorder() {
 
   if kill -0 "$recorder_pid" 2>/dev/null; then
     local message
-    message="Recorder pid $recorder_pid did not exit after 2 SIGTERM attempts"
-    message="$message (${RECORDER_SHUTDOWN_TIMEOUT_S}s each); bag at"
-    message="$message $BAG_DESTINATION is NOT finalized. Left running --"
-    message="$message investigate/stop it manually; do not SIGKILL it as a"
-    message="$message routine recovery, since that only guarantees the loss"
-    message="$message of this bag's metadata.yaml."
+    message="Recorder pid $recorder_pid ignored 2 SIGTERMs"
+    message="$message (${RECORDER_SHUTDOWN_TIMEOUT_S}s each). Bag NOT"
+    message="$message finalized: $(rel_path "$BAG_DESTINATION"). Left"
+    message="$message running; stop it by hand. SIGKILL would lose"
+    message="$message metadata.yaml."
     err "$message"
     return 1
   fi
@@ -854,7 +937,7 @@ stop_recorder() {
   wait "$recorder_pid" 2>/dev/null || true
   RECORDER_PID=""
   if [ -n "$BAG_DESTINATION" ] && [ ! -f "$BAG_DESTINATION/metadata.yaml" ]; then
-    err "Recorder pid $recorder_pid exited but $BAG_DESTINATION/metadata.yaml is still missing; the bag is not finalized"
+    err "Recorder exited without metadata.yaml: $(rel_path "$BAG_DESTINATION")"
     return 1
   fi
   return 0
@@ -865,20 +948,31 @@ stop_recorder() {
 # ---------------------------------------------------------------------------- #
 
 launch_ros_nodes() {
-  msg "Launching ROS nodes for '$SYSTEM' in ROS domain $ROS_DOMAIN_ID and Gazebo partition $GZ_PARTITION..."
-  local launch_rviz="false"
-  [ "$OPEN_RVIZ" = "1" ] && launch_rviz="true"
+  msg "Launching '$SYSTEM' nodes (domain $ROS_DOMAIN_ID)"
 
   ros2 launch lunar_simulator "${SYSTEM}_launch.py" \
     system_name:="$SYSTEM" use_sim_time:=true \
     ros_domain_id:="$ROS_DOMAIN_ID" \
     gz_partition:="$GZ_PARTITION" \
-    launch_gazebo:=false launch_bridge:=false launch_rviz:="$launch_rviz" &
+    launch_gazebo:=false launch_bridge:=false launch_rviz:=false &
+
+  # RViz is started here rather than by the launch file so its console
+  # output lands in the run's logs instead of the operator's terminal.
+  if [ "$OPEN_RVIZ" = "1" ]; then
+    msg "Starting RViz (logs/rviz.txt)"
+    rviz2 -d "$RVIZ_SOURCE" >"$RUN_LOGS_DIR/rviz.txt" 2>&1 &
+    RVIZ_PID=$!
+  fi
 }
 
 run_bridge() {
-  msg "Starting ros-gz bridge..."
-  ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:="$BRIDGE_CONFIG"
+  msg "Starting bridge (logs/bridge.txt)"
+  if ! ros2 run ros_gz_bridge parameter_bridge \
+      --ros-args -p config_file:="$BRIDGE_CONFIG" \
+      >"$RUN_LOGS_DIR/bridge.txt" 2>&1; then
+    err "Bridge exited; see logs/bridge.txt"
+    return 1
+  fi
 }
 
 # ---------------------------------------------------------------------------- #
