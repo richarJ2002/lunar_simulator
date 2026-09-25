@@ -75,8 +75,10 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
 
     /* Age rejections are split by reason so a dominant cause (a stamp
      * slightly ahead of a lagging /clock versus a genuinely stale message)
-     * can be told apart from the periodic diagnostics alone. */
-    if (callbackAge_s < 0.0)
+     * can be told apart from the periodic diagnostics alone. A stamp at
+     * most maximumFutureStampS ahead of this node's clock is fused: the
+     * state is predicted forward to it like any newer measurement. */
+    if (callbackAge_s < -maximumFutureStampS)
     {
         ++diagnostics.ageRejectedCount;
         ++diagnostics.negativeAgeRejectedCount;

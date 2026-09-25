@@ -212,6 +212,20 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                 "NIS thresholds must be zero (automatic) or positive");
         }
 
+        /* Largest amount a measurement stamp may lead this node's clock
+         * and still be fused. The measurement path (bridge, driver, wheel
+         * odometry) can deliver a message a few milliseconds before the
+         * corresponding 1 kHz /clock update reaches this node; before this
+         * tolerance every such message was rejected as negative age
+         * (LOC-4). */
+        maximumFutureStampS =
+            declare_parameter<double>("maximum_future_stamp_s", 0.02);
+        if (!(maximumFutureStampS >= 0.0))
+        {
+            throw std::invalid_argument(
+                "maximum_future_stamp_s must not be negative");
+        }
+
         /* A non-positive age limit would make every visual measurement
          * either always or never stale, which is never a useful
          * configuration. */
@@ -1344,6 +1358,15 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @brief       Maximum accepted visual-odometry measurement age in seconds.
      */
     double maximumVisualMeasurementAgeS{0.75};
+
+    /*!
+     * @brief           Largest lead of a measurement stamp over this node's
+     *                  clock that is still fused.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double maximumFutureStampS{0.02};
 
     /*!
      * @brief           Maximum permitted age of a held IMU sample.

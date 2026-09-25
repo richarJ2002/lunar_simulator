@@ -12,6 +12,7 @@ add_library(wheel_odometry STATIC
   src/methods/wrapAngle.cc
   src/methods/publishDiagnosticsCallBack.cc
   src/methods/publishOdometry.cc
+  src/public_functions/solveBodyTwist.cc
 )
 target_compile_features(wheel_odometry PUBLIC cxx_std_17)
 target_include_directories(wheel_odometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)

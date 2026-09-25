@@ -59,3 +59,7 @@ target_link_libraries(test_startup_supervisor alpha_supervisor)
 ament_add_gtest(test_command_gate test_command_gate.cpp)
 target_compile_features(test_command_gate PUBLIC cxx_std_17)
 target_link_libraries(test_command_gate alpha_drivers)
+
+ament_add_gtest(test_wheel_solve test_wheel_solve.cpp)
+target_compile_features(test_wheel_solve PUBLIC cxx_std_17)
+target_link_libraries(test_wheel_solve wheel_odometry)

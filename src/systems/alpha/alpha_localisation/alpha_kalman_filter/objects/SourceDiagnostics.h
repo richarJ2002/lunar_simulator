@@ -63,7 +63,8 @@ struct SourceDiagnostics
 
     /*!
      * @brief           Number of measurements rejected because their stamp
-     *                  was ahead of this node's ROS clock.
+     *                  led this node's ROS clock by more than
+     *                  maximum_future_stamp_s.
      *
      * @frame           N/A
      * @units           count

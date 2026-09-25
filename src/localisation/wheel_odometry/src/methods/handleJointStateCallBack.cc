@@ -1,7 +1,7 @@
 /*!
  * @File:         handleJointStateCallBack.cc
  *
- * @Brief:        Implements the six-wheel rolling-constraint solve and pose
+ * @Brief:        Implements the six-wheel kinematic solve and pose
  *                integration.
  *
  * @Date:         15/09/2026
@@ -18,7 +18,11 @@
 /* None */
 
 /* Generic Libraries */
+#include <algorithm>
 #include <cmath>
+
+/* Module Includes */
+#include "public_functions.h"
 
 namespace localisation::wheel_odometry
 {
@@ -26,17 +30,6 @@ namespace localisation::wheel_odometry
 void WheelOdometryNode::handleJointStateCallBack(
     const sensor_msgs::msg::JointState &message_in)
 {
-    /*!
-     * Build the 6x3 rolling-constraint matrix and the 6x1 slip-adjusted
-     * wheel-speed vector so that solving `rollingMatrix * bodyTwist =
-     * wheelSpeed` in least squares yields the (vx, vy, wz) body twist
-     * that best explains all six observed wheel speeds simultaneously.
-     */
-    Eigen::Matrix<double, 6, 3> rollingMatrix;
-
-    /* Slip-adjusted per-wheel speed vector, filled in below. */
-    Eigen::Matrix<double, 6, 1> wheelSpeedMps;
-
     /* Raw (un-slip-adjusted) per-wheel speed, needed again later for
      * slip estimation. */
     std::array<double, 6> rawWheelSpeedMps{};
@@ -45,7 +38,7 @@ void WheelOdometryNode::handleJointStateCallBack(
      * estimation. */
     std::array<double, 6> steerAngleRad{};
 
-    /* Populate one row of the rolling-constraint system per wheel. */
+    /* Read every wheel's steering angle and drive rate. */
     for (std::size_t wheel = 0U; wheel < 6U; ++wheel)
     {
         /* This wheel's drive-joint position is not needed; only its
@@ -87,31 +80,9 @@ void WheelOdometryNode::handleJointStateCallBack(
             return;
         }
 
-        /* Retain this wheel's steering angle for the slip-estimation
-         * call later in this method. */
+        /* Retain this wheel's steering angle for the solve and the
+         * slip-estimation call later in this method. */
         steerAngleRad[wheel] = wheelSteerAngleRad;
-
-        /* Precompute this wheel's steering trigonometry once. */
-        const double cosine = std::cos(wheelSteerAngleRad);
-
-        /* Precompute this wheel's steering trigonometry once. */
-        const double sine = std::sin(wheelSteerAngleRad);
-
-        /*!
-         * Row i of the rolling matrix encodes wheel i's
-         * rolling-constraint coefficients on (vx, vy, wz):
-         *   cos(delta_i), sin(delta_i),
-         *   -y_i*cos(delta_i) + x_i*sin(delta_i)
-         * as derived in the class-level documentation.
-         */
-        rollingMatrix(static_cast<Eigen::Index>(wheel), 0) = cosine;
-
-        /* Fill in this row's vy coefficient. */
-        rollingMatrix(static_cast<Eigen::Index>(wheel), 1) = sine;
-
-        /* Fill in this row's wz coefficient. */
-        rollingMatrix(static_cast<Eigen::Index>(wheel), 2) =
-            -wheelYM[wheel] * cosine + wheelXM[wheel] * sine;
 
         /* Convert this wheel's drive rate to a raw circumferential
          * speed, applying its fixed sign convention. */
@@ -139,7 +110,8 @@ void WheelOdometryNode::handleJointStateCallBack(
     }
 
     /* Apply the current slip ratio to every wheel's raw speed before
-     * solving the rolling-constraint system. */
+     * solving the kinematic system. */
+    std::array<double, 6> wheelSpeedMps{};
     for (std::size_t wheel = 0U; wheel < slipRatios.size(); ++wheel)
     {
         /* Clamp defensively in case a slip ratio ever drifted outside
@@ -155,145 +127,35 @@ void WheelOdometryNode::handleJointStateCallBack(
          * ratio increases it for forward skid, where body travel exceeds the
          * distance implied by wheel rotation.
          */
-        wheelSpeedMps(static_cast<Eigen::Index>(wheel)) =
-            rawWheelSpeedMps[wheel] * (1.0 - boundedSlip);
+        wheelSpeedMps[wheel] = rawWheelSpeedMps[wheel] * (1.0 - boundedSlip);
     }
 
-    /*!
-     * For each wheel i:
-     * cos(delta_i) vx + sin(delta_i) vy
-     * + (-y_i cos(delta_i) + x_i sin(delta_i)) wz = r omega_i.
-     * The overdetermined six-wheel system is solved in minimum-norm
-     * least squares. This sets an unobservable lateral component to
-     * zero when all wheels are parallel instead of allowing arbitrary
-     * sideways drift.
-     */
-    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<double, 6, 3>>
-        rollingDecomposition(rollingMatrix);
+    /* Twelve-row weighted least squares: six rolling rows and six
+     * no-side-slip rows (see solveBodyTwist()). The no-side-slip rows make
+     * lateral velocity observable in every steering layout, so no
+     * observability threshold or reduced fallback solve is needed. */
+    const BodyTwistSolution solution =
+        solveBodyTwist(steerAngleRad,
+                       wheelSpeedMps,
+                       wheelXM,
+                       wheelYM,
+                       wheelRadiusM * wheelAngularVelocityStddevRadps,
+                       steeringPositionStddevRad,
+                       lateralSlipStddevMps);
+    ++solveCount;
 
-    /*!
-     * All six steering joints report position with independent Gaussian
-     * encoder noise (wheel_position_stddev_rad in alpha_drivers, typically
-     * a few milliradians), so "all wheels parallel" almost never presents
-     * as an exactly-zero singular value in practice -- every steering
-     * angle carries a small nonzero reading even when the true angle is
-     * exactly 0. A numerical-zero threshold (e.g. 1e-6) is far below that
-     * noise floor, so it fails to catch this near-singular case: the
-     * decomposition then treats the barely-nonzero vy direction as
-     * "observed" and inverts a tiny singular value, amplifying ordinary
-     * encoder noise into large spurious lateral-velocity solutions (a few
-     * milliradians of steering noise measured a lateral velocity of over
-     * 0.1 m/s on a stationary rover during diagnosis). Flooring the
-     * threshold at lateralObservabilityThreshold (default 0.02, an order
-     * of magnitude above that noise floor and well below any deliberately
-     * commanded crab/turn angle) restores the class-level documentation's
-     * intent: treat a near-parallel wheel configuration as genuinely
-     * unobservable in vy, not merely exactly-parallel.
-     */
-    rollingDecomposition.setThreshold(lateralObservabilityThreshold);
-
-    /* Solve for the body twist that best explains all six wheels. */
-    Eigen::Vector3d bodyTwist = rollingDecomposition.solve(wheelSpeedMps);
-
-    /* Guard against a degenerate solve before it can corrupt the
-     * integrated pose. */
-    if (!bodyTwist.allFinite())
+    /* A failed solve must not corrupt the integrated pose; it is counted
+     * for the diagnostics report and the next message tries again. */
+    if (!solution.isValid)
     {
-        /*!
-         * A degenerate or numerically unstable solve (e.g. all wheels
-         * momentarily reporting identical, ill-conditioned angles) must
-         * not corrupt the integrated pose; skip this cycle and try
-         * again on the next joint-state message.
-         */
+        ++rejectedSolveCount;
         return;
     }
-
-    const double wheelSpeedStddevMps =
-        wheelRadiusM * wheelAngularVelocityStddevRadps;
-    const double maximumMeasuredWheelSpeedMps =
-        wheelSpeedMps.cwiseAbs().maxCoeff();
-    constexpr double MAXIMUM_SOLVE_AMPLIFICATION = 3.0;
-    const double     maximumPlausiblePlanarSpeedMps =
-        MAXIMUM_SOLVE_AMPLIFICATION *
-        (maximumMeasuredWheelSpeedMps + wheelSpeedStddevMps);
-    bool                        usedLongitudinalFallback = false;
-    Eigen::Matrix<double, 6, 2> longitudinalYawMatrix;
-    longitudinalYawMatrix.col(0) = rollingMatrix.col(0);
-    longitudinalYawMatrix.col(1) = rollingMatrix.col(2);
-    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<double, 6, 2>>
-        longitudinalYawDecomposition(longitudinalYawMatrix);
-    if (bodyTwist.head<2>().norm() > maximumPlausiblePlanarSpeedMps)
-    {
-        /* Steering transients can make the nominally unobservable lateral
-         * direction look full-rank and amplify encoder noise. Fall back to
-         * the independently constrained longitudinal/yaw subspace rather
-         * than publishing an impossible planar speed. */
-        const Eigen::Vector2d longitudinalYawTwist =
-            longitudinalYawDecomposition.solve(wheelSpeedMps);
-        bodyTwist                = Eigen::Vector3d(longitudinalYawTwist.x(),
-                                    0.0,
-                                    longitudinalYawTwist.y());
-        usedLongitudinalFallback = true;
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
-                                *get_clock(),
-                                3000,
-                                "Wheel solve fell back to vx/yaw only");
-    }
-
-    /* Propagate encoder and steering uncertainty through the conditioned
-     * least-squares solve. Steering noise acts as equivalent rolling-speed
-     * noise through the derivative of each constraint row. */
-    Eigen::Matrix<double, 6, 6> wheelMeasurementCovariance =
-        Eigen::Matrix<double, 6, 6>::Zero();
-    for (std::size_t wheel = 0U; wheel < steerAngleRad.size(); ++wheel)
-    {
-        const double cosine = std::cos(steerAngleRad[wheel]);
-        const double sine   = std::sin(steerAngleRad[wheel]);
-        const double steeringDerivativeMps =
-            -sine * bodyTwist.x() + cosine * bodyTwist.y() +
-            (wheelYM[wheel] * sine + wheelXM[wheel] * cosine) * bodyTwist.z();
-        const double equivalentSteeringStddevMps =
-            steeringDerivativeMps * steeringPositionStddevRad;
-        wheelMeasurementCovariance(static_cast<Eigen::Index>(wheel),
-                                   static_cast<Eigen::Index>(wheel)) =
-            wheelSpeedStddevMps * wheelSpeedStddevMps +
-            equivalentSteeringStddevMps * equivalentSteeringStddevMps;
-    }
-    Eigen::Matrix3d bodyTwistCovariance = Eigen::Matrix3d::Zero();
-    if (usedLongitudinalFallback)
-    {
-        const Eigen::Matrix<double, 2, 6> reducedPseudoInverse =
-            longitudinalYawDecomposition.solve(
-                Eigen::Matrix<double, 6, 6>::Identity());
-        const Eigen::Matrix2d reducedCovariance =
-            reducedPseudoInverse * wheelMeasurementCovariance *
-            reducedPseudoInverse.transpose();
-        bodyTwistCovariance(0, 0) = reducedCovariance(0, 0);
-        bodyTwistCovariance(0, 2) = reducedCovariance(0, 1);
-        bodyTwistCovariance(2, 0) = reducedCovariance(1, 0);
-        bodyTwistCovariance(2, 2) = reducedCovariance(1, 1);
-        bodyTwistCovariance(1, 1) = 1.0e3;
-    }
-    else
-    {
-        const Eigen::Matrix<double, 3, 6> rollingPseudoInverse =
-            rollingDecomposition.solve(Eigen::Matrix<double, 6, 6>::Identity());
-        bodyTwistCovariance = rollingPseudoInverse *
-                              wheelMeasurementCovariance *
-                              rollingPseudoInverse.transpose();
-    }
-    if (!usedLongitudinalFallback && rollingDecomposition.rank() < 3)
-    {
-        /* A parallel-wheel solve deliberately returns vy=0 as the minimum-
-         * norm solution. Zero is unavailable, not a precise measurement. */
-        bodyTwistCovariance.row(1).setZero();
-        bodyTwistCovariance.col(1).setZero();
-        bodyTwistCovariance(1, 1) = 1.0e3;
-    }
-    if (!bodyTwistCovariance.allFinite())
-    {
-        bodyTwistCovariance = Eigen::Matrix3d::Identity() * 1.0e3;
-    }
+    const Eigen::Vector3d &bodyTwist           = solution.twist_body;
+    const Eigen::Matrix3d &bodyTwistCovariance = solution.covariance_body;
+    latestNormalCondition                      = solution.normalCondition;
+    latestLateralVelocityMps                   = bodyTwist.y();
+    latestLateralVelocityStddevMps = std::sqrt(bodyTwistCovariance(1, 1));
 
     /* Integrate the new twist into the pose only once a previous
      * timestamp exists to measure an interval against. */

@@ -56,6 +56,20 @@ void WheelOdometryNode::publishDiagnosticsCallBack()
     diagnostics::addFlagValue("ready", isReady, status);
     diagnostics::addTextValue("reason", reason, status);
 
+    /* Solve statistics are reported here rather than warned about per
+     * occurrence. */
+    diagnostics::addCountValue("solves", solveCount, status);
+    diagnostics::addCountValue("rejected_solves", rejectedSolveCount, status);
+    diagnostics::addRealValue("normal_condition",
+                              latestNormalCondition,
+                              status);
+    diagnostics::addRealValue("lateral_velocity_mps",
+                              latestLateralVelocityMps,
+                              status);
+    diagnostics::addRealValue("lateral_velocity_stddev_mps",
+                              latestLateralVelocityStddevMps,
+                              status);
+
     diagnostic_msgs::msg::DiagnosticArray record;
     record.header.stamp = now();
     record.status.push_back(status);

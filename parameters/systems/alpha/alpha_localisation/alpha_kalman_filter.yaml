@@ -11,6 +11,9 @@ continuous_ekf:
     publish_tf: false
     maximum_visual_measurement_age_s: 0.75
     maximum_imu_measurement_age_s: 0.25
+    # Fuse measurements stamped up to this far ahead of the node clock (the
+    # /clock update can arrive a few ms after the measurement; LOC-4).
+    maximum_future_stamp_s: 0.02
     imu_initialization_samples: 100
     gravity_mps2: 1.62
     fuse_visual_pose: true

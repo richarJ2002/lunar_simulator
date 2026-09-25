@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -53,8 +54,15 @@ namespace localisation::wheel_odometry
  *     + (-y_i * cos(delta_i) + x_i * sin(delta_i)) * wz = r * omega_i
  *
  * where r is the common wheel radius in metres and omega_i is that wheel's
- * slip-adjusted angular rate in rad/s. The six such constraints are solved
- * in a minimum-norm least-squares sense every joint-state callback.
+ * slip-adjusted angular rate in rad/s. Each wheel also cannot slide
+ * sideways:
+ *
+ *   -sin(delta_i) * vx + cos(delta_i) * vy
+ *     + (x_i * cos(delta_i) + y_i * sin(delta_i)) * wz = 0
+ *
+ * Every joint-state callback solves all twelve rows by weighted least
+ * squares (solveBodyTwist()), which observes vx, vy and wz with a real
+ * covariance in every steering layout, including parallel wheels.
  *
  * The slip ratio applied above is not estimated locally: this node computes
  * one raw slip *observation* per wheel per cycle (that wheel's own raw
@@ -204,24 +212,24 @@ class WheelOdometryNode final : public rclcpp::Node
             declare_parameter<double>("maximum_slip_ratio", 0.30);
 
         /*!
-         * Minimum singular value of the six-wheel rolling-constraint
-         * matrix still treated as observing lateral (vy) motion; see
-         * handleJointStateCallBack()'s use of this value below for why it
-         * must exceed encoder-noise-driven steering angles rather than
-         * just numerical zero.
+         * Expected lateral slip of one wheel, the noise of each
+         * no-side-slip row in solveBodyTwist(). It replaces the retired
+         * lateral_observability_threshold: with those rows, lateral
+         * velocity is observable in every steering layout.
          */
-        lateralObservabilityThreshold =
-            declare_parameter<double>("lateral_observability_threshold", 0.02);
+        lateralSlipStddevMps =
+            declare_parameter<double>("lateral_slip_stddev_mps", 0.003);
 
         /* Reject a configuration whose wheel or slip parameters could
          * never produce a physically meaningful result. */
         if (wheelRadiusM <= 0.0 || maximumIntegrationDtS <= 0.0 ||
             wheelAngularVelocityStddevRadps < 0.0 ||
             steeringPositionStddevRad < 0.0 || minimumWheelSpeedMps < 0.0 ||
-            visualOdometryTimeoutS <= 0.0 ||
-            maximumVisualTwistVariance < 0.0 || maximumSlipRatio <= 0.0 ||
-            maximumSlipRatio > 0.99 || slipRatioDeadband < 0.0 ||
-            slipRatioDeadband >= 1.0 || lateralObservabilityThreshold <= 0.0)
+            visualOdometryTimeoutS <= 0.0 || maximumVisualTwistVariance < 0.0 ||
+            maximumSlipRatio <= 0.0 || maximumSlipRatio > 0.99 ||
+            slipRatioDeadband < 0.0 || slipRatioDeadband >= 1.0 ||
+            !(lateralSlipStddevMps > 0.0) ||
+            !(wheelAngularVelocityStddevRadps > 0.0))
         {
             /* Fail fast at construction rather than misbehave later. */
             throw std::invalid_argument(
@@ -660,14 +668,57 @@ class WheelOdometryNode final : public rclcpp::Node
     double maximumSlipRatio{0.30};
 
     /*!
-     * @brief       Minimum singular value of the rolling-constraint matrix
-     *              still treated as observing lateral (vy) motion,
-     *              dimensionless (same units as the matrix's cos/sin
-     *              entries). Below this, vy is set to zero instead of
-     *              amplifying steering-encoder noise; see
-     *              handleJointStateCallBack().
+     * @brief           Expected lateral slip standard deviation of one
+     *                  wheel, the no-side-slip rows' noise in
+     *                  solveBodyTwist().
+     *
+     * @frame           Per-wheel lateral axis
+     * @units           metres per second
      */
-    double lateralObservabilityThreshold{0.02};
+    double lateralSlipStddevMps{0.003};
+
+    /*!
+     * @brief           Number of kinematic solves attempted.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t solveCount{0U};
+
+    /*!
+     * @brief           Number of solves rejected as invalid (non-finite or
+     *                  not positive definite); their messages were skipped.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t rejectedSolveCount{0U};
+
+    /*!
+     * @brief           Condition number of the latest weighted normal
+     *                  matrix.
+     *
+     * @frame           N/A
+     * @units           dimensionless
+     */
+    double latestNormalCondition{0.0};
+
+    /*!
+     * @brief           Latest solved lateral velocity.
+     *
+     * @frame           body
+     * @units           metres per second
+     */
+    double latestLateralVelocityMps{0.0};
+
+    /*!
+     * @brief           Standard deviation of the latest solved lateral
+     *                  velocity.
+     *
+     * @frame           body
+     * @units           metres per second
+     */
+    double latestLateralVelocityStddevMps{0.0};
 
     /*!
      * @brief       Timestamp in seconds of the latest accepted
