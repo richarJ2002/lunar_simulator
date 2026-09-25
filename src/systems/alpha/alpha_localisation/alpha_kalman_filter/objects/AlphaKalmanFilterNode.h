@@ -279,7 +279,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
          * filter follow that drift.
          */
         const std::string visualFusionMode =
-            declare_parameter<std::string>("visual_fusion_mode", "pose");
+            declare_parameter<std::string>("visual_fusion_mode", "increment");
         if (visualFusionMode != "pose" && visualFusionMode != "increment")
         {
             throw std::invalid_argument(
@@ -314,7 +314,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
         /* Variance floor applied to wheel-odometry measurements. */
         wheelVariance =
-            declare_parameter<double>("wheel_measurement_variance", 0.10);
+            declare_parameter<double>("wheel_measurement_variance", 2.5e-4);
 
         /* Raw-IMU and bias random-walk noise are continuous-time variances. */
         processNoise = ErrorStateMatrix::Zero();
@@ -350,7 +350,9 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
          * enough visual corrections, settled for a while, and not
          * diverged. The variance limit is a divergence guard, not a
          * start-up criterion: visual-odometry covariance legitimately
-         * grows while driving. */
+         * grows while driving. It applies in pose mode only; in
+         * increment mode position is dead-reckoned and its variance grows
+         * without bound by design. */
         const std::int64_t configuredReadinessVisualUpdates =
             declare_parameter<std::int64_t>("readiness_minimum_visual_updates",
                                             3);
@@ -1496,7 +1498,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     /*!
      * @brief       Minimum wheel measurement variance floor.
      */
-    double wheelVariance{0.10};
+    double wheelVariance{2.5e-4};
 
     /*!
      * @brief           Known lunar gravitational-acceleration magnitude.
@@ -1588,7 +1590,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           N/A
      * @units           N/A
      */
-    bool isVisualIncrementMode{false};
+    bool isVisualIncrementMode{true};
 
     /*!
      * @brief           Variance floor of an increment-mode visual body

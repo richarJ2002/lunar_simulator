@@ -201,8 +201,13 @@ void AlphaKalmanFilterNode::publishDiagnosticsCallBack()
                                                       sinceInitialization_s,
                                                       readinessSettleTimeS);
     }
+    /* In increment mode position is dead-reckoned from fused velocities, so
+     * its variance grows without bound by design and only a non-finite
+     * value indicates divergence; sensor loss is caught by each source's
+     * own readiness. */
     else if (!std::isfinite(positionVarianceM2) ||
-             positionVarianceM2 > readinessMaximumPositionVarianceM2)
+             (!isVisualIncrementMode &&
+              positionVarianceM2 > readinessMaximumPositionVarianceM2))
     {
         readinessReason =
             common::console::formatText("position variance %.2f m2",
