@@ -258,7 +258,12 @@ void AlphaKalmanFilterNode::publishDiagnosticsCallBack()
     diagnostic_msgs::msg::DiagnosticArray record;
     record.header.stamp = now();
     record.status.push_back(filterStatus);
-    record.status.push_back(makeSourceStatus("imu", imuDiagnostics));
+    diagnostic_msgs::msg::DiagnosticStatus imuStatus =
+        makeSourceStatus("imu", imuDiagnostics);
+    common::diagnostics::addCountValue("shock_held",
+                                       imuDiagnostics.shockHeldCount,
+                                       imuStatus);
+    record.status.push_back(imuStatus);
     record.status.push_back(makeSourceStatus("visual", visualDiagnostics));
     record.status.push_back(makeSourceStatus("wheel", wheelDiagnostics));
     p_diagnosticsPublisher->publish(record);

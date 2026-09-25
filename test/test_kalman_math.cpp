@@ -406,6 +406,69 @@ TEST(KalmanMath, VisualIncrementJacobianMatchesFiniteDifference)
     EXPECT_EQ(analyticalObservation.rows(), 3);
 }
 
+TEST(KalmanMath, HoldsSingleSampleImuShock)
+{
+    using ImuSample =
+        systems::alpha::alpha_localisation::alpha_kalman_filter::ImuSample;
+    ImuSample previous;
+    previous.timestamp_s                    = 10.00;
+    previous.linearAcceleration_body_mPerS2 = Eigen::Vector3d(0.1, 0.0, 1.62);
+
+    /* The wheel-contact sample recorded in run ab4r2-increment. */
+    ImuSample shock;
+    shock.timestamp_s                    = 10.02;
+    shock.linearAcceleration_body_mPerS2 = Eigen::Vector3d(5.19, 7.75, 12.68);
+    shock.angularVelocity_body_radPerS   = Eigen::Vector3d(0.01, 0.0, 0.0);
+    const Eigen::Vector3d change = shock.linearAcceleration_body_mPerS2 -
+                                   previous.linearAcceleration_body_mPerS2;
+
+    ASSERT_TRUE(AlphaFilter::holdImuShock(previous, 3.0, shock));
+    EXPECT_TRUE(shock.linearAcceleration_body_mPerS2.isApprox(
+        previous.linearAcceleration_body_mPerS2));
+    EXPECT_TRUE(
+        shock.discardedDeltaVelocity_body_mPerS.isApprox(change * 0.02, 1e-12));
+    /* The gyro is not gated. */
+    EXPECT_DOUBLE_EQ(shock.angularVelocity_body_radPerS.x(), 0.01);
+}
+
+TEST(KalmanMath, ImuShockGateAcceptsNoiseAndPersistentChange)
+{
+    using ImuSample =
+        systems::alpha::alpha_localisation::alpha_kalman_filter::ImuSample;
+    ImuSample previous;
+    previous.timestamp_s                    = 10.00;
+    previous.linearAcceleration_body_mPerS2 = Eigen::Vector3d(0.0, 0.0, 1.62);
+
+    /* Just below the threshold: accepted unchanged. */
+    ImuSample noisy;
+    noisy.timestamp_s = 10.02;
+    noisy.linearAcceleration_body_mPerS2 =
+        previous.linearAcceleration_body_mPerS2 +
+        Eigen::Vector3d(2.99, 0.0, 0.0);
+    const ImuSample noisyCopy = noisy;
+    EXPECT_FALSE(AlphaFilter::holdImuShock(previous, 3.0, noisy));
+    EXPECT_TRUE(noisy.linearAcceleration_body_mPerS2.isApprox(
+        noisyCopy.linearAcceleration_body_mPerS2));
+    EXPECT_TRUE(noisy.discardedDeltaVelocity_body_mPerS.isZero(0.0));
+
+    /* A zero threshold disables the gate. */
+    ImuSample large                      = noisy;
+    large.linearAcceleration_body_mPerS2 = Eigen::Vector3d(50.0, 0.0, 1.62);
+    EXPECT_FALSE(AlphaFilter::holdImuShock(previous, 0.0, large));
+
+    /* After one held sample, a change that persists is accepted. */
+    ImuSample heldPrevious = previous;
+    heldPrevious.discardedDeltaVelocity_body_mPerS =
+        Eigen::Vector3d(0.1, 0.0, 0.0);
+    EXPECT_FALSE(AlphaFilter::holdImuShock(heldPrevious, 3.0, large));
+    EXPECT_DOUBLE_EQ(large.linearAcceleration_body_mPerS2.x(), 50.0);
+
+    /* A non-increasing stamp has no interval to integrate over. */
+    ImuSample stale   = large;
+    stale.timestamp_s = previous.timestamp_s;
+    EXPECT_FALSE(AlphaFilter::holdImuShock(previous, 3.0, stale));
+}
+
 TEST(KalmanMath, PredictAndUpdateRequireInitializeFirst)
 {
     Filter                filter;

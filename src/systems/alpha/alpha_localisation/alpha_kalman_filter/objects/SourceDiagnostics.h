@@ -154,6 +154,15 @@ struct SourceDiagnostics
     std::uint64_t replayRejectedCount{0U};
 
     /*!
+     * @brief           Number of IMU samples held as single-sample contact
+     *                  shocks; used by the IMU source only.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t shockHeldCount{0U};
+
+    /*!
      * @brief           Latest source publication timestamp.
      *
      * @frame           N/A

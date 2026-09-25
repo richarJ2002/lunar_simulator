@@ -101,6 +101,19 @@ AlphaKalmanFilterNode::FilterStatus
         {
             return propagationStatus;
         }
+        /* A held shock's uncertainty belongs to its whole interval, so it
+         * is added once, when propagation reaches the sample's stamp; a
+         * replay from an earlier checkpoint adds it again consistently. */
+        if (intervalEndTimestamp_s >= sample->timestamp_s &&
+            !sample->discardedDeltaVelocity_body_mPerS.isZero(0.0))
+        {
+            const FilterStatus shockStatus = addShockVelocityUncertainty(
+                sample->discardedDeltaVelocity_body_mPerS);
+            if (shockStatus != FilterStatus::FILTER_STATUS_SUCCESS)
+            {
+                return shockStatus;
+            }
+        }
         if (shouldSaveCheckpoints_in)
         {
             saveFilterCheckpoint();

@@ -28,6 +28,8 @@ add_library(alpha_kalman_filter STATIC
   methods/buildMeasurementRecord.cc
   methods/fuseMeasurementRecord.cc
   methods/replayMeasurementsAfter.cc
+  methods/holdImuShock.cc
+  methods/addShockVelocityUncertainty.cc
   methods/predictTo.cc
   methods/calculateQuaternionError.cc
   methods/calculateAttitudeResetJacobian.cc

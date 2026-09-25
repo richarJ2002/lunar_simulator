@@ -83,6 +83,14 @@ void AlphaKalmanFilterNode::handleImuCallBack(
         ++imuDiagnostics.ageRejectedCount;
     }
 
+    /* Queried after the reset above, which may have emptied the buffer. */
+    const std::optional<ImuSample> previousSample = imuBuffer.getLatestSample();
+    if (previousSample.has_value() &&
+        holdImuShock(*previousSample, imuShockThresholdMps2, sample))
+    {
+        ++imuDiagnostics.shockHeldCount;
+    }
+
     if (!imuBuffer.push(sample))
     {
         ++imuDiagnostics.numericalRejectedCount;

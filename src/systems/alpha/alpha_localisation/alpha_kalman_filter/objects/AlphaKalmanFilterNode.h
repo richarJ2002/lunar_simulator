@@ -20,6 +20,7 @@
 #include "objects/FilterStatus.h"
 #include "objects/FusedMeasurement.h"
 #include "objects/ImuRingBuffer.h"
+#include "objects/ImuSample.h"
 #include "objects/MeasurementFusionResult.h"
 #include "objects/MeasurementHistory.h"
 #include "objects/MeasurementKind.h"
@@ -229,6 +230,16 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         {
             throw std::invalid_argument(
                 "maximum_future_stamp_s must not be negative");
+        }
+
+        /* Sample-to-sample specific-force change above which one IMU
+         * sample is held as a contact shock; zero disables the gate. */
+        imuShockThresholdMps2 =
+            declare_parameter<double>("imu_shock_threshold_mps2", 3.0);
+        if (!(imuShockThresholdMps2 >= 0.0))
+        {
+            throw std::invalid_argument(
+                "imu_shock_threshold_mps2 must not be negative");
         }
 
         /* A non-positive age limit would make every visual measurement
@@ -675,6 +686,35 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         double                &nis_out);
 
     /*!
+     * @brief           Holds a single-sample specific-force shock at the
+     *                  previous sample's value.
+     *
+     *                  A wheel-contact impulse lasts about one 1 ms physics
+     *                  step, but a 50 Hz sample that catches it is held by
+     *                  prediction for the whole sample interval, integrating
+     *                  up to twenty times the true velocity change. When the
+     *                  change from the previous sample exceeds the
+     *                  threshold, the previous specific force is kept and
+     *                  the discarded change times the interval is recorded
+     *                  for predictTo() to carry as velocity uncertainty. At
+     *                  most one consecutive sample is held, so a persistent
+     *                  change is accepted one sample late rather than never.
+     *
+     * @param[in]       previousSample_in
+     *                  Newest retained sample, as stored (possibly held).
+     * @param[in]       thresholdMps2_in
+     *                  Largest accepted change in metres per second squared;
+     *                  zero disables the gate.
+     * @param[in,out]   sample_inout
+     *                  New finite sample; modified only when held.
+     *
+     * @return          True when sample_inout was held as a shock.
+     */
+    static bool holdImuShock(const ImuSample &previousSample_in,
+                             double           thresholdMps2_in,
+                             ImuSample       &sample_inout);
+
+    /*!
      * @brief           Selects a configured or dimension-dependent NIS gate.
      *
      * @param[in]       configuredThreshold_in
@@ -836,6 +876,23 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     FilterStatus predictTo(double targetTimestampS_in,
                            bool   shouldSaveCheckpoints_in = true);
+
+    /*!
+     * @brief           Adds the uncertainty of a held IMU shock to the
+     *                  velocity covariance.
+     *
+     *                  The rank-one term is the outer product of the
+     *                  discarded velocity change rotated into
+     *                  startup-fixed by the current nominal attitude.
+     *
+     * @param[in]       deltaVelocityBodyMps_in
+     *                  Discarded velocity change in metres per second, body
+     *                  frame.
+     *
+     * @return          Filter status from writing the inflated covariance.
+     */
+    [[nodiscard]] FilterStatus addShockVelocityUncertainty(
+        const Eigen::Vector3d &deltaVelocityBodyMps_in);
 
     /*!
      * @brief           Initializes an identity nominal state and covariance.
@@ -1565,6 +1622,16 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @units           seconds
      */
     double maximumFutureStampS{0.02};
+
+    /*!
+     * @brief           Sample-to-sample specific-force change above which one
+     *                  IMU sample is held as a contact shock; zero disables
+     *                  the gate.
+     *
+     * @frame           body
+     * @units           metres per second squared
+     */
+    double imuShockThresholdMps2{3.0};
 
     /*!
      * @brief           Maximum permitted age of a held IMU sample.

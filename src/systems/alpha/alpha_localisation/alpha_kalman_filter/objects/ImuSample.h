@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            ImuSample.h
  *
  * @brief           Declares one filtered IMU sample used by Alpha's EKF.
@@ -27,13 +27,13 @@
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
-/**
- * @brief           Stores one bias-corrected, gravity-free IMU sample.
+/*!
+ * @brief           Stores one raw IMU sample as the EKF propagates it.
  */
 struct ImuSample
 {
   public:
-    /**
+    /*!
      * @brief           ROS timestamp carried by the source IMU message.
      *
      * @frame           N/A
@@ -41,21 +41,41 @@ struct ImuSample
      */
     double timestamp_s{0.0};
 
-    /**
-     * @brief           Gravity-free linear acceleration reported by the IMU.
+    /*!
+     * @brief           Specific force applied over the interval ending at
+     *                  timestamp_s.
+     *
+     *                  For a sample held as a contact shock this is the
+     *                  previous sample's specific force, not the measured
+     *                  one.
      *
      * @frame           body
      * @units           metres per second squared
      */
     Eigen::Vector3d linearAcceleration_body_mPerS2{Eigen::Vector3d::Zero()};
 
-    /**
+    /*!
      * @brief           Angular velocity reported by the IMU.
      *
      * @frame           body
      * @units           radians per second
      */
     Eigen::Vector3d angularVelocity_body_radPerS{Eigen::Vector3d::Zero()};
+
+    /*!
+     * @brief           Velocity change a held shock would have integrated:
+     *                  the discarded specific-force change times the
+     *                  sample interval.
+     *
+     *                  Zero for an ordinary sample. predictTo() adds its
+     *                  outer product to the velocity covariance, because
+     *                  the true change from a brief impulse lies somewhere
+     *                  between zero and this value.
+     *
+     * @frame           body
+     * @units           metres per second
+     */
+    Eigen::Vector3d discardedDeltaVelocity_body_mPerS{Eigen::Vector3d::Zero()};
 };
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

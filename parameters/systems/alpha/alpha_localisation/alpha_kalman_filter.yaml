@@ -14,6 +14,11 @@ continuous_ekf:
     # Fuse measurements stamped up to this far ahead of the node clock (the
     # /clock update can arrive a few ms after the measurement; LOC-4).
     maximum_future_stamp_s: 0.02
+    # A 50 Hz IMU sample that catches a ~1 ms wheel-contact impulse would be
+    # integrated over the whole 20 ms interval; a sample-to-sample change
+    # above this (m/s^2) is held for one sample and carried as velocity
+    # uncertainty instead. Noise reaches ~2.3 m/s^2 at p99.99; 0 disables.
+    imu_shock_threshold_mps2: 3.0
     imu_initialization_samples: 100
     gravity_mps2: 1.62
     fuse_visual_pose: true
