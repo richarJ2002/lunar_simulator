@@ -17,11 +17,13 @@
 /* None */
 
 /* Generic Libraries */
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <numeric>
 #include <vector>
 
@@ -114,8 +116,13 @@ void VisualOdometryNode::handleStereoCallBack(
     latestTrackedCount              = 0U;
     latestStereoValidCount          = 0U;
     latestVisualQuality             = VisualPoseQuality{};
+    latestMedianParallaxPx          = std::numeric_limits<double>::quiet_NaN();
 
-    const auto finishDiagnostics = [this, processingStart](bool isAccepted_in)
+    /* A frame is accepted (pose published), retained (an accepted estimate
+     * that kept the keyframe for more parallax; neither success nor
+     * failure for readiness), or failed. */
+    const auto finishDiagnostics =
+        [this, processingStart](bool isAccepted_in, bool isRetained_in = false)
     {
         latestProcessingDuration_ms =
             std::chrono::duration<double, std::milli>(
@@ -131,6 +138,11 @@ void VisualOdometryNode::handleStereoCallBack(
             {
                 hasReadinessStreak = true;
             }
+        }
+        else if (isRetained_in)
+        {
+            ++keyframeRetainedCount;
+            consecutiveFailureCount = 0U;
         }
         else
         {
@@ -419,14 +431,34 @@ void VisualOdometryNode::handleStereoCallBack(
         trackedError.begin(),
         trackedError.begin() +
             static_cast<std::ptrdiff_t>(previousCornerCount));
+    /* Image motion of each well-tracked keyframe corner: the keyframe
+     * policy advances once the median is large enough. */
+    std::vector<double> trackedParallaxPx;
+    trackedParallaxPx.reserve(trackingStatus.size());
     for (std::size_t index = 0U; index < trackingStatus.size(); ++index)
     {
         if (trackingStatus[index] != 0U &&
             trackingError[index] <= MAXIMUM_TRACKING_ERROR_PX)
         {
             ++latestTrackedCount;
+            trackedParallaxPx.push_back(
+                cv::norm(currentFeatures[index] - previousFeatures[index]));
         }
     }
+    if (!trackedParallaxPx.empty())
+    {
+        const auto middle =
+            trackedParallaxPx.begin() +
+            static_cast<std::ptrdiff_t>(trackedParallaxPx.size() / 2U);
+        std::nth_element(trackedParallaxPx.begin(),
+                         middle,
+                         trackedParallaxPx.end());
+        latestMedianParallaxPx = *middle;
+    }
+    const double trackedSurvivalRatio =
+        previousCornerCount > 0U ? static_cast<double>(latestTrackedCount) /
+                                       static_cast<double>(previousCornerCount)
+                                 : 0.0;
 
     /* Step 4 output: reconstructed previous-frame 3-D points that survive
      * every gate below. */
@@ -568,25 +600,27 @@ void VisualOdometryNode::handleStereoCallBack(
                         trackingStatus,
                         currentPoints2d);
 
-    /* Whether Step 5 below actually produced and accepted a pose
-     * update. */
+    /* Whether Step 5 below produced an accepted estimate. */
     bool estimated = false;
+
+    /* Step 5 output: Rodrigues rotation vector from PnP RANSAC. */
+    cv::Mat rotationVector;
+
+    /* Step 5 output: translation vector from PnP RANSAC. */
+    cv::Mat translationVector;
+
+    /* Step 5 output: indices, into previousPoints3d/currentPoints2d, that
+     * PnP RANSAC accepted as inliers. */
+    std::vector<int> inliers;
+
+    /* Step 5 output: geometry diagnostics and covariance of the estimate. */
+    VisualPoseQuality quality;
 
     /* Only attempt PnP RANSAC when there are enough correspondences to
      * make it meaningful. */
     if (previousPoints3d.size() >=
         static_cast<std::size_t>(minimumCorrespondences))
     {
-        /* Step 5 output: Rodrigues rotation vector from PnP RANSAC. */
-        cv::Mat rotationVector;
-
-        /* Step 5 output: translation vector from PnP RANSAC. */
-        cv::Mat translationVector;
-
-        /* Step 5 output: indices, into previousPoints3d/currentPoints2d,
-         * that PnP RANSAC accepted as inliers. */
-        std::vector<int> inliers;
-
         /*!
          * Step 5: estimate the previous-to-current camera motion with PnP
          * RANSAC using the reconstructed 3-D points (previous frame)
@@ -621,7 +655,6 @@ void VisualOdometryNode::handleStereoCallBack(
         estimated = estimated && inliers.size() >= static_cast<std::size_t>(
                                                        minimumCorrespondences);
 
-        VisualPoseQuality quality;
         if (estimated)
         {
             quality             = calculateVisualPoseQuality(previousPoints3d,
@@ -634,27 +667,41 @@ void VisualOdometryNode::handleStereoCallBack(
             latestVisualQuality = quality;
             estimated           = quality.isValid;
         }
-
-        /* Only apply the estimate if it passed both gates above. */
-        if (estimated && isVisualPoseAvailable)
-        {
-            /* Fold the accepted rotation/translation into the accumulated
-             * pose and publish it. */
-            updatePose(rotationVector,
-                       translationVector,
-                       p_left_in->header.stamp,
-                       dtS,
-                       previousPoints3d,
-                       inliers,
-                       quality);
-            latestAcceptedInterval_s = dtS;
-        }
     }
 
-    const bool poseUpdated = estimated && isVisualPoseAvailable;
+    const KeyframeAction keyframeAction =
+        selectKeyframeAction(estimated,
+                             isVisualPoseAvailable,
+                             dtS,
+                             maximumKeyframeIntervalS,
+                             latestMedianParallaxPx,
+                             trackedSurvivalRatio,
+                             keyframePolicy);
+
+    /* An accepted estimate that the keyframe policy holds back is not
+     * published; the next frame solves against the same keyframe, so the
+     * published increment spans more parallax. */
+    const bool isKeyframeRetained =
+        estimated && isVisualPoseAvailable &&
+        keyframeAction == KeyframeAction::RETAIN_KEYFRAME;
+    const bool poseUpdated =
+        estimated && isVisualPoseAvailable && !isKeyframeRetained;
+    if (poseUpdated)
+    {
+        /* Fold the accepted rotation/translation into the accumulated pose
+         * and publish it. */
+        updatePose(rotationVector,
+                   translationVector,
+                   p_left_in->header.stamp,
+                   dtS,
+                   previousPoints3d,
+                   inliers,
+                   quality);
+        latestAcceptedInterval_s = dtS;
+    }
 
     /* No pose update was produced or accepted this frame. */
-    if (!poseUpdated)
+    if (!poseUpdated && !isKeyframeRetained)
     {
         /*!
          * When no pose update was possible, still publish the reconstructed
@@ -687,11 +734,6 @@ void VisualOdometryNode::handleStereoCallBack(
                                 "VO: too few correspondences");
     }
 
-    const KeyframeAction keyframeAction =
-        selectKeyframeAction(estimated,
-                             isVisualPoseAvailable,
-                             dtS,
-                             maximumKeyframeIntervalS);
     if (keyframeAction == KeyframeAction::ADVANCE_KEYFRAME)
     {
         /* Successful updates advance the accepted keyframe. Once continuity
@@ -722,7 +764,7 @@ void VisualOdometryNode::handleStereoCallBack(
     }
     /* A recoverable PnP failure deliberately retains the accepted keyframe so
      * the next solve spans all motion since the last accepted pose. */
-    finishDiagnostics(poseUpdated);
+    finishDiagnostics(poseUpdated, isKeyframeRetained);
 }
 
 } /* namespace localisation::visual_odometry */

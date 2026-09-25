@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            test_visual_keyframe_policy.cpp
  *
  * @brief           Tests visual dropout and keyframe-retention policy.
@@ -9,6 +9,7 @@
 #include "visual_odometry_node/objects/VisualOdometryNode.h"
 
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <vector>
 
@@ -19,33 +20,149 @@ namespace
 
 using Node = localisation::visual_odometry::VisualOdometryNode;
 
+/*!
+ * @brief           Zero thresholds: every accepted estimate advances, the
+ *                  behaviour before parallax keyframes.
+ */
+const Node::KeyframePolicy ADVANCE_ALWAYS{0.0, 0.0, 0.5};
+
+/*!
+ * @brief           Hold for 3 px of parallax while at least 60 % of the
+ *                  corners survive, for at most 0.5 s.
+ */
+const Node::KeyframePolicy PARALLAX_POLICY{3.0, 0.6, 0.5};
+
 TEST(VisualKeyframePolicy, RetainsAcceptedKeyframeAfterRecoverableFailure)
 {
-    EXPECT_EQ(Node::selectKeyframeAction(false, true, 0.2, 0.75),
+    EXPECT_EQ(Node::selectKeyframeAction(false,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         ADVANCE_ALWAYS),
               Node::KeyframeAction::RETAIN_KEYFRAME);
 }
 
 TEST(VisualKeyframePolicy, AdvancesKeyframeAfterAcceptedEstimate)
 {
-    EXPECT_EQ(Node::selectKeyframeAction(true, true, 0.2, 0.75),
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         0.5,
+                                         0.9,
+                                         ADVANCE_ALWAYS),
               Node::KeyframeAction::ADVANCE_KEYFRAME);
 }
 
 TEST(VisualKeyframePolicy, MarksPoseUnavailableAfterUnrecoverableGap)
 {
-    EXPECT_EQ(Node::selectKeyframeAction(false, true, 0.8, 0.75),
+    EXPECT_EQ(Node::selectKeyframeAction(false,
+                                         true,
+                                         0.8,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         ADVANCE_ALWAYS),
+              Node::KeyframeAction::MARK_POSE_UNAVAILABLE);
+    /* A policy that would have kept the keyframe does not change this. */
+    EXPECT_EQ(Node::selectKeyframeAction(false,
+                                         true,
+                                         0.8,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         PARALLAX_POLICY),
               Node::KeyframeAction::MARK_POSE_UNAVAILABLE);
 }
 
 TEST(VisualKeyframePolicy, AdvancesAfterSuccessfulLongBaselineEstimate)
 {
-    EXPECT_EQ(Node::selectKeyframeAction(true, true, 0.8, 0.75),
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.8,
+                                         0.75,
+                                         0.5,
+                                         0.9,
+                                         ADVANCE_ALWAYS),
               Node::KeyframeAction::ADVANCE_KEYFRAME);
 }
 
 TEST(VisualKeyframePolicy, AdvancesDiagnosticsWhilePoseUnavailable)
 {
-    EXPECT_EQ(Node::selectKeyframeAction(false, false, 0.2, 0.75),
+    EXPECT_EQ(Node::selectKeyframeAction(false,
+                                         false,
+                                         0.2,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::ADVANCE_KEYFRAME);
+}
+
+TEST(VisualKeyframePolicy, ParallaxPolicyHoldsShortIncrement)
+{
+    /* Accepted, 1 px of parallax, 90 % survival, 0.2 s old: keep it. */
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::RETAIN_KEYFRAME);
+}
+
+TEST(VisualKeyframePolicy, ParallaxPolicyAdvancesOnEachThreshold)
+{
+    /* Enough parallax. */
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         3.0,
+                                         0.9,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::ADVANCE_KEYFRAME);
+    /* Tracking thinning out. */
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         1.0,
+                                         0.59,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::ADVANCE_KEYFRAME);
+    /* Kept for the retention limit. */
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.5,
+                                         0.75,
+                                         1.0,
+                                         0.9,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::ADVANCE_KEYFRAME);
+}
+
+TEST(VisualKeyframePolicy, UnmeasurableParallaxAdvances)
+{
+    const double notANumber = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         notANumber,
+                                         0.9,
+                                         PARALLAX_POLICY),
+              Node::KeyframeAction::ADVANCE_KEYFRAME);
+    EXPECT_EQ(Node::selectKeyframeAction(true,
+                                         true,
+                                         0.2,
+                                         0.75,
+                                         1.0,
+                                         notANumber,
+                                         PARALLAX_POLICY),
               Node::KeyframeAction::ADVANCE_KEYFRAME);
 }
 

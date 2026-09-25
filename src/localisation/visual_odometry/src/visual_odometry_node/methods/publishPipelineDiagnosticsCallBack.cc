@@ -115,6 +115,12 @@ void VisualOdometryNode::publishPipelineDiagnosticsCallBack()
                               latestReconstructionDuration_ms,
                               status);
     diagnostics::addRealValue("pnp_ms", latestPnpDuration_ms, status);
+    diagnostics::addRealValue("median_parallax_px",
+                              latestMedianParallaxPx,
+                              status);
+    diagnostics::addCountValue("keyframe_retained",
+                               keyframeRetainedCount,
+                               status);
     diagnostics::addCountValue("detected", latestDetectedCount, status);
     diagnostics::addCountValue("tracked", latestTrackedCount, status);
     diagnostics::addCountValue("stereo_valid", latestStereoValidCount, status);

@@ -23,6 +23,17 @@ visual_odometry:
     maximum_depth_m: 25.0
     maximum_input_age_s: 0.25
     maximum_keyframe_interval_s: 0.75
+    # Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps the
+    # keyframe, and publishes nothing, until the tracked corners' median
+    # image motion reaches keyframe_minimum_parallax_px, fewer than
+    # keyframe_minimum_survival_ratio of them are still tracked, or it has
+    # been kept keyframe_maximum_retention_s (<= maximum_keyframe_interval_s).
+    # Zero thresholds advance on every accepted estimate. Frame-to-frame
+    # parallax is only ~0.25 px at 0.017 m/s, so the retention limit is
+    # what advances the keyframe in practice (~0.75 px per increment).
+    keyframe_minimum_parallax_px: 3.0
+    keyframe_minimum_survival_ratio: 0.5
+    keyframe_maximum_retention_s: 0.5
     # Ready after this many consecutive accepted poses, until the pose is
     # lost or no pose is accepted for readiness_maximum_pose_gap_s.
     readiness_consecutive_poses: 3

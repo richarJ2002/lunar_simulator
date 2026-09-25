@@ -133,6 +133,45 @@ class VisualOdometryNode final : public rclcpp::Node
     };
 
     /*!
+     * @brief           When an accepted estimate may keep the keyframe
+     *                  instead of advancing it.
+     *
+     *                  Holding the keyframe until features have moved far
+     *                  enough lets each published increment span more
+     *                  parallax. Thresholds of zero advance on every
+     *                  accepted estimate.
+     */
+    struct KeyframePolicy
+    {
+        /*!
+         * @brief           Median tracked-feature image motion from the
+         *                  keyframe at which it advances.
+         *
+         * @frame           Image
+         * @units           pixels
+         */
+        double minimumParallaxPx{3.0};
+
+        /*!
+         * @brief           Fraction of keyframe corners still tracked below
+         *                  which it advances, before tracking thins out.
+         *
+         * @frame           N/A
+         * @units           ratio
+         */
+        double minimumSurvivalRatio{0.5};
+
+        /*!
+         * @brief           Longest time an accepted estimate may keep the
+         *                  keyframe; at most maximum_keyframe_interval_s.
+         *
+         * @frame           N/A
+         * @units           seconds
+         */
+        double maximumRetentionS{0.5};
+    };
+
+    /*!
      * @brief       Approximate-time synchronization policy for the LocCam
      *              stereo pair.
      */
@@ -234,6 +273,27 @@ class VisualOdometryNode final : public rclcpp::Node
         {
             throw std::invalid_argument(
                 "visual age and keyframe interval limits must be positive");
+        }
+
+        /* Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps
+         * the keyframe until its features have moved far enough, too few
+         * survive, or it has been kept for the retention limit. The
+         * retention limit stays within the bridging limit so a kept
+         * keyframe is always advanced before a failure could invalidate
+         * the pose. */
+        keyframePolicy.minimumParallaxPx =
+            declare_parameter<double>("keyframe_minimum_parallax_px", 3.0);
+        keyframePolicy.minimumSurvivalRatio =
+            declare_parameter<double>("keyframe_minimum_survival_ratio", 0.5);
+        keyframePolicy.maximumRetentionS =
+            declare_parameter<double>("keyframe_maximum_retention_s", 0.5);
+        if (!(keyframePolicy.minimumParallaxPx >= 0.0) ||
+            !(keyframePolicy.minimumSurvivalRatio >= 0.0) ||
+            keyframePolicy.minimumSurvivalRatio > 1.0 ||
+            !(keyframePolicy.maximumRetentionS > 0.0) ||
+            keyframePolicy.maximumRetentionS > maximumKeyframeIntervalS)
+        {
+            throw std::invalid_argument("keyframe policy limits are invalid");
         }
 
         /* Readiness reported to the start-up supervisor: a run of
@@ -578,13 +638,27 @@ class VisualOdometryNode final : public rclcpp::Node
      *                  Interval from the retained accepted keyframe in seconds.
      * @param[in]       maximumKeyframeIntervalS_in
      *                  Largest interval that may be bridged continuously.
-     * @return          Retain, advance, or mark-unavailable action.
+     * @param[in]       medianParallaxPx_in
+     *                  Median image motion of the tracked keyframe corners
+     *                  in pixels; non-finite when nothing was tracked.
+     * @param[in]       survivalRatio_in
+     *                  Fraction of keyframe corners tracked into this frame.
+     * @param[in]       policy_in
+     *                  When an accepted estimate may keep the keyframe.
+     * @return          Retain, advance, or mark-unavailable action. An
+     *                  accepted estimate returns RETAIN_KEYFRAME only while
+     *                  it is below every policy threshold; the caller then
+     *                  publishes nothing and solves against the same
+     *                  keyframe next frame.
      */
     static KeyframeAction
-        selectKeyframeAction(bool   estimationSucceeded_in,
-                             bool   isPoseAvailable_in,
-                             double keyframeIntervalS_in,
-                             double maximumKeyframeIntervalS_in);
+        selectKeyframeAction(bool                  estimationSucceeded_in,
+                             bool                  isPoseAvailable_in,
+                             double                keyframeIntervalS_in,
+                             double                maximumKeyframeIntervalS_in,
+                             double                medianParallaxPx_in,
+                             double                survivalRatio_in,
+                             const KeyframePolicy &policy_in);
 
     /*!
      * @brief           Returns the fixed optical-to-body transform for a
@@ -1250,6 +1324,14 @@ class VisualOdometryNode final : public rclcpp::Node
     double maximumKeyframeIntervalS{0.75};
 
     /*!
+     * @brief           When an accepted estimate keeps the keyframe.
+     *
+     * @frame           N/A
+     * @units           Mixed; see KeyframePolicy
+     */
+    KeyframePolicy keyframePolicy;
+
+    /*!
      * @brief           Timestamp of the retained previous stereo frame.
      *
      * @frame           N/A
@@ -1458,6 +1540,24 @@ class VisualOdometryNode final : public rclcpp::Node
      * @units           count
      */
     std::size_t latestTrackedCount{0U};
+
+    /*!
+     * @brief           Latest median image motion of the tracked keyframe
+     *                  corners; NaN when nothing was tracked.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    double latestMedianParallaxPx{0.0};
+
+    /*!
+     * @brief           Number of accepted estimates that kept the keyframe
+     *                  under the parallax policy instead of publishing.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t keyframeRetainedCount{0U};
 
     /*!
      * @brief           Latest valid stereo reconstruction count before PnP.
