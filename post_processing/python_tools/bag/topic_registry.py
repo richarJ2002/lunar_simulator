@@ -182,6 +182,12 @@ CORE_TOPICS: tuple[TopicSpec, ...] = (
         True,
     ),
     TopicSpec(
+        "/alpha/control/filtered_odometry",
+        "nav_msgs/msg/Odometry",
+        MessageCategory.ODOMETRY,
+        True,
+    ),
+    TopicSpec(
         "/alpha/diagnostics",
         "diagnostic_msgs/msg/DiagnosticArray",
         MessageCategory.DIAGNOSTIC_ARRAY,

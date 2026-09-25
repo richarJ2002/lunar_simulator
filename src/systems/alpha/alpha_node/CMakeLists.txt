@@ -21,6 +21,7 @@ target_link_libraries(alpha_node
   alpha_kalman_filter
   alpha_supervisor
   ackermann_controller
+  estimate_filter
 )
 
 install(TARGETS alpha_node DESTINATION lib/${PROJECT_NAME})

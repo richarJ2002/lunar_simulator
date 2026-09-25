@@ -103,7 +103,8 @@ To add a new rover system (e.g., gamma):
 
 Each `src/localisation/` package (`ground_truth`, `inertial_odometry`,
 `visual_odometry`, `wheel_odometry`) and `src/control/` package
-(`ackermann_controller`) builds as a static library, not an executable,
+(`ackermann_controller`, `estimate_filter`) builds as a static library, not
+an executable,
 specifically so a new system can pick its own stack: add its own composing
 class (e.g. `gamma_node/objects/GammaNode.h`, following `alpha_node`'s
 `AlphaNode.h` pattern), construct only the node classes that system wants,
@@ -270,3 +271,19 @@ combination:
 ros2 topic pub --once /alpha/control/cmd/velocity geometry_msgs/msg/Twist \
   "{linear: {x: 0.015, y: 0.0}, angular: {z: 0.01}}"
 ```
+
+### Filtered estimate for controllers
+
+`estimate_filter` (`src/control/`, node `estimate_low_pass_filter`)
+republishes `/alpha/localisation/kalman_filter/odometry` smoothed on
+`/alpha/control/filtered_odometry`, for a closed-loop controller to consume.
+The body twist passes through a critically damped second-order low-pass
+(`velocity_cutoff_hz`); position is pulled toward the estimate
+(`position_cutoff_hz`) with the filtered velocity as feed-forward, so a
+constant-velocity ramp has no steady-state lag; attitude is interpolated
+spherically (`attitude_cutoff_hz`). Stamps, frames and covariance are the
+input's (the covariance describes the unfiltered estimate); a gap longer
+than `maximum_gap_s` or a frame change restarts the filter. It smooths the
+estimate's steps and velocity noise but not its drift, and nothing feeds it
+back into the estimator. Tuning lives in
+`parameters/systems/alpha/alpha_control/estimate_low_pass_filter.yaml`.

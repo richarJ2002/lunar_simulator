@@ -17,6 +17,10 @@ target_include_directories(test_measurement_history PRIVATE
   ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
 target_link_libraries(test_measurement_history alpha_kalman_filter Eigen3::Eigen)
 
+ament_add_gtest(test_estimate_filter test_estimate_filter.cpp)
+target_compile_features(test_estimate_filter PUBLIC cxx_std_17)
+target_link_libraries(test_estimate_filter estimate_filter Eigen3::Eigen)
+
 ament_add_gtest(test_startup_fixed_frame test_startup_fixed_frame.cpp)
 target_compile_features(test_startup_fixed_frame PUBLIC cxx_std_17)
 target_include_directories(test_startup_fixed_frame PRIVATE

@@ -16,6 +16,7 @@
 
 /* Object Include */
 #include "alpha_supervisor/objects/AlphaStartupSupervisorNode.h"
+#include "estimate_filter/objects/EstimateLowPassFilterNode.h"
 #include "objects/AckermannControllerNode.h"
 #include "objects/AlphaDriverNode.h"
 #include "objects/AlphaKalmanFilterNode.h"
@@ -39,8 +40,10 @@ namespace systems::alpha::alpha_node
  * @brief           Owns one instance of every node in Alpha's stack --
  *                  this system's own EKF/path/TF node and Gazebo hardware
  *                  interface, the four localisation static libraries,
- *                  the Ackermann controller, and the start-up supervisor
- *                  that gates motion commands -- and spins them together on
+ *                  the Ackermann controller, the low-pass filter that
+ *                  smooths the fused estimate for controllers, and the
+ *                  start-up supervisor that gates motion commands -- and
+ *                  spins them together on
  *                  one multi-threaded executor, in one process.
  *
  *                  Alpha is this system's *choice* of stack, not part of
@@ -79,13 +82,16 @@ class AlphaNode final
         p_ackermannController(
             std::make_shared<
                 control::ackermann_controller::AckermannControllerNode>()),
+        p_estimateFilter(
+            std::make_shared<
+                control::estimate_filter::EstimateLowPassFilterNode>()),
         p_startupSupervisor(
             std::make_shared<
                 systems::alpha::alpha_supervisor::AlphaStartupSupervisorNode>())
     {
         /*!
          * Each node keeps its own default (mutually exclusive) callback
-         * group, so this multi-threaded executor lets all eight progress
+         * group, so this multi-threaded executor lets all nine progress
          * independently of one another -- matching the concurrency they had
          * as separate processes -- while still serializing each node's own
          * callbacks against itself, which e.g. AlphaKalmanFilterNode's
@@ -98,6 +104,7 @@ class AlphaNode final
         executor.add_node(p_wheelOdometry);
         executor.add_node(p_kalmanFilter);
         executor.add_node(p_ackermannController);
+        executor.add_node(p_estimateFilter);
         executor.add_node(p_startupSupervisor);
     }
 
@@ -178,6 +185,17 @@ class AlphaNode final
      */
     std::shared_ptr<control::ackermann_controller::AckermannControllerNode>
         p_ackermannController;
+
+    /*!
+     * @brief           Smooths the fused estimate for controllers on
+     *                  /alpha/control/filtered_odometry; never fed back into
+     *                  p_kalmanFilter.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    std::shared_ptr<control::estimate_filter::EstimateLowPassFilterNode>
+        p_estimateFilter;
 
     /*!
      * @brief           Decides when motion commands may reach the

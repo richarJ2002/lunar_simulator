@@ -99,7 +99,7 @@ def generate_launch_description():
         description='RCUTILS_CONSOLE_OUTPUT_FORMAT for alpha_node.',
     )
 
-    # Hardcoded Alpha parameter tree: 8 files. use_sim_time is wired as a
+    # Hardcoded Alpha parameter tree: 9 files. use_sim_time is wired as a
     # Node parameter below, and the bridge is exempt per D5.
     parameters_root = [pkg_share, 'parameters', 'systems', 'alpha']
     alpha_parameters = [
@@ -110,6 +110,7 @@ def generate_launch_description():
         PathJoinSubstitution(parameters_root + ['alpha_localisation', 'visual_odometry.yaml']),
         PathJoinSubstitution(parameters_root + ['alpha_localisation', 'wheel_odometry.yaml']),
         PathJoinSubstitution(parameters_root + ['alpha_control', 'ackermann_controller.yaml']),
+        PathJoinSubstitution(parameters_root + ['alpha_control', 'estimate_low_pass_filter.yaml']),
         PathJoinSubstitution(parameters_root + ['alpha_supervisor', 'startup_supervisor.yaml']),
     ]
 

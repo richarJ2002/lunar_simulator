@@ -699,6 +699,7 @@ CORE_RECORD_TOPICS=(
   /alpha/localisation/visual/reset
   /alpha/localisation/kalman_filter/odometry
   /alpha/localisation/kalman_filter/wheel_slip_ratio
+  /alpha/control/filtered_odometry
 )
 
 # Added on top of the core set only when --record-images is given.

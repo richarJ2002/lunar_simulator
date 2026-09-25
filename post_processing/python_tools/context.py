@@ -42,6 +42,7 @@ PARAMETER_FILES: tuple[tuple[str, str], ...] = (
     ("parameters/systems/alpha/alpha_localisation/visual_odometry.yaml", "visual_odometry"),
     ("parameters/systems/alpha/alpha_localisation/wheel_odometry.yaml", "wheel_odometry"),
     ("parameters/systems/alpha/alpha_control/ackermann_controller.yaml", "ackermann_controller"),
+    ("parameters/systems/alpha/alpha_control/estimate_low_pass_filter.yaml", "estimate_low_pass_filter"),
     ("parameters/systems/alpha/alpha_supervisor/startup_supervisor.yaml", "startup_supervisor"),
 )
 

@@ -1,0 +1,18 @@
+estimate_low_pass_filter:
+  ros__parameters:
+    # Smooths continuous_ekf's estimate for controllers. The output is
+    # never fed back into the estimator. Stamps and frames match the input;
+    # the covariance is the input's, i.e. of the unfiltered estimate.
+    input_odometry_topic: /alpha/localisation/kalman_filter/odometry
+    output_odometry_topic: /alpha/control/filtered_odometry
+    # Body twist: two cascaded first-order stages (critically damped, no
+    # step overshoot), each with this corner frequency.
+    velocity_cutoff_hz: 1.0
+    # Position: pulled toward the input at this corner frequency, with the
+    # filtered velocity as feed-forward, so a constant-velocity ramp has no
+    # steady-state lag.
+    position_cutoff_hz: 0.5
+    # Attitude: spherical interpolation toward the input quaternion.
+    attitude_cutoff_hz: 1.0
+    # A gap between input stamps longer than this restarts the filter.
+    maximum_gap_s: 0.5
