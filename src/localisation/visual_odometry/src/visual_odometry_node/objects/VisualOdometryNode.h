@@ -584,9 +584,22 @@ class VisualOdometryNode final : public rclcpp::Node
             [this](const std_msgs::msg::Empty::ConstSharedPtr p_message)
             { handleResetCallBack(*p_message); });
 
+        /* Images kept per camera, both by the subscription and by the
+         * pair matcher. One drops a frame whenever its partner is late or
+         * a callback overruns; a deeper queue can still pair it, and
+         * maximum_input_age_s discards any pair that has gone stale. */
+        const std::int64_t imageQueueDepth =
+            declare_parameter<std::int64_t>("image_queue_depth", 2);
+        if (imageQueueDepth < 1 || imageQueueDepth > 10)
+        {
+            throw std::invalid_argument("image_queue_depth must be 1 to 10");
+        }
+
         /* Feed the left LocCam stream into the stereo synchronizer. */
         const rmw_qos_profile_t latestSensorQos =
-            rclcpp::SensorDataQoS().keep_last(1).get_rmw_qos_profile();
+            rclcpp::SensorDataQoS()
+                .keep_last(static_cast<std::size_t>(imageQueueDepth))
+                .get_rmw_qos_profile();
         leftSubscriber.subscribe(this, leftTopic, latestSensorQos);
 
         /* Feed the right LocCam stream into the stereo synchronizer. */
@@ -596,7 +609,7 @@ class VisualOdometryNode final : public rclcpp::Node
          * tolerance of each other. */
         p_synchronizer =
             std::make_unique<message_filters::Synchronizer<StereoPolicy>>(
-                StereoPolicy(1),
+                StereoPolicy(static_cast<std::uint32_t>(imageQueueDepth)),
                 leftSubscriber,
                 rightSubscriber);
 

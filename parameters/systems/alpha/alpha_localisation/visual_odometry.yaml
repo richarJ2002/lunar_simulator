@@ -35,6 +35,10 @@ visual_odometry:
     # of detections and lowered the near/mid share (ab53), so it is off.
     detection_minimum_row_px: 0
     maximum_input_age_s: 0.25
+    # Images kept per camera by the subscription and the stereo pair matcher
+    # (1-10); a stale pair is still dropped by maximum_input_age_s. Depth 2
+    # received 15 % more pairs than 1 with the same input age (ab54).
+    image_queue_depth: 2
     maximum_keyframe_interval_s: 0.75
     # Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps the
     # keyframe, and publishes nothing, until the tracked corners' median

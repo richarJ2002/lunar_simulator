@@ -35,13 +35,3 @@
   ros_type_name: sensor_msgs/msg/Image
   gz_type_name: gz.msgs.Image
   direction: GZ_TO_ROS
-- ros_topic_name: /alpha/drivers/navcam/left
-  gz_topic_name: /alpha/drivers/navcam/left
-  ros_type_name: sensor_msgs/msg/Image
-  gz_type_name: gz.msgs.Image
-  direction: GZ_TO_ROS
-- ros_topic_name: /alpha/drivers/navcam/right
-  gz_topic_name: /alpha/drivers/navcam/right
-  ros_type_name: sensor_msgs/msg/Image
-  gz_type_name: gz.msgs.Image
-  direction: GZ_TO_ROS

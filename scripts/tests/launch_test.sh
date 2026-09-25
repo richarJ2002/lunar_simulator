@@ -93,8 +93,6 @@ expected = sorted([
     "/alpha/drivers/ground_truth/odometry",
     "/alpha/drivers/loccam/left",
     "/alpha/drivers/loccam/right",
-    "/alpha/drivers/navcam/left",
-    "/alpha/drivers/navcam/right",
 ])
 assert names == expected, f"bridge set mismatch: {names}"
 for entry in bridge:
@@ -102,7 +100,7 @@ for entry in bridge:
         continue
     assert entry["ros_topic_name"].startswith("/alpha/drivers/"), entry
     assert entry["gz_topic_name"].startswith("/alpha/drivers/"), entry
-print("[launch_test] OK: bridge exact 9-name set")
+print("[launch_test] OK: bridge exact 7-name set")
 
 checks = [
     ("parameters/systems/alpha/alpha_drivers/alpha_drivers.yaml", "alpha_driver_node"),
