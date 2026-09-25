@@ -44,6 +44,7 @@ add_library(visual_odometry STATIC
   src/visual_odometry_node/methods/rotationToQuaternion.cc
   src/visual_odometry_node/methods/publishOdometry.cc
   src/visual_odometry_node/methods/storePrevious.cc
+  src/visual_odometry_node/methods/calculateSparseDisparity.cc
   src/visual_odometry_node/methods/selectKeyframeAction.cc
 )
 target_compile_features(visual_odometry PUBLIC cxx_std_17)

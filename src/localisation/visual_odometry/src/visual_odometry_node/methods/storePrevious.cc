@@ -17,7 +17,7 @@
 /* None */
 
 /* Generic Libraries */
-/* None */
+#include <chrono>
 
 namespace localisation::visual_odometry
 {
@@ -34,6 +34,26 @@ void VisualOdometryNode::storePrevious(
      * without detecting on the same image again. */
     previousKeyframeCorners     = corners_in;
     previousKeyframeCornerCount = cornerCount_in;
+
+    /* Sparse stereo matches the keyframe's corners once, here, rather than
+     * building a dense map of the same pair on every frame. */
+    if (isSparseStereo)
+    {
+        const std::chrono::steady_clock::time_point matchingStart =
+            std::chrono::steady_clock::now();
+        calculateSparseDisparity(left_in,
+                                 right_in,
+                                 corners_in,
+                                 cornerCount_in,
+                                 sparseStereoMaximumDisparityPx,
+                                 sparseStereoHalfWindowPx,
+                                 sparseStereoMaximumLeftRightDifferencePx,
+                                 previousKeyframeDisparityPx);
+        latestDisparityDuration_ms =
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - matchingStart)
+                .count();
+    }
 
     /*!
      * cv::Mat uses shared, reference-counted storage; clone() forces a deep

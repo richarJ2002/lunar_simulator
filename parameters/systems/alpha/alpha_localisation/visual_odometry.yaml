@@ -21,6 +21,19 @@ visual_odometry:
     maximum_features: 640
     minimum_correspondences: 20
     maximum_depth_m: 25.0
+    # Stereo depth (WP-01 Phase 5.3): "block" reads the dense StereoBM map
+    # (num_disparities, block_size), rebuilt for the keyframe pair every
+    # frame, at the nearest pixel; "sparse" matches each keyframe corner
+    # once along its row to sub-pixel precision, with a left-right check.
+    # Sparse became the default after the ab53 runs: same accuracy, 9 % more
+    # valid depths, 64 ms instead of 87 ms median processing per frame.
+    stereo_matching: sparse
+    sparse_stereo_half_window_px: 5
+    sparse_stereo_maximum_left_right_difference_px: 1.0
+    # Rows above this are not searched for corners (sky and distant
+    # terrain); 0 searches the whole image. Masking above row 400 lost 14 %
+    # of detections and lowered the near/mid share (ab53), so it is off.
+    detection_minimum_row_px: 0
     maximum_input_age_s: 0.25
     maximum_keyframe_interval_s: 0.75
     # Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps the

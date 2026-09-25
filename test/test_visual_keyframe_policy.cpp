@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <opencv2/calib3d.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace
 {
@@ -385,6 +386,118 @@ TEST(VisualGeometry, StereoDepthUncertaintyFollowsOpticalDepthAxis)
                         1.0e-10);
         }
     }
+}
+
+/*!
+ * @brief           Builds a smooth random texture and its right-camera view
+ *                  for a uniform disparity, so a patch at left column u
+ *                  appears at right column u - disparity.
+ */
+void makeShiftedStereoPair(double   disparityPx_in,
+                           cv::Mat &left_out,
+                           cv::Mat &right_out)
+{
+    cv::Mat noise(200, 320, CV_8UC1);
+    cv::RNG randomGenerator(20260925U);
+    randomGenerator.fill(noise, cv::RNG::UNIFORM, 0, 256);
+    cv::GaussianBlur(noise, left_out, cv::Size(0, 0), 1.5);
+    const cv::Matx23d shift(1.0, 0.0, disparityPx_in, 0.0, 1.0, 0.0);
+    cv::warpAffine(left_out,
+                   right_out,
+                   shift,
+                   left_out.size(),
+                   cv::INTER_CUBIC | cv::WARP_INVERSE_MAP,
+                   cv::BORDER_REFLECT);
+}
+
+TEST(VisualSparseStereo, RecoversSubPixelDisparity)
+{
+    constexpr double TRUE_DISPARITY_PX = 7.3;
+    cv::Mat          left;
+    cv::Mat          right;
+    makeShiftedStereoPair(TRUE_DISPARITY_PX, left, right);
+
+    std::array<localisation::visual_odometry::feature_tracking::Point2D,
+               localisation::visual_odometry::feature_tracking::
+                   MAXIMUM_SUPPORTED_FEATURES>
+                corners{};
+    std::size_t cornerCount = 0U;
+    for (int row = 30; row <= 170; row += 20)
+    {
+        for (int column = 90; column <= 290; column += 25)
+        {
+            corners[cornerCount].x = static_cast<float>(column) + 0.4F;
+            corners[cornerCount].y = static_cast<float>(row) + 0.7F;
+            ++cornerCount;
+        }
+    }
+
+    std::array<float,
+               localisation::visual_odometry::feature_tracking::
+                   MAXIMUM_SUPPORTED_FEATURES>
+        disparity{};
+    Node::calculateSparseDisparity(left,
+                                   right,
+                                   corners,
+                                   cornerCount,
+                                   64,
+                                   5,
+                                   1.0,
+                                   disparity);
+
+    std::size_t matchedCount = 0U;
+    for (std::size_t index = 0U; index < cornerCount; ++index)
+    {
+        if (std::isfinite(disparity[index]))
+        {
+            ++matchedCount;
+            EXPECT_NEAR(disparity[index], TRUE_DISPARITY_PX, 0.15);
+        }
+    }
+    EXPECT_GE(matchedCount, cornerCount * 9U / 10U);
+    /* Entries past the corner count stay unmatched. */
+    EXPECT_FALSE(std::isfinite(disparity[cornerCount]));
+}
+
+TEST(VisualSparseStereo, RejectsTexturelessAndOutOfRangeCorners)
+{
+    std::array<localisation::visual_odometry::feature_tracking::Point2D,
+               localisation::visual_odometry::feature_tracking::
+                   MAXIMUM_SUPPORTED_FEATURES>
+        corners{};
+    corners[0].x = 160.0F;
+    corners[0].y = 100.0F;
+    std::array<float,
+               localisation::visual_odometry::feature_tracking::
+                   MAXIMUM_SUPPORTED_FEATURES>
+        disparity{};
+
+    /* A flat image matches every disparity equally: ambiguous. */
+    const cv::Mat flat(200, 320, CV_8UC1, cv::Scalar(90));
+    Node::calculateSparseDisparity(flat,
+                                   flat,
+                                   corners,
+                                   1U,
+                                   64,
+                                   5,
+                                   1.0,
+                                   disparity);
+    EXPECT_FALSE(std::isfinite(disparity[0]));
+
+    /* Too close to the left edge to search any disparity range. */
+    cv::Mat left;
+    cv::Mat right;
+    makeShiftedStereoPair(7.3, left, right);
+    corners[0].x = 7.0F;
+    Node::calculateSparseDisparity(left,
+                                   right,
+                                   corners,
+                                   1U,
+                                   64,
+                                   5,
+                                   1.0,
+                                   disparity);
+    EXPECT_FALSE(std::isfinite(disparity[0]));
 }
 
 } /* namespace */

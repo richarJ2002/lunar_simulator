@@ -55,11 +55,14 @@ namespace localisation::visual_odometry
 /*!
  * @brief           Estimates rover motion from the Alpha LocCam stereo pair.
  *
- * The estimator computes disparity between the previous stereo pair with
- * `StereoBM`, tracks image corners between LocCam frames with pyramidal
- * Lucas-Kanade optical flow, reconstructs the previous 3-D feature positions
- * from disparity, and estimates the inter-frame rigid transform with PnP
- * RANSAC. Estimated pose is accumulated into `worldFromOptical`, a rigid
+ * The estimator matches the keyframe's corners along their rows in the
+ * right image once, when the keyframe is stored (or, with stereo_matching
+ * "block", reads a dense `StereoBM` map of the keyframe pair), tracks those
+ * corners into later LocCam frames with pyramidal Lucas-Kanade optical
+ * flow, reconstructs their 3-D positions from disparity, and estimates the
+ * keyframe-to-frame rigid transform with PnP RANSAC. The keyframe is kept
+ * until the increment spans enough parallax (see KeyframePolicy). Estimated
+ * pose is accumulated into `worldFromOptical`, a rigid
  * transform from the optical frame at node start-up to the current optical
  * frame. Odometry withholds a pose update and keeps the previous accumulated
  * pose whenever too few reliable correspondences are available; it is
@@ -480,6 +483,45 @@ class VisualOdometryNode final : public rclcpp::Node
         /* Maximum disparity variation allowed within one speckle group. */
         p_stereoMatcher->setSpeckleRange(2);
 
+        /* Stereo depth source (WP-01 Phase 5.3): "block" reads the dense
+         * StereoBM map, recomputed on the keyframe pair every frame, at
+         * the nearest pixel; "sparse" matches each keyframe corner once,
+         * when the keyframe is stored, along its row to sub-pixel
+         * precision with a left-right consistency check. Both search
+         * num_disparities pixels. */
+        const std::string stereoMatching =
+            declare_parameter<std::string>("stereo_matching", "sparse");
+        if (stereoMatching != "block" && stereoMatching != "sparse")
+        {
+            throw std::invalid_argument(
+                "stereo_matching must be block or sparse");
+        }
+        isSparseStereo                 = stereoMatching == "sparse";
+        sparseStereoMaximumDisparityPx = numberOfDisparities;
+        sparseStereoHalfWindowPx =
+            declare_parameter<int>("sparse_stereo_half_window_px", 5);
+        sparseStereoMaximumLeftRightDifferencePx = declare_parameter<double>(
+            "sparse_stereo_maximum_left_right_difference_px",
+            1.0);
+        if (sparseStereoHalfWindowPx < 2 || sparseStereoHalfWindowPx > 15 ||
+            !(sparseStereoMaximumLeftRightDifferencePx > 0.0))
+        {
+            throw std::invalid_argument("sparse stereo limits are invalid");
+        }
+
+        /* Rows above this are not searched for corners, so the feature
+         * budget and the detector's relative quality threshold go to the
+         * near ground instead of sky and distant terrain. Zero searches
+         * the whole image. */
+        detectionMinimumRowPx =
+            declare_parameter<int>("detection_minimum_row_px", 0);
+        if (detectionMinimumRowPx < 0 ||
+            detectionMinimumRowPx > imageHeightPx - 64)
+        {
+            throw std::invalid_argument(
+                "detection_minimum_row_px must leave at least 64 rows");
+        }
+
         /*!
          * Initialize both reusable feature-tracking engines once, here,
          * at construction time -- matching their own documented
@@ -494,7 +536,7 @@ class VisualOdometryNode final : public rclcpp::Node
          */
         const feature_tracking::FeatureTrackingStatus cornerDetectorStatus =
             cornerDetector.initialize(imageWidthPx,
-                                      imageHeightPx,
+                                      imageHeightPx - detectionMinimumRowPx,
                                       static_cast<std::size_t>(maximumFeatures),
                                       featureQualityLevel,
                                       featureMinimumDistancePx);
@@ -659,6 +701,52 @@ class VisualOdometryNode final : public rclcpp::Node
                              double                medianParallaxPx_in,
                              double                survivalRatio_in,
                              const KeyframePolicy &policy_in);
+
+    /*!
+     * @brief           Matches each corner of a left image along its row in
+     *                  the right image to sub-pixel precision.
+     *
+     *                  A (2h+1)-square patch around each corner is compared
+     *                  by sum of squared differences at every integer
+     *                  disparity up to the search range, the minimum is
+     *                  refined by a parabola through its neighbours, and the
+     *                  right-image patch at the match must find its way back
+     *                  to within the left-right tolerance. A match at the
+     *                  edge of the search range or that is not clearly
+     *                  better than the next-best non-adjacent disparity is
+     *                  rejected.
+     *
+     * @param[in]       left_in
+     *                  Rectified left image, mono8.
+     * @param[in]       right_in
+     *                  Rectified right image, mono8, same size.
+     * @param[in]       corners_in
+     *                  Corners detected on left_in.
+     * @param[in]       cornerCount_in
+     *                  Number of valid entries in corners_in.
+     * @param[in]       maximumDisparityPx_in
+     *                  Largest disparity searched, pixels.
+     * @param[in]       halfWindowPx_in
+     *                  Half-width of the square patch, pixels.
+     * @param[in]       maximumLeftRightDifferencePx_in
+     *                  Largest left-to-right versus right-to-left
+     *                  disparity difference accepted, pixels.
+     * @param[out]      disparityPx_out
+     *                  Disparity of each corner in pixels, aligned with
+     *                  corners_in; NaN where no reliable match was found.
+     */
+    static void calculateSparseDisparity(
+        const cv::Mat &left_in,
+        const cv::Mat &right_in,
+        const std::array<feature_tracking::Point2D,
+                         feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+                   &corners_in,
+        std::size_t cornerCount_in,
+        int         maximumDisparityPx_in,
+        int         halfWindowPx_in,
+        double      maximumLeftRightDifferencePx_in,
+        std::array<float, feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+            &disparityPx_out);
 
     /*!
      * @brief           Returns the fixed optical-to-body transform for a
@@ -1206,6 +1294,61 @@ class VisualOdometryNode final : public rclcpp::Node
      * @units           count
      */
     std::size_t previousKeyframeCornerCount{0U};
+
+    /*!
+     * @brief           Sparse-stereo disparity of each keyframe corner,
+     *                  aligned with previousKeyframeCorners; NaN where no
+     *                  reliable match was found. Used only when
+     *                  isSparseStereo.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    std::array<float, feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+        previousKeyframeDisparityPx{};
+
+    /*!
+     * @brief           True to take depth from sparse keyframe-corner
+     *                  matching instead of the dense StereoBM map.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    bool isSparseStereo{true};
+
+    /*!
+     * @brief           Largest disparity the sparse matcher searches.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    int sparseStereoMaximumDisparityPx{128};
+
+    /*!
+     * @brief           Half-width of the sparse matcher's square patch.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    int sparseStereoHalfWindowPx{5};
+
+    /*!
+     * @brief           Largest left-to-right versus right-to-left disparity
+     *                  difference a sparse match may have.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    double sparseStereoMaximumLeftRightDifferencePx{1.0};
+
+    /*!
+     * @brief           First image row searched for corners; the detector
+     *                  is initialized for the band below it.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    int detectionMinimumRowPx{0};
 
     /*!
      * @brief           Fixed rigid transform from the camera optical frame

@@ -214,9 +214,19 @@ void VisualOdometryNode::handleStereoCallBack(
      */
     const std::chrono::steady_clock::time_point currentDetectionStart =
         std::chrono::steady_clock::now();
-    static_cast<void>(cornerDetector.detect(imageViewFromMat(currentLeft),
+    /* The detector covers only the band from detectionMinimumRowPx down;
+     * shift its rows back into full-image coordinates. */
+    feature_tracking::ImageView detectionBand = imageViewFromMat(currentLeft);
+    detectionBand.p_pixels += static_cast<std::size_t>(detectionMinimumRowPx) *
+                              detectionBand.strideBytes;
+    detectionBand.height -= detectionMinimumRowPx;
+    static_cast<void>(cornerDetector.detect(detectionBand,
                                             currentCorners,
                                             currentCornerCount));
+    for (std::size_t index = 0U; index < currentCornerCount; ++index)
+    {
+        currentCorners[index].y += static_cast<float>(detectionMinimumRowPx);
+    }
     latestDetectionDuration_ms =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - currentDetectionStart)
@@ -340,19 +350,24 @@ void VisualOdometryNode::handleStereoCallBack(
      * fixed-point disparity scaled by 16, so divide back down to true pixel
      * disparity.
      */
-    const std::chrono::steady_clock::time_point disparityStart =
-        std::chrono::steady_clock::now();
-    p_stereoMatcher->compute(previousLeft, previousRight, disparityFixed);
-
     /* True floating-point pixel disparity. */
     cv::Mat disparity;
 
-    /* Undo StereoBM's internal 16x fixed-point scaling. */
-    disparityFixed.convertTo(disparity, CV_32F, 1.0 / 16.0);
-    latestDisparityDuration_ms =
-        std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - disparityStart)
-            .count();
+    /* Sparse stereo matched the keyframe's corners once, when it was
+     * stored, so there is no dense map to build. */
+    if (!isSparseStereo)
+    {
+        const std::chrono::steady_clock::time_point disparityStart =
+            std::chrono::steady_clock::now();
+        p_stereoMatcher->compute(previousLeft, previousRight, disparityFixed);
+
+        /* Undo StereoBM's internal 16x fixed-point scaling. */
+        disparityFixed.convertTo(disparity, CV_32F, 1.0 / 16.0);
+        latestDisparityDuration_ms =
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - disparityStart)
+                .count();
+    }
 
     /*!
      * Step 3: track the PREVIOUS keyframe's corners forward into the
@@ -506,13 +521,17 @@ void VisualOdometryNode::handleStereoCallBack(
 
         /* Reject a feature whose rounded pixel falls outside the disparity
          * image. */
-        if (u < 0 || v < 0 || u >= disparity.cols || v >= disparity.rows)
+        if (!isSparseStereo &&
+            (u < 0 || v < 0 || u >= disparity.cols || v >= disparity.rows))
         {
             continue;
         }
 
-        /* Look up this pixel's previously computed stereo disparity. */
-        const float disparityPx = disparity.at<float>(v, u);
+        /* The keyframe corner's own sub-pixel match, or the dense map at
+         * its nearest pixel. */
+        const float disparityPx = isSparseStereo
+                                      ? previousKeyframeDisparityPx[index]
+                                      : disparity.at<float>(v, u);
 
         /* Reject disparity too small to be reliable (implies very large or
          * infinite depth). */
