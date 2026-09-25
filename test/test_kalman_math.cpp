@@ -317,7 +317,7 @@ TEST(KalmanMath, WheelVelocityJacobianMatchesFiniteDifference)
     state(quaternionIndex + 3)      = attitude.w();
     state.segment<3>(velocityIndex) = Eigen::Vector3d(0.4, -0.2, 0.1);
 
-    Eigen::Vector2d                             predictedVelocity;
+    Eigen::Vector3d                             predictedVelocity;
     AlphaFilter::WheelVelocityObservationMatrix analyticalObservation;
     AlphaFilter::calculateWheelVelocityObservation(state,
                                                    predictedVelocity,
@@ -330,7 +330,7 @@ TEST(KalmanMath, WheelVelocityJacobianMatchesFiniteDifference)
         AlphaFilter::ErrorStateVector perturbation =
             AlphaFilter::ErrorStateVector::Zero();
         perturbation(column) = PERTURBATION;
-        Eigen::Vector2d                             perturbedVelocity;
+        Eigen::Vector3d                             perturbedVelocity;
         AlphaFilter::WheelVelocityObservationMatrix unusedObservation;
         AlphaFilter::calculateWheelVelocityObservation(
             injectEskfError(state, perturbation),

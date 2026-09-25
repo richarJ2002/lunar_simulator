@@ -553,11 +553,13 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     using MeasurementVarianceVector = Eigen::Matrix<double, 12, 1>;
 
     /*!
-     * @brief           Two-axis wheel body-velocity observation Jacobian type.
+     * @brief           Three-axis wheel body-velocity observation Jacobian
+     *                  type: rolling vx, no-side-slip vy and ground-contact
+     *                  vz.
      */
     using WheelVelocityObservationMatrix =
         Eigen::Matrix<double,
-                      2,
+                      3,
                       static_cast<Eigen::Index>(
                           ErrorStateIndex::ERROR_STATE_INDEX_COUNT)>;
 
@@ -611,13 +613,14 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @param[in]       state_in
      *                  Nominal state containing fixed velocity and attitude.
      * @param[out]      predictedVelocityBodyMps_out
-     *                  Predicted body-frame x/y velocity in metres per second.
+     *                  Predicted body-frame x/y/z velocity in metres per
+     *                  second.
      * @param[out]      observationMatrix_out
-     *                  Two-by-fifteen right-error observation Jacobian.
+     *                  Three-by-fifteen right-error observation Jacobian.
      */
     static void calculateWheelVelocityObservation(
         const NominalStateVector       &state_in,
-        Eigen::Vector2d                &predictedVelocityBodyMps_out,
+        Eigen::Vector3d                &predictedVelocityBodyMps_out,
         WheelVelocityObservationMatrix &observationMatrix_out);
 
     /*!

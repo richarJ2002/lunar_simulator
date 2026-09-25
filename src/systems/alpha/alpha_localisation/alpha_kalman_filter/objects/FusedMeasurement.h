@@ -71,10 +71,10 @@ struct FusedMeasurement
     /*!
      * @brief           Measured values, packed per source.
      *
-     *                  Wheel: body vx, vy. Visual increment: body vx, vy,
-     *                  vz, yaw rate. Visual pose: position x, y, z, then
-     *                  the body-to-fixed quaternion x, y, z, w. Unused
-     *                  trailing entries are zero.
+     *                  Wheel: body vx, vy, vz. Visual increment: body vx,
+     *                  vy, vz, yaw rate. Visual pose: position x, y, z,
+     *                  then the body-to-fixed quaternion x, y, z, w.
+     *                  Unused trailing entries are zero.
      *
      * @frame           body for velocities; startup_fixed for pose
      * @units           m/s and rad/s for velocities; m for position;
@@ -88,7 +88,7 @@ struct FusedMeasurement
      *                  observation row in the order the observation model
      *                  produces them.
      *
-     *                  Wheel uses two rows, visual increment three or four
+     *                  Wheel uses three rows, visual increment three or four
      *                  and visual pose six (position, then body attitude).
      *                  Unused trailing entries are zero.
      *

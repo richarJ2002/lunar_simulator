@@ -220,6 +220,16 @@ class WheelOdometryNode final : public rclcpp::Node
         lateralSlipStddevMps =
             declare_parameter<double>("lateral_slip_stddev_mps", 0.003);
 
+        /*!
+         * Expected body vertical velocity while every wheel stays on the
+         * ground, reported as the vz measurement (value zero). The
+         * planar solve cannot observe vz, but a ground vehicle's body
+         * barely moves along its own z axis, and without this constraint
+         * a velocity-only fusion leaves vertical velocity free to drift.
+         */
+        verticalVelocityStddevMps =
+            declare_parameter<double>("vertical_velocity_stddev_mps", 0.005);
+
         /* Reject a configuration whose wheel or slip parameters could
          * never produce a physically meaningful result. */
         if (wheelRadiusM <= 0.0 || maximumIntegrationDtS <= 0.0 ||
@@ -229,6 +239,7 @@ class WheelOdometryNode final : public rclcpp::Node
             maximumSlipRatio <= 0.0 || maximumSlipRatio > 0.99 ||
             slipRatioDeadband < 0.0 || slipRatioDeadband >= 1.0 ||
             !(lateralSlipStddevMps > 0.0) ||
+            !(verticalVelocityStddevMps > 0.0) ||
             !(wheelAngularVelocityStddevRadps > 0.0))
         {
             /* Fail fast at construction rather than misbehave later. */
@@ -676,6 +687,15 @@ class WheelOdometryNode final : public rclcpp::Node
      * @units           metres per second
      */
     double lateralSlipStddevMps{0.003};
+
+    /*!
+     * @brief           Standard deviation of the body vertical velocity
+     *                  reported for the ground-contact constraint vz = 0.
+     *
+     * @frame           body
+     * @units           metres per second
+     */
+    double verticalVelocityStddevMps{0.005};
 
     /*!
      * @brief           Number of kinematic solves attempted.

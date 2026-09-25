@@ -14,6 +14,10 @@ wheel_odometry:
     # retired lateral_observability_threshold. Ground-truth body lateral
     # velocity varies by ~0.0025 m/s while driving (runs 2026-09-24).
     lateral_slip_stddev_mps: 0.003
+    # Reported body vz = 0 (wheels on the ground) with this standard
+    # deviation. Ground-truth body vz varies by ~0.002 m/s (p99 0.004-0.007)
+    # while driving (runs 2026-09-25).
+    vertical_velocity_stddev_mps: 0.005
     maximum_integration_dt_s: 5.0
     # Ready once all twelve joints resolve and odometry has been published
     # for this long without a gap longer than readiness_maximum_gap_s.

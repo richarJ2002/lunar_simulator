@@ -75,15 +75,15 @@ MeasurementFusionResult AlphaKalmanFilterNode::fuseMeasurementRecord(
     }
     else
     {
-        Eigen::Vector2d                predictedVelocity_body_mPerS;
+        Eigen::Vector3d                predictedVelocity_body_mPerS;
         WheelVelocityObservationMatrix wheelObservation;
         calculateWheelVelocityObservation(nominalState,
                                           predictedVelocity_body_mPerS,
                                           wheelObservation);
         innovation =
-            record_in.measuredValues.head<2>() - predictedVelocity_body_mPerS;
+            record_in.measuredValues.head<3>() - predictedVelocity_body_mPerS;
         observation      = wheelObservation;
-        measurementNoise = record_in.noiseVariances.head<2>().asDiagonal();
+        measurementNoise = record_in.noiseVariances.head<3>().asDiagonal();
     }
 
     if (!calculateNormalizedInnovationSquared(innovation,

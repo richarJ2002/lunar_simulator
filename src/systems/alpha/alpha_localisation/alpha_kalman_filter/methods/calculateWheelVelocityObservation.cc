@@ -18,7 +18,7 @@ namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 
 void AlphaKalmanFilterNode::calculateWheelVelocityObservation(
     const NominalStateVector       &state_in,
-    Eigen::Vector2d                &predictedVelocityBodyMps_out,
+    Eigen::Vector3d                &predictedVelocityBodyMps_out,
     WheelVelocityObservationMatrix &observationMatrix_out)
 {
     const Eigen::Index quaternionIndex =
@@ -39,7 +39,7 @@ void AlphaKalmanFilterNode::calculateWheelVelocityObservation(
         quaternion_bodyToFixed.toRotationMatrix().transpose();
     const Eigen::Vector3d velocity_body_mPerS =
         rotation_fixedToBody * state_in.segment<3>(velocityIndex);
-    predictedVelocityBodyMps_out = velocity_body_mPerS.head<2>();
+    predictedVelocityBodyMps_out = velocity_body_mPerS;
 
     Eigen::Matrix3d velocityCrossMatrix = Eigen::Matrix3d::Zero();
     velocityCrossMatrix << 0.0, -velocity_body_mPerS.z(),
@@ -47,10 +47,10 @@ void AlphaKalmanFilterNode::calculateWheelVelocityObservation(
         -velocity_body_mPerS.x(), -velocity_body_mPerS.y(),
         velocity_body_mPerS.x(), 0.0;
     observationMatrix_out.setZero();
-    observationMatrix_out.block<2, 3>(0, errorVelocityIndex) =
-        rotation_fixedToBody.topRows<2>();
-    observationMatrix_out.block<2, 3>(0, errorAttitudeIndex) =
-        velocityCrossMatrix.topRows<2>();
+    observationMatrix_out.block<3, 3>(0, errorVelocityIndex) =
+        rotation_fixedToBody;
+    observationMatrix_out.block<3, 3>(0, errorAttitudeIndex) =
+        velocityCrossMatrix;
 }
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

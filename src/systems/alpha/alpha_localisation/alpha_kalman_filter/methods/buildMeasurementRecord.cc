@@ -114,11 +114,11 @@ bool AlphaKalmanFilterNode::buildMeasurementRecord(
     }
     else
     {
-        record.measuredValues.head<2>() =
-            Eigen::Vector2d(message_in.twist.twist.linear.x,
-                            message_in.twist.twist.linear.y);
-        record.noiseVariances(0) = variances(6);
-        record.noiseVariances(1) = variances(7);
+        record.measuredValues.head<3>() =
+            Eigen::Vector3d(message_in.twist.twist.linear.x,
+                            message_in.twist.twist.linear.y,
+                            message_in.twist.twist.linear.z);
+        record.noiseVariances.head<3>() = variances.segment<3>(6);
     }
 
     if (!record.measuredValues.allFinite())

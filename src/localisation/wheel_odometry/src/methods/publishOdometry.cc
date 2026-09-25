@@ -66,6 +66,9 @@ void WheelOdometryNode::publishOdometry(
     /* Write the current body-frame y velocity. */
     output.twist.twist.linear.y = bodyTwist_in.y();
 
+    /* Ground contact: the body does not move along its own z axis. */
+    output.twist.twist.linear.z = 0.0;
+
     /* Write the current yaw rate. */
     output.twist.twist.angular.z = bodyTwist_in.z();
 
@@ -113,8 +116,10 @@ void WheelOdometryNode::publishOdometry(
         }
     }
 
-    /* Vertical velocity is not part of the rolling constraint. */
-    output.twist.covariance[14] = 1.0e3;
+    /* The planar solve does not observe vertical velocity; the reported
+     * vz = 0 is the ground-contact constraint, with its own variance. */
+    output.twist.covariance[14] =
+        verticalVelocityStddevMps * verticalVelocityStddevMps;
 
     /* Large, effectively "unknown", roll-rate variance. */
     output.twist.covariance[21] = 1.0e3;
