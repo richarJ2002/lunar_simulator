@@ -23,9 +23,18 @@ namespace localisation::visual_odometry
 {
 
 void VisualOdometryNode::storePrevious(
-    const cv::Mat &left_in, const cv::Mat &right_in,
-    const builtin_interfaces::msg::Time &stamp_in)
+    const cv::Mat                                                  &left_in,
+    const cv::Mat                                                  &right_in,
+    const builtin_interfaces::msg::Time                            &stamp_in,
+    const std::array<feature_tracking::Point2D,
+                     feature_tracking::MAXIMUM_SUPPORTED_FEATURES> &corners_in,
+    std::size_t cornerCount_in)
 {
+    /* Keep the frame's own detections so the next callback tracks them
+     * without detecting on the same image again. */
+    previousKeyframeCorners     = corners_in;
+    previousKeyframeCornerCount = cornerCount_in;
+
     /*!
      * cv::Mat uses shared, reference-counted storage; clone() forces a deep
      * copy so a retained "previous" frame cannot be silently mutated later

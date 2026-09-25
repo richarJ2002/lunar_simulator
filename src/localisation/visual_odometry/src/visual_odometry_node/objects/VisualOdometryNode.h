@@ -898,18 +898,33 @@ class VisualOdometryNode final : public rclcpp::Node
                          const PoseCovariance &relativeCovariance_in);
 
     /*!
-     * @brief           Stores the current stereo frame as "previous".
+     * @brief           Stores the current stereo frame and its detected
+     *                  corners as the retained keyframe.
      *
      * @param[in]       left_in
      *                  Current left LocCam image to retain.
+     *
      * @param[in]       right_in
      *                  Current right LocCam image to retain.
+     *
      * @param[in]       stamp_in
      *                  Current frame timestamp to retain.
+     *
+     * @param[in]       corners_in
+     *                  Corners detected on left_in; entries at and beyond
+     *                  cornerCount_in are unused.
+     *
+     * @param[in]       cornerCount_in
+     *                  Number of valid entries in corners_in.
      */
-    void storePrevious(const cv::Mat                       &left_in,
-                       const cv::Mat                       &right_in,
-                       const builtin_interfaces::msg::Time &stamp_in);
+    void storePrevious(
+        const cv::Mat                       &left_in,
+        const cv::Mat                       &right_in,
+        const builtin_interfaces::msg::Time &stamp_in,
+        const std::array<feature_tracking::Point2D,
+                         feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+                   &corners_in,
+        std::size_t cornerCount_in);
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
@@ -1097,6 +1112,26 @@ class VisualOdometryNode final : public rclcpp::Node
      * @units           8-bit intensity
      */
     cv::Mat previousRight;
+
+    /*!
+     * @brief           Corners detected on previousLeft when it was the
+     *                  current frame; entries at and beyond
+     *                  previousKeyframeCornerCount are unused.
+     *
+     * @frame           Image
+     * @units           pixels
+     */
+    std::array<feature_tracking::Point2D,
+               feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+        previousKeyframeCorners{};
+
+    /*!
+     * @brief           Number of valid entries in previousKeyframeCorners.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::size_t previousKeyframeCornerCount{0U};
 
     /*!
      * @brief           Fixed rigid transform from the camera optical frame

@@ -21,6 +21,7 @@ void VisualOdometryNode::handleResetCallBack(
     static_cast<void>(message_in);
     previousLeft.release();
     previousRight.release();
+    previousKeyframeCornerCount = 0U;
     previousStampS            = 0.0;
     worldFromOptical          = bodyFromOptical;
     accumulatedPoseCovariance = PoseCovariance::zeros();

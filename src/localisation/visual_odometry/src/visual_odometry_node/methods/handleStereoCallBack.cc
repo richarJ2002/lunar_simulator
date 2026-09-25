@@ -241,7 +241,11 @@ void VisualOdometryNode::handleStereoCallBack(
         publishPointCloud(p_left_in->header.stamp, {}, {}, worldFromOptical);
 
         /* Retain this frame so the next callback has a "previous" pair. */
-        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        storePrevious(currentLeft,
+                      currentRight,
+                      p_left_in->header.stamp,
+                      currentCorners,
+                      currentCornerCount);
 
         /* The rover has not moved yet by definition; seed both poses at
          * identity. */
@@ -303,7 +307,11 @@ void VisualOdometryNode::handleStereoCallBack(
         accumulatedPoseCovariance = PoseCovariance::zeros();
         isVisualPoseAvailable     = true;
         hasReadinessStreak        = false;
-        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        storePrevious(currentLeft,
+                      currentRight,
+                      p_left_in->header.stamp,
+                      currentCorners,
+                      currentCornerCount);
         finishDiagnostics(false);
         return;
     }
@@ -334,34 +342,18 @@ void VisualOdometryNode::handleStereoCallBack(
             std::chrono::steady_clock::now() - disparityStart)
             .count();
 
-    /* Step 3 output: previous-frame corner positions, valid only in
-     * [0, previousCornerCount); this is also exactly the input shape
-     * track() below requires, so it is used directly rather than
-     * round-tripped through a vector first. */
-    std::array<feature_tracking::Point2D,
-               feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
-        previousCorners{};
-
-    /* Number of valid entries written to previousCorners. */
-    std::size_t previousCornerCount = 0U;
-
     /*!
-     * Step 3: re-detect features on the PREVIOUS left image (independent of
-     * detectedFeatures above, which is the current frame's detection for the
-     * *next* callback) and track them forward into the current frame with
-     * pyramidal Lucas-Kanade optical flow. A detection failure here is
-     * treated the same as "zero features found" rather than aborting the
-     * frame.
+     * Step 3: track the PREVIOUS keyframe's corners forward into the
+     * current frame with pyramidal Lucas-Kanade optical flow. Those corners
+     * were detected when the keyframe was itself the current frame and
+     * stored with it by storePrevious(); the detector is deterministic, so
+     * reusing them gives exactly what re-detecting on previousLeft would,
+     * at half the detection cost.
      */
-    const std::chrono::steady_clock::time_point previousDetectionStart =
-        std::chrono::steady_clock::now();
-    static_cast<void>(cornerDetector.detect(imageViewFromMat(previousLeft),
-                                            previousCorners,
-                                            previousCornerCount));
-    latestDetectionDuration_ms +=
-        std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - previousDetectionStart)
-            .count();
+    const std::array<feature_tracking::Point2D,
+                     feature_tracking::MAXIMUM_SUPPORTED_FEATURES>
+                     &previousCorners     = previousKeyframeCorners;
+    const std::size_t previousCornerCount = previousKeyframeCornerCount;
 
     /* Step 3 output: each previous feature's tracked current-frame
      * position, aligned by index with previousCorners. */
@@ -704,7 +696,11 @@ void VisualOdometryNode::handleStereoCallBack(
     {
         /* Successful updates advance the accepted keyframe. Once continuity
          * is unavailable, frames advance only to keep diagnostics current. */
-        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        storePrevious(currentLeft,
+                      currentRight,
+                      p_left_in->header.stamp,
+                      currentCorners,
+                      currentCornerCount);
     }
     else if (keyframeAction == KeyframeAction::MARK_POSE_UNAVAILABLE)
     {
@@ -713,7 +709,11 @@ void VisualOdometryNode::handleStereoCallBack(
          * diagnostics until an explicit reset starts a new visual epoch. */
         isVisualPoseAvailable = false;
         hasReadinessStreak    = false;
-        storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
+        storePrevious(currentLeft,
+                      currentRight,
+                      p_left_in->header.stamp,
+                      currentCorners,
+                      currentCornerCount);
         LUNAR_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 2000,
