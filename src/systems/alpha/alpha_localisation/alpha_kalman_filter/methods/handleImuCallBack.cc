@@ -64,6 +64,7 @@ void AlphaKalmanFilterNode::handleImuCallBack(
     {
         imuBuffer.clear();
         clearFilterCheckpoints();
+        measurementHistory.clear();
         if (hasInitialState)
         {
             const FilterStatus terminateStatus = filter.terminate();
@@ -74,6 +75,8 @@ void AlphaKalmanFilterNode::handleImuCallBack(
         }
         hasInitialState              = false;
         hasEstimate                  = false;
+        lastPublishedStateTimestamp_s = -1.0;
+        previousVisualStamp_s         = -1.0;
         imuInitializationSampleCount = 0U;
         initializationSpecificForceSum_body_mPerS2.setZero();
         initializationAngularVelocitySum_body_radPerS.setZero();
@@ -145,6 +148,9 @@ void AlphaKalmanFilterNode::handleImuCallBack(
             nominalState.segment<3>(gyroscopeBiasIndex);
         ++imuDiagnostics.fusedCount;
         saveFilterCheckpoint();
+
+        /* Each propagation to a new IMU stamp yields one new estimate. */
+        publishPropagatedEstimate();
     }
     finishDiagnostics();
 }

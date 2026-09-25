@@ -29,6 +29,14 @@ continuous_ekf:
     initial_gyroscope_bias_variance: 0.001
     visual_measurement_variance: 0.04
     visual_attitude_measurement_variance: 0.5
+    # "pose" fuses visual odometry's accumulated pose as an absolute fix;
+    # "increment" fuses only its per-interval body velocity and yaw rate
+    # (WP-01 Phase 4; A/B tested before becoming the default).
+    visual_fusion_mode: pose
+    # Increment-mode variance floors under the reported visual twist
+    # covariance: (m/s)^2 and (rad/s)^2.
+    visual_increment_velocity_variance: 0.000001
+    visual_increment_yaw_rate_variance: 0.000001
     wheel_measurement_variance: 0.10
     # Ready after IMU initialisation, this many fused visual updates and
     # this much settling time. The position-variance limit (trace of the

@@ -101,6 +101,7 @@ AlphaKalmanFilterNode::FilterStatus
     hasInitialState                    = true;
     hasEstimate                        = true;
     clearFilterCheckpoints();
+    measurementHistory.clear();
     saveFilterCheckpoint();
     return FilterStatus::FILTER_STATUS_SUCCESS;
 }

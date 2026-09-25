@@ -97,6 +97,10 @@ diagnostic_msgs::msg::DiagnosticStatus
     diagnostics::addCountValue("predict_failed",
                                source_in.predictFailedCount,
                                status);
+    diagnostics::addCountValue("replayed", source_in.replayedCount, status);
+    diagnostics::addCountValue("replay_rejected",
+                               source_in.replayRejectedCount,
+                               status);
     return status;
 }
 

@@ -15,11 +15,11 @@
 
 /* External Library Includes */
 #include <Eigen/Dense>
-#include <Eigen/Geometry>
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
+#include "objects/FusedMeasurement.h"
 #include "objects/ImuSample.h"
+#include "objects/MeasurementFusionResult.h"
 #include "objects/MeasurementKind.h"
 #include "objects/StateIndex.h"
 
@@ -105,6 +105,33 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         return;
     }
 
+    /* An increment measures motion since the previous visual stamp, so the
+     * interval advances on every admitted visual message, fused or not. */
+    double intervalStart_s = -1.0;
+    if (kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL &&
+        isVisualIncrementMode)
+    {
+        intervalStart_s       = previousVisualStamp_s;
+        previousVisualStamp_s = measurementTimestamp_s;
+        if (!(intervalStart_s >= 0.0) ||
+            !(measurementTimestamp_s > intervalStart_s))
+        {
+            finishDiagnostics();
+            return;
+        }
+    }
+    FusedMeasurement record;
+    if (!buildMeasurementRecord(message_in,
+                                kind_in,
+                                measurementTimestamp_s,
+                                intervalStart_s,
+                                record))
+    {
+        ++diagnostics.numericalRejectedCount;
+        finishDiagnostics();
+        return;
+    }
+
     bool             didRollback = false;
     FilterCheckpoint presentCheckpoint;
     if (stateAgeFromMeasurement_s > TIMESTAMP_TOLERANCE_S)
@@ -143,155 +170,49 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         }
     }
 
-    const auto restorePresentAfterRejectedRollback =
-        [this, didRollback, &presentCheckpoint]()
-    {
-        if (!didRollback)
-        {
-            return;
-        }
-        static_cast<void>(filter.restore(presentCheckpoint.errorState,
-                                         presentCheckpoint.covariance));
-        nominalState     = presentCheckpoint.nominalState;
-        stateTimestamp_s = presentCheckpoint.timestamp_s;
-        latestState      = nominalState;
-        latestCovariance = filter.getCovariance();
-    };
-
-    const Eigen::Index positionIndex =
-        static_cast<Eigen::Index>(StateIndex::STATE_INDEX_POSITION_X);
-    const Eigen::Index quaternionIndex =
-        static_cast<Eigen::Index>(StateIndex::STATE_INDEX_QUATERNION_X);
-    const Eigen::Index errorPositionIndex = static_cast<Eigen::Index>(
-        ErrorStateIndex::ERROR_STATE_INDEX_POSITION_X);
-    const Eigen::Index errorAttitudeIndex = static_cast<Eigen::Index>(
-        ErrorStateIndex::ERROR_STATE_INDEX_ATTITUDE_X);
-    const MeasurementVarianceVector variances = measurementVariances(
-        message_in,
-        kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL ? visualVariance
-                                                            : wheelVariance);
-
-    Eigen::VectorXd innovation;
-    Eigen::MatrixXd observation;
-    Eigen::MatrixXd measurementNoise;
-    if (kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL)
-    {
-        const NominalStateVector measurement = odometryToState(message_in);
-        if (!measurement.allFinite())
-        {
-            restorePresentAfterRejectedRollback();
-            ++diagnostics.numericalRejectedCount;
-            finishDiagnostics();
-            return;
-        }
-        const Eigen::Quaterniond measuredQuaternion_bodyToFixed(
-            measurement(quaternionIndex + 3),
-            measurement(quaternionIndex),
-            measurement(quaternionIndex + 1),
-            measurement(quaternionIndex + 2));
-        const Eigen::Quaterniond predictedQuaternion_bodyToFixed(
-            nominalState(quaternionIndex + 3),
-            nominalState(quaternionIndex),
-            nominalState(quaternionIndex + 1),
-            nominalState(quaternionIndex + 2));
-        const Eigen::Vector3d attitudeInnovation_body_rad =
-            calculateQuaternionError(measuredQuaternion_bodyToFixed,
-                                     predictedQuaternion_bodyToFixed);
-
-        innovation               = Eigen::VectorXd::Zero(6);
-        innovation.segment<3>(0) = measurement.segment<3>(positionIndex) -
-                                   nominalState.segment<3>(positionIndex);
-        innovation.segment<3>(3) = attitudeInnovation_body_rad;
-        observation              = Eigen::MatrixXd::Zero(6, ERROR_STATE_SIZE);
-        observation.block<3, 3>(0, errorPositionIndex) =
-            Eigen::Matrix3d::Identity();
-        observation.block<3, 3>(3, errorAttitudeIndex) =
-            Eigen::Matrix3d::Identity();
-        measurementNoise = Eigen::MatrixXd::Zero(6, 6);
-        for (Eigen::Index axis = 0; axis < 3; ++axis)
-        {
-            measurementNoise(axis, axis) = variances(axis);
-            measurementNoise(axis + 3, axis + 3) =
-                axis < 2 ? visualAttitudeVariance : variances(axis + 3);
-        }
-    }
-    else
-    {
-        const Eigen::Vector2d measuredVelocity_body_mPerS(
-            message_in.twist.twist.linear.x,
-            message_in.twist.twist.linear.y);
-        if (!measuredVelocity_body_mPerS.allFinite())
-        {
-            restorePresentAfterRejectedRollback();
-            ++diagnostics.numericalRejectedCount;
-            finishDiagnostics();
-            return;
-        }
-
-        Eigen::Vector2d                predictedVelocity_body_mPerS;
-        WheelVelocityObservationMatrix wheelObservation;
-        calculateWheelVelocityObservation(nominalState,
-                                          predictedVelocity_body_mPerS,
-                                          wheelObservation);
-        innovation = measuredVelocity_body_mPerS - predictedVelocity_body_mPerS;
-        observation            = wheelObservation;
-        measurementNoise       = Eigen::MatrixXd::Zero(2, 2);
-        measurementNoise(0, 0) = variances(6);
-        measurementNoise(1, 1) = variances(7);
-    }
-
     ++diagnostics.acceptedCount;
-    if (!calculateNormalizedInnovationSquared(
-            innovation,
-            observation,
-            filter.getCovariance(),
-            measurementNoise,
-            diagnostics.normalizedInnovationSquared))
+    const MeasurementFusionResult fusionResult =
+        fuseMeasurementRecord(record,
+                              diagnostics.normalizedInnovationSquared,
+                              diagnostics.correctionNorm);
+    if (fusionResult !=
+        MeasurementFusionResult::MEASUREMENT_FUSION_RESULT_FUSED)
     {
-        restorePresentAfterRejectedRollback();
-        ++diagnostics.numericalRejectedCount;
+        if (didRollback)
+        {
+            static_cast<void>(filter.restore(presentCheckpoint.errorState,
+                                             presentCheckpoint.covariance));
+            nominalState     = presentCheckpoint.nominalState;
+            stateTimestamp_s = presentCheckpoint.timestamp_s;
+            latestState      = nominalState;
+            latestCovariance = filter.getCovariance();
+        }
+        if (fusionResult ==
+            MeasurementFusionResult::MEASUREMENT_FUSION_RESULT_NIS_REJECTED)
+        {
+            ++diagnostics.nisRejectedCount;
+        }
+        else
+        {
+            ++diagnostics.numericalRejectedCount;
+        }
         finishDiagnostics();
         return;
     }
-    const double configuredNisThreshold =
-        kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL ? visualNisThreshold
-                                                            : wheelNisThreshold;
-    const double nisThreshold =
-        selectNisThreshold(configuredNisThreshold, innovation.size());
-    if (diagnostics.normalizedInnovationSquared > nisThreshold)
-    {
-        restorePresentAfterRejectedRollback();
-        ++diagnostics.nisRejectedCount;
-        finishDiagnostics();
-        return;
-    }
-
-    const FilterStatus updateStatus =
-        filter.update(innovation, observation, measurementNoise);
-    if (updateStatus != FilterStatus::FILTER_STATUS_SUCCESS)
-    {
-        restorePresentAfterRejectedRollback();
-        ++diagnostics.numericalRejectedCount;
-        logStepFailure(updateStatus);
-        finishDiagnostics();
-        return;
-    }
-    diagnostics.correctionNorm         = filter.getState().norm();
-    const FilterStatus injectionStatus = injectErrorState();
-    if (injectionStatus != FilterStatus::FILTER_STATUS_SUCCESS)
-    {
-        restorePresentAfterRejectedRollback();
-        ++diagnostics.numericalRejectedCount;
-        logStepFailure(injectionStatus);
-        finishDiagnostics();
-        return;
-    }
+    /* A record that cannot be stored (older than a full history) is
+     * already older than any rollback target, so it never needs replay. */
+    static_cast<void>(measurementHistory.insert(record));
 
     if (didRollback)
     {
+        /* Every checkpoint after this epoch predates the new measurement.
+         * The replay rebuilds them and re-applies the measurements already
+         * fused in between; propagating with the IMU alone would silently
+         * drop those updates from the estimate. */
         discardFilterCheckpointsAfter(measurementTimestamp_s);
         saveFilterCheckpoint();
-        const FilterStatus replayStatus = predictTo(presentTimestamp_s);
+        const FilterStatus replayStatus =
+            replayMeasurementsAfter(measurementTimestamp_s, presentTimestamp_s);
         if (replayStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             static_cast<void>(filter.restore(presentCheckpoint.errorState,
@@ -301,6 +222,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
             latestState      = nominalState;
             latestCovariance = filter.getCovariance();
             clearFilterCheckpoints();
+            measurementHistory.clear();
             saveFilterCheckpoint();
             ++diagnostics.numericalRejectedCount;
             logStepFailure(replayStatus);

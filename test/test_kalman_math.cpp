@@ -342,6 +342,70 @@ TEST(KalmanMath, WheelVelocityJacobianMatchesFiniteDifference)
     EXPECT_TRUE(analyticalObservation.isApprox(numericalObservation, 1.0e-6));
 }
 
+TEST(KalmanMath, VisualIncrementJacobianMatchesFiniteDifference)
+{
+    /* Body velocity R^T v and bias-corrected yaw rate w_raw - b_gz: the
+     * analytical right-error Jacobian must match a numerical one built by
+     * injecting each error component into the nominal state. */
+    AlphaFilter::NominalStateVector state = makeEskfState();
+    const Eigen::Index              quaternionIndex =
+        static_cast<Eigen::Index>(StateIndex::STATE_INDEX_QUATERNION_X);
+    const Eigen::Index velocityIndex =
+        static_cast<Eigen::Index>(StateIndex::STATE_INDEX_LINEAR_VELOCITY_X);
+    const Eigen::Index gyroscopeBiasIndex =
+        static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
+    const Eigen::Quaterniond attitude(
+        Eigen::AngleAxisd(0.3, Eigen::Vector3d(-0.2, 0.6, 0.4).normalized()));
+    state(quaternionIndex)          = attitude.x();
+    state(quaternionIndex + 1)      = attitude.y();
+    state(quaternionIndex + 2)      = attitude.z();
+    state(quaternionIndex + 3)      = attitude.w();
+    state.segment<3>(velocityIndex) = Eigen::Vector3d(0.02, -0.004, 0.001);
+    state.segment<3>(gyroscopeBiasIndex) =
+        Eigen::Vector3d(0.002, -0.001, 0.0015);
+    constexpr double MEAN_RAW_YAW_RATE_RADPS = 0.011;
+
+    Eigen::VectorXd predicted;
+    Eigen::MatrixXd analyticalObservation;
+    AlphaFilter::calculateVisualIncrementObservation(state,
+                                                     MEAN_RAW_YAW_RATE_RADPS,
+                                                     true,
+                                                     predicted,
+                                                     analyticalObservation);
+    ASSERT_EQ(predicted.size(), 4);
+    EXPECT_NEAR(predicted(3), MEAN_RAW_YAW_RATE_RADPS - 0.0015, 1.0e-15);
+
+    Eigen::MatrixXd  numericalObservation(4, AlphaFilter::ERROR_STATE_SIZE);
+    constexpr double PERTURBATION = 1.0e-7;
+    for (Eigen::Index column = 0; column < AlphaFilter::ERROR_STATE_SIZE;
+         ++column)
+    {
+        AlphaFilter::ErrorStateVector perturbation =
+            AlphaFilter::ErrorStateVector::Zero();
+        perturbation(column) = PERTURBATION;
+        Eigen::VectorXd perturbed;
+        Eigen::MatrixXd unusedObservation;
+        AlphaFilter::calculateVisualIncrementObservation(
+            injectEskfError(state, perturbation),
+            MEAN_RAW_YAW_RATE_RADPS,
+            true,
+            perturbed,
+            unusedObservation);
+        numericalObservation.col(column) =
+            (perturbed - predicted) / PERTURBATION;
+    }
+    EXPECT_TRUE(analyticalObservation.isApprox(numericalObservation, 1.0e-6));
+
+    /* Without a gyroscope mean only the three velocity rows remain. */
+    AlphaFilter::calculateVisualIncrementObservation(state,
+                                                     0.0,
+                                                     false,
+                                                     predicted,
+                                                     analyticalObservation);
+    EXPECT_EQ(predicted.size(), 3);
+    EXPECT_EQ(analyticalObservation.rows(), 3);
+}
+
 TEST(KalmanMath, PredictAndUpdateRequireInitializeFirst)
 {
     Filter                filter;

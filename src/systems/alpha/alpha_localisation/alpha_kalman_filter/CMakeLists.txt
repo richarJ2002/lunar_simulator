@@ -11,8 +11,13 @@ add_library(alpha_kalman_filter STATIC
   methods/ImuRingBuffer/getSampleCount.cc
   methods/ImuRingBuffer/getLatestSample.cc
   methods/ImuRingBuffer/clear.cc
+  methods/MeasurementHistory/insert.cc
+  methods/MeasurementHistory/getRecord.cc
+  methods/MeasurementHistory/getRecordCount.cc
+  methods/MeasurementHistory/clear.cc
   methods/setNoiseTriplet.cc
   methods/calculateProcessModel.cc
+  methods/calculateVisualIncrementObservation.cc
   methods/calculateWheelVelocityObservation.cc
   methods/computeProcessModel.cc
   methods/initializeFilter.cc
@@ -20,6 +25,9 @@ add_library(alpha_kalman_filter STATIC
   methods/restoreFilterCheckpointAtOrBefore.cc
   methods/discardFilterCheckpointsAfter.cc
   methods/clearFilterCheckpoints.cc
+  methods/buildMeasurementRecord.cc
+  methods/fuseMeasurementRecord.cc
+  methods/replayMeasurementsAfter.cc
   methods/predictTo.cc
   methods/calculateQuaternionError.cc
   methods/calculateAttitudeResetJacobian.cc
@@ -33,6 +41,7 @@ add_library(alpha_kalman_filter STATIC
   methods/logStepFailure.cc
   methods/publishDiagnosticsCallBack.cc
   methods/publishEstimate.cc
+  methods/publishPropagatedEstimate.cc
   methods/handleImuCallBack.cc
   methods/handleMeasurementCallBack.cc
   methods/isPoseValid.cc

@@ -18,7 +18,10 @@
 #include "objects/ContinuousExtendedKalmanFilter.h"
 #include "objects/ErrorStateIndex.h"
 #include "objects/FilterStatus.h"
+#include "objects/FusedMeasurement.h"
 #include "objects/ImuRingBuffer.h"
+#include "objects/MeasurementFusionResult.h"
+#include "objects/MeasurementHistory.h"
 #include "objects/MeasurementKind.h"
 #include "objects/SourceDiagnostics.h"
 #include "objects/StateIndex.h"
@@ -61,10 +64,12 @@ namespace systems::alpha::alpha_localisation::alpha_kalman_filter
  * This node owns Alpha's 16-component nominal state (fixed-frame position and
  * velocity, body-to-fixed quaternion, accelerometer bias, and gyroscope bias)
  * and its 15-component multiplicative error state. Raw IMU samples drive
- * timestamp-ordered prediction; visual pose and wheel body velocity apply
- * source-specific corrections through the reusable EKF engine. A wall timer
- * publishes the latest posterior at prediction_rate_hz; prediction itself is
- * driven by IMU timestamps. Every
+ * timestamp-ordered prediction; visual odometry (as an absolute pose, or
+ * as a per-interval velocity increment; see visual_fusion_mode) and wheel
+ * body velocity apply source-specific corrections through the reusable EKF
+ * engine. The estimate is published once per IMU-driven propagation,
+ * stamped with the state's own timestamp and capped at prediction_rate_hz
+ * of simulation time, so no two messages share a stamp. Every
  * fused pose/twist estimate is published on
  * output_topic as nav_msgs::msg::Odometry, then validated and
  * unconditionally broadcast as the odom_frame -> base_frame transform and
@@ -253,6 +258,40 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
             declare_parameter<double>("visual_measurement_variance", 0.03);
 
         /*!
+         * How visual odometry is fused. "pose" treats its accumulated pose
+         * as an absolute position and attitude measurement. "increment"
+         * fuses only the motion between consecutive visual messages: the
+         * average body velocity over the interval and the average yaw
+         * rate, which observes the gyroscope z bias. Visual odometry has
+         * no map, so its accumulated pose error is strongly correlated
+         * over time; fusing it as independent absolute fixes makes the
+         * filter follow that drift.
+         */
+        const std::string visualFusionMode =
+            declare_parameter<std::string>("visual_fusion_mode", "pose");
+        if (visualFusionMode != "pose" && visualFusionMode != "increment")
+        {
+            throw std::invalid_argument(
+                "visual_fusion_mode must be \"pose\" or \"increment\"");
+        }
+        isVisualIncrementMode = visualFusionMode == "increment";
+
+        /* Variance floors for the increment-mode body velocity and yaw
+         * rate; the reported visual twist covariance applies above them. */
+        visualIncrementVelocityVariance =
+            declare_parameter<double>("visual_increment_velocity_variance",
+                                      1.0e-6);
+        visualIncrementYawRateVariance =
+            declare_parameter<double>("visual_increment_yaw_rate_variance",
+                                      1.0e-6);
+        if (!(visualIncrementVelocityVariance > 0.0) ||
+            !(visualIncrementYawRateVariance > 0.0))
+        {
+            throw std::invalid_argument(
+                "visual increment variance floors must be positive");
+        }
+
+        /*!
          * Deliberately loose variance applied to visual odometry's
          * roll/pitch correction (see handleMeasurementCallBack()) so it
          * anchors long-run IMU attitude drift without overriding the IMU's
@@ -388,39 +427,15 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
             });
 
         /*!
-         * A non-positive configured rate would make the wall-timer period
-         * zero or negative, so the effective rate is floored at 1 Hz.
+         * The estimate is published once per IMU-driven state propagation,
+         * stamped with the state's own time, so no message repeats a stamp
+         * or an unchanged state. prediction_rate_hz caps that output rate
+         * in simulation time (a non-positive value is floored at 1 Hz);
+         * at the 50 Hz IMU rate and the default 100 Hz cap every
+         * propagation is published.
          */
         const double safeRateHz = std::max(1.0, predictionRateHz);
-
-        /* Prediction is driven by filtered IMU timestamps. This timer only
-         * publishes the latest posterior at the configured output rate. */
-        p_outputTimer =
-            create_wall_timer(std::chrono::duration<double>(1.0 / safeRateHz),
-                              [this]()
-                              {
-                                  /*!
-                                   * Prediction has nothing to propagate from
-                                   * until the first measurement has established
-                                   * an initial state (see
-                                   * handleMeasurementCallBack()), so skip
-                                   * silently until then.
-                                   */
-                                  if (!hasInitialState)
-                                  {
-                                      /* No state exists yet to predict forward
-                                       * from. */
-                                      return;
-                                  }
-
-                                  /* Read the current ROS time once for this
-                                   * publication. */
-                                  const rclcpp::Time stamp = now();
-
-                                  /* Publish without extrapolating beyond the
-                                   * newest retained filtered IMU sample. */
-                                  publishEstimate(stamp);
-                              });
+        minimumOutputPeriodS    = 1.0 / safeRateHz;
 
         /* Report bounded counters separately from the high-rate data path,
          * once per simulated second so the recorded diagnostics share the
@@ -436,8 +451,8 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         /* The resolved configuration is in the run's parameter snapshot, so
          * it is debug detail rather than operator output. */
         LUNAR_LOG_DEBUG(get_logger(),
-                        "Bias-aware ESKF fusing raw IMU, visual pose and "
-                        "wheel measurements; publishing at %.1f Hz",
+                        "Bias-aware ESKF fusing raw IMU, visual and wheel "
+                        "measurements; publishing at most %.1f Hz",
                         safeRateHz);
     }
 
@@ -595,6 +610,43 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         WheelVelocityObservationMatrix &observationMatrix_out);
 
     /*!
+     * @brief           Predicts the visual increment measurement and its
+     *                  Jacobian: the body-frame velocity and, when a raw
+     *                  gyroscope mean is available, the body yaw rate.
+     *
+     *                  Body velocity is R^T v with R the body-to-fixed
+     *                  rotation, so its right-error Jacobian is R^T for the
+     *                  velocity error and [R^T v]x for the attitude error.
+     *                  The yaw rate is the mean raw gyroscope z rate over
+     *                  the visual interval minus the gyroscope z bias, so
+     *                  its only Jacobian entry is -1 on that bias error.
+     *
+     * @param[in]       state_in
+     *                  Nominal state at the measurement time.
+     *
+     * @param[in]       meanRawYawRateRadPerS_in
+     *                  Mean raw body z angular rate over the visual
+     *                  interval, radians per second; ignored when
+     *                  hasYawRate_in is false.
+     *
+     * @param[in]       hasYawRate_in
+     *                  Whether to include the yaw-rate row.
+     *
+     * @param[out]      predictedMeasurement_out
+     *                  (vx, vy, vz[, wz]) in the body frame, metres per
+     *                  second and radians per second.
+     *
+     * @param[out]      observationMatrix_out
+     *                  3- or 4-by-15 right-error observation Jacobian.
+     */
+    static void calculateVisualIncrementObservation(
+        const NominalStateVector &state_in,
+        double                    meanRawYawRateRadPerS_in,
+        bool                      hasYawRate_in,
+        Eigen::VectorXd          &predictedMeasurement_out,
+        Eigen::MatrixXd          &observationMatrix_out);
+
+    /*!
      * @brief           Calculates the right-multiplicative attitude reset
      *                  Jacobian.
      *
@@ -697,10 +749,12 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                   the observation matrix that source can actually
      *                   observe.
      *
-     * On the very first measurement of any kind, this also seeds the
-     * filter's initial position and attitude from the configured initial
-     * pose before applying the measurement itself, establishing the time
-     * origin used by predictTo().
+     * Measurements arriving before the IMU-seeded initial state exists are
+     * rejected. A measurement stamped before the current filter epoch rolls
+     * the filter back to its stamp, is fused there, and then every
+     * measurement already fused after that stamp is replayed in order (see
+     * replayMeasurementsAfter()), so a lagged source never erases newer
+     * updates from the estimate.
      *
      * @param[in]       message_in
      *                  Odometry measurement from one upstream source.
@@ -822,6 +876,87 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     void clearFilterCheckpoints() noexcept;
 
     /*!
+     * @brief           Converts one admitted odometry message into a
+     *                  replayable measurement record.
+     *
+     *                  Only state-independent values are captured: the
+     *                  measured quantities, their noise variances and, for
+     *                  a visual increment, the mean raw gyroscope z over
+     *                  the increment interval from the IMU buffer.
+     *
+     * @param[in]       message_in
+     *                  Odometry measurement from one upstream source.
+     * @param[in]       kind_in
+     *                  Source that produced message_in.
+     * @param[in]       measurementTimestampS_in
+     *                  Header stamp of message_in, ROS seconds.
+     * @param[in]       intervalStartS_in
+     *                  Previous visual stamp bounding an increment's
+     *                  gyroscope window, ROS seconds; ignored unless kind_in
+     *                  is visual and increment mode is active.
+     * @param[out]      record_out
+     *                  Record written only when this method returns true.
+     *
+     * @return          True when every measured value was finite.
+     */
+    [[nodiscard]] bool
+        buildMeasurementRecord(const nav_msgs::msg::Odometry &message_in,
+                               MeasurementKind                kind_in,
+                               double            measurementTimestampS_in,
+                               double            intervalStartS_in,
+                               FusedMeasurement &record_out) const;
+
+    /*!
+     * @brief           Gates and applies one measurement record at the
+     *                  current filter epoch.
+     *
+     *                  The innovation and observation matrix are evaluated
+     *                  against the current nominal state, so the caller must
+     *                  first bring the filter to the record's timestamp.
+     *
+     * @param[in]       record_in
+     *                  Measurement record to apply.
+     * @param[out]      nis_out
+     *                  Normalized innovation squared, written whenever the
+     *                  innovation covariance was valid.
+     * @param[out]      correctionNorm_out
+     *                  Norm of the posterior error state, written only when
+     *                  the update succeeded.
+     *
+     * @return          Fused, NIS-rejected (filter unchanged) or
+     *                  numerically rejected.
+     */
+    [[nodiscard]] MeasurementFusionResult
+        fuseMeasurementRecord(const FusedMeasurement &record_in,
+                              double                 &nis_out,
+                              double                 &correctionNorm_out);
+
+    /*!
+     * @brief           Re-applies every retained measurement stamped after
+     *                  a rollback epoch, then propagates to the present.
+     *
+     *                  Called after a delayed measurement was fused at its
+     *                  own epoch. Without this, the measurements already
+     *                  fused between that epoch and the present would be
+     *                  lost from the estimate until the next update.
+     *                  Checkpoints are saved as the replay advances. A
+     *                  record that the gate now rejects is skipped but kept
+     *                  for later replays.
+     *
+     * @param[in]       rollbackTimestampS_in
+     *                  Epoch of the delayed measurement just fused, ROS
+     *                  seconds; only records strictly after it replay.
+     * @param[in]       presentTimestampS_in
+     *                  Filter epoch before the rollback, ROS seconds.
+     *
+     * @return          Success, or the first prediction or numerical
+     *                  failure; the caller then restores the present state.
+     */
+    [[nodiscard]] FilterStatus
+        replayMeasurementsAfter(double rollbackTimestampS_in,
+                                double presentTimestampS_in);
+
+    /*!
      * @brief           Injects one posterior error into the nominal state.
      *
      * Position, velocity and both sensor biases use additive correction. The
@@ -920,6 +1055,14 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                  predictTo().
      */
     void logStepFailure(FilterStatus status_in);
+
+    /*!
+     * @brief           Publishes the propagated state once, stamped with
+     *                  its own timestamp, unless that stamp was already
+     *                  published or is closer than the minimum output
+     *                  period to the previous publication.
+     */
+    void publishPropagatedEstimate();
 
     /*!
      * @brief           Publishes the latest fused estimate as odometry, then
@@ -1146,6 +1289,15 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     std::size_t filterCheckpointCount{0U};
 
     /*!
+     * @brief           Recently fused visual and wheel measurements, in
+     *                  timestamp order, replayed after a rollback.
+     *
+     * @frame           Mixed; see FusedMeasurement
+     * @units           Mixed; see FusedMeasurement
+     */
+    MeasurementHistory measurementHistory;
+
+    /*!
      * @brief       Publishes the fused odometry estimate.
      */
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr p_outputPublisher;
@@ -1171,12 +1323,22 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         p_wheelSubscription;
 
     /*!
-     * @brief           Publishes the latest IMU-driven posterior estimate.
+     * @brief           Shortest simulated interval between two published
+     *                  estimates (the inverse of prediction_rate_hz).
      *
      * @frame           N/A
-     * @units           N/A
+     * @units           seconds
      */
-    rclcpp::TimerBase::SharedPtr p_outputTimer;
+    double minimumOutputPeriodS{0.01};
+
+    /*!
+     * @brief           State timestamp of the latest published estimate;
+     *                  negative before the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double lastPublishedStateTimestamp_s{-1.0};
 
     /*!
      * @brief           Simulation-time timer driving
@@ -1358,6 +1520,42 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @brief       Maximum accepted visual-odometry measurement age in seconds.
      */
     double maximumVisualMeasurementAgeS{0.75};
+
+    /*!
+     * @brief           Whether visual odometry is fused as per-interval
+     *                  motion increments rather than absolute poses.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    bool isVisualIncrementMode{false};
+
+    /*!
+     * @brief           Variance floor of an increment-mode visual body
+     *                  velocity.
+     *
+     * @frame           body
+     * @units           (metres per second)^2
+     */
+    double visualIncrementVelocityVariance{1.0e-6};
+
+    /*!
+     * @brief           Variance floor of an increment-mode visual yaw rate.
+     *
+     * @frame           body
+     * @units           (radians per second)^2
+     */
+    double visualIncrementYawRateVariance{1.0e-6};
+
+    /*!
+     * @brief           Stamp of the previous visual message, the start of
+     *                  the next visual increment's interval; negative before
+     *                  the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double previousVisualStamp_s{-1.0};
 
     /*!
      * @brief           Largest lead of a measurement stamp over this node's

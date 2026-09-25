@@ -135,6 +135,25 @@ struct SourceDiagnostics
     std::uint64_t fusedCount{0U};
 
     /*!
+     * @brief           Number of already-fused measurements re-applied after
+     *                  an older measurement caused a rollback.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t replayedCount{0U};
+
+    /*!
+     * @brief           Number of replayed measurements that the statistical
+     *                  gate rejected against the rolled-back state; they
+     *                  stay retained for later replays.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t replayRejectedCount{0U};
+
+    /*!
      * @brief           Latest source publication timestamp.
      *
      * @frame           N/A
