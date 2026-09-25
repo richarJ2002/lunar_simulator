@@ -51,3 +51,11 @@ add_test(NAME console_logging_lint
     ${CMAKE_CURRENT_SOURCE_DIR}/lint/check_console_logging.py
     ${PROJECT_SOURCE_DIR}/src
 )
+
+ament_add_gtest(test_startup_supervisor test_startup_supervisor.cpp)
+target_compile_features(test_startup_supervisor PUBLIC cxx_std_17)
+target_link_libraries(test_startup_supervisor alpha_supervisor)
+
+ament_add_gtest(test_command_gate test_command_gate.cpp)
+target_compile_features(test_command_gate PUBLIC cxx_std_17)
+target_link_libraries(test_command_gate alpha_drivers)

@@ -35,6 +35,10 @@ void InertialOdometryNode::publishDiagnosticsCallBack()
                          : common::console::formatText("IMU calibrating %d/%d",
                                                        calibrationSampleCount,
                                                        calibrationSampleTarget);
+    /* Readiness contract read by the start-up supervisor: this node is
+     * ready exactly when its stationary calibration is complete. */
+    diagnostics::addFlagValue("ready", isCalibrated, status);
+    diagnostics::addTextValue("reason", status.message, status);
     diagnostics::addFlagValue("calibrated", isCalibrated, status);
     diagnostics::addCountValue(
         "calibration_samples",

@@ -34,6 +34,15 @@ DIAGNOSTICS_TOPIC = "/alpha/diagnostics"
 # Status published once per tick by visual_odometry.
 VISUAL_STATUS_NAME = "visual_odometry"
 
+# Topic the start-up supervisor publishes its latched state on.
+SYSTEM_STATE_TOPIC = "/alpha/system/state"
+
+# The supervisor's status name on SYSTEM_STATE_TOPIC.
+SYSTEM_STATE_STATUS_NAME = "system_state"
+
+# Status carrying the driver's command-gate counters on DIAGNOSTICS_TOPIC.
+DRIVER_STATUS_NAME = "alpha_driver_node"
+
 # Calibration status published once per tick by inertial_odometry.
 INERTIAL_STATUS_NAME = "inertial_odometry"
 
@@ -279,6 +288,48 @@ def inertial_calibration_complete_elapsed_s(
         # Convert the ROS-seconds stamp onto the bag's elapsed axis.
         return complete_stamp_s - start_time_ns / 1e9
     return None
+
+
+def system_state_transitions(
+    series: DiagnosticStatusSeries,
+) -> list[tuple[float, str, str]]:
+    """!
+    @brief   Extracts every change of the supervisor's system state.
+
+    @param   series
+             The recorded /alpha/system/state statuses, time-sorted.
+
+    @return  `(elapsed_s, state, message)` for the first state and each
+             later change, in time order; heartbeats that repeat the
+             current state are omitted.
+    """
+    transitions: list[tuple[float, str, str]] = []
+    # Keep only samples whose state differs from the previous one.
+    for sample in series.samples:
+        state = sample.values.get("state")
+        if sample.name != SYSTEM_STATE_STATUS_NAME or state is None:
+            continue
+        if not transitions or transitions[-1][1] != state:
+            transitions.append((sample.time_s, state, sample.message))
+    return transitions
+
+
+def latest_status_values(series: DiagnosticStatusSeries, status_name: str) -> dict[str, str]:
+    """!
+    @brief   Returns the key/values of the latest status with a given name.
+
+    @param   series
+             Recorded diagnostics, time-sorted.
+    @param   status_name
+             Status name, e.g. "alpha_driver_node".
+
+    @return  The latest matching status's values, or an empty dict.
+    """
+    # Walk backwards so the first match is the latest.
+    for sample in reversed(series.samples):
+        if sample.name == status_name:
+            return sample.values
+    return {}
 
 
 def diagnostic_time_axis_title(log: DiagnosticLog) -> str:

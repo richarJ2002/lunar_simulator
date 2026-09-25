@@ -13,21 +13,29 @@
 
 /* C++ Standard Library Includes */
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
 
 /* External Library Includes */
 #include <actuator_msgs/msg/actuators.hpp>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 
 /* Other Project Module Includes */
+#include "alpha_supervisor/public_functions.h"
 #include "console/console.h"
+
+/* Object Includes */
+#include "alpha_supervisor/objects/SystemState.h"
+#include "objects/CommandGateDecision.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -43,6 +51,15 @@ namespace systems::alpha::alpha_drivers
  * clamped to Alpha's physical maximum_wheel_speed_radps (see its
  * declare_parameter call). Gazebo applies camera noise natively to avoid a
  * high-bandwidth image relay, so this node never touches camera topics.
+ *
+ * Every public command first passes the command gate: it is forwarded only
+ * while the start-up supervisor's latched system state is READY and its
+ * heartbeat is fresh (see evaluateCommandGate()). Anything else is dropped,
+ * counted and never replayed, and a gate that closes after being open sends
+ * one zero-velocity command. Because this node is the only path from the
+ * public command topic to the raw actuator bridge, the gate covers both the
+ * Ackermann controller and direct wheel commands; something publishing
+ * straight to the private raw topic still bypasses it.
  */
 class AlphaDriverNode final : public rclcpp::Node
 {
@@ -159,6 +176,9 @@ class AlphaDriverNode final : public rclcpp::Node
         /* Wire up the wheel-command subscription/raw-publisher pair. */
         configureWheelCommandInterface(systemName);
 
+        /* Wire up the system-state gate and readiness diagnostics. */
+        configureCommandGate(systemName);
+
         /*!
          * Record whether noise is active for operators inspecting the log;
          * the seed itself is fixed by the random_seed parameter.
@@ -178,10 +198,70 @@ class AlphaDriverNode final : public rclcpp::Node
     AlphaDriverNode(AlphaDriverNode &&otherNode_in)                 = delete;
     AlphaDriverNode &operator=(AlphaDriverNode &&otherNode_in)      = delete;
 
+    /* ---------------------------------------------------------------------- *
+     * PUBLIC METHODS
+     * ---------------------------------------------------------------------- */
+
+    /*!
+     * @brief           Decides whether wheel commands may reach the
+     *                  actuators.
+     *
+     *                  The gate is open only when a system state has been
+     *                  received, it is READY, and it is no older than the
+     *                  heartbeat limit. The function is pure and
+     *                  deterministic.
+     *
+     * @param[in]       systemState_in
+     *                  Latest received system state; no value when none
+     *                  has been received or it could not be parsed.
+     *
+     * @param[in]       heartbeatAge_s_in
+     *                  Time since that state was received, seconds.
+     *
+     * @param[in]       maximumHeartbeatAge_s_in
+     *                  Oldest state that still opens the gate, seconds.
+     *
+     * @return          The decision and, when closed, a short reason.
+     */
+    static CommandGateDecision evaluateCommandGate(
+        const std::optional<alpha_supervisor::SystemState> &systemState_in,
+        double                                              heartbeatAge_s_in,
+        double maximumHeartbeatAge_s_in);
+
   private:
     /* ---------------------------------------------------------------------- *
      * CALLBACK METHODS
      * ---------------------------------------------------------------------- */
+
+    /*!
+     * @brief           Records the latest system state and its receipt
+     *                  time.
+     *
+     * @param[in]       message_in
+     *                  Latched system state; only its "system_state"
+     *                  status's "state" value is used.
+     */
+    void handleSystemStateCallBack(
+        const diagnostic_msgs::msg::DiagnosticArray &message_in);
+
+    /*!
+     * @brief           Re-evaluates the gate between commands and sends one
+     *                  zero-velocity command when an open gate closes.
+     *
+     *                  Runs every 100 ms of simulation time in the shared
+     *                  serial callback group, so it never interleaves with
+     *                  publishNoisyWheelCommandCallBack().
+     */
+    void enforceCommandGateCallBack();
+
+    /*!
+     * @brief           Publishes this node's readiness and gate counters
+     *                  on the diagnostics topic.
+     *
+     *                  Runs once per simulated second in the shared serial
+     *                  callback group.
+     */
+    void publishDiagnosticsCallBack();
 
     /*!
      * @brief           Adds configured error to one IMU measurement.
@@ -271,6 +351,20 @@ class AlphaDriverNode final : public rclcpp::Node
      *                  default topic names.
      */
     void configureJointStateInterface(const std::string &systemName_in);
+
+    /*!
+     * @brief           Declares the gate and readiness parameters and wires
+     *                  the system-state subscription, the diagnostics
+     *                  publisher and both gate timers.
+     *
+     * @param[in]       systemName_in
+     *                  Owning system's namespace, used to build this node's
+     *                  default topic names.
+     *
+     * @throws          std::invalid_argument if a time limit is not
+     *                  positive.
+     */
+    void configureCommandGate(const std::string &systemName_in);
 
     /*!
      * @brief           Configures the public wheel-command subscription and
@@ -369,13 +463,30 @@ class AlphaDriverNode final : public rclcpp::Node
      */
     double wheelVelocityStddev_radPerS{0.015};
 
-    /*! @brief Minimum simulation-time interval between public joint states. */
+    /*!
+     * @brief           Minimum simulation-time interval between public
+     *                  joint states.
+     *
+     * @frame           N/A
+     * @units           nanoseconds
+     */
     std::int64_t jointStateMinimumPeriod_ns{20000000};
 
-    /*! @brief Timestamp of the most recently published joint state. */
+    /*!
+     * @brief           Timestamp of the most recently published joint state.
+     *
+     * @frame           N/A
+     * @units           nanoseconds
+     */
     std::int64_t previousJointStateStamp_ns{0};
 
-    /*! @brief Whether a public joint-state timestamp has been recorded. */
+    /*!
+     * @brief           Whether a public joint-state timestamp has been
+     *                  recorded.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
     bool hasPreviousJointStateStamp{false};
 
     /*!
@@ -452,6 +563,138 @@ class AlphaDriverNode final : public rclcpp::Node
      */
     rclcpp::Subscription<actuator_msgs::msg::Actuators>::SharedPtr
         p_wheelCommandSubscription;
+
+    /*!
+     * @brief           Receives the supervisor's latched system state.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_systemStateSubscription;
+
+    /*!
+     * @brief           Publishes this node's readiness and gate counters.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_diagnosticsPublisher;
+
+    /*!
+     * @brief           Simulation-time timer driving
+     *                  enforceCommandGateCallBack().
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::TimerBase::SharedPtr p_gateTimer;
+
+    /*!
+     * @brief           Simulation-time timer driving
+     *                  publishDiagnosticsCallBack().
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::TimerBase::SharedPtr p_diagnosticsTimer;
+
+    /*!
+     * @brief           Oldest system state that still opens the gate.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double maximumStateHeartbeatAgeS{1.5};
+
+    /*!
+     * @brief           Oldest raw IMU or joint-state sample for which this
+     *                  node reports itself ready.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double readinessMaximumInputAgeS{0.5};
+
+    /*!
+     * @brief           Latest parsed system state; no value before the
+     *                  first one or after an unparsable one.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    std::optional<alpha_supervisor::SystemState> latestSystemState;
+
+    /*!
+     * @brief           Receipt time of the latest system state.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double latestSystemStateReceipt_s{0.0};
+
+    /*!
+     * @brief           Whether the gate was open at its previous
+     *                  evaluation, to detect the open-to-closed edge.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    bool wasGateOpen{false};
+
+    /*!
+     * @brief           Steering positions of the latest forwarded command,
+     *                  held by the stop command so a stop never re-steers
+     *                  the wheels; empty before the first command.
+     *
+     * @frame           Per-wheel steering joint
+     * @units           radians
+     */
+    std::vector<double> latestForwardedSteering_rad;
+
+    /*!
+     * @brief           Number of commands forwarded to the actuators.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t forwardedCommandCount{0U};
+
+    /*!
+     * @brief           Number of commands dropped by the closed gate.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t blockedCommandCount{0U};
+
+    /*!
+     * @brief           Number of zero-velocity commands sent when the gate
+     *                  closed.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t stopCommandCount{0U};
+
+    /*!
+     * @brief           Receipt time of the latest raw IMU sample; negative
+     *                  before the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double latestRawImuReceipt_s{-1.0};
+
+    /*!
+     * @brief           Receipt time of the latest raw joint state; negative
+     *                  before the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double latestRawJointStateReceipt_s{-1.0};
 };
 
 } /* namespace systems::alpha::alpha_drivers */

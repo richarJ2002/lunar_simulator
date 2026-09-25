@@ -236,6 +236,21 @@ class VisualOdometryNode final : public rclcpp::Node
                 "visual age and keyframe interval limits must be positive");
         }
 
+        /* Readiness reported to the start-up supervisor: a run of
+         * consecutive accepted poses proves tracking has started, and a
+         * long gap without one withdraws it. */
+        const std::int64_t configuredReadinessPoses =
+            declare_parameter<std::int64_t>("readiness_consecutive_poses", 3);
+        readinessMaximumPoseGapS =
+            declare_parameter<double>("readiness_maximum_pose_gap_s", 3.0);
+        if (configuredReadinessPoses <= 0 || !(readinessMaximumPoseGapS > 0.0))
+        {
+            throw std::invalid_argument(
+                "visual readiness limits must be positive");
+        }
+        readinessConsecutivePoses =
+            static_cast<std::uint64_t>(configuredReadinessPoses);
+
         /* Maximum number of corner features detected per frame. */
         maximumFeatures = declare_parameter<int>("maximum_features", 640);
 
@@ -1331,6 +1346,51 @@ class VisualOdometryNode final : public rclcpp::Node
      * @units           count
      */
     std::uint64_t consecutiveFailureCount{0U};
+
+    /*!
+     * @brief           Consecutive callbacks that produced an accepted pose.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t consecutiveAcceptedCount{0U};
+
+    /*!
+     * @brief           Consecutive accepted poses needed before this node
+     *                  reports itself ready.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t readinessConsecutivePoses{3U};
+
+    /*!
+     * @brief           Longest time without an accepted pose for which this
+     *                  node still reports itself ready.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double readinessMaximumPoseGapS{3.0};
+
+    /*!
+     * @brief           Whether the current visual epoch has reached the
+     *                  consecutive-pose streak; cleared by an epoch reset
+     *                  or a lost pose.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    bool hasReadinessStreak{false};
+
+    /*!
+     * @brief           Node time of the latest accepted pose; negative
+     *                  before the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double latestAcceptedPoseTime_s{-1.0};
 
     /*!
      * @brief           Latest PnP input correspondence count.

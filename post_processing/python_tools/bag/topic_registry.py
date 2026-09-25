@@ -187,6 +187,12 @@ CORE_TOPICS: tuple[TopicSpec, ...] = (
         MessageCategory.DIAGNOSTIC_ARRAY,
         True,
     ),
+    TopicSpec(
+        "/alpha/system/state",
+        "diagnostic_msgs/msg/DiagnosticArray",
+        MessageCategory.DIAGNOSTIC_ARRAY,
+        True,
+    ),
 )
 
 # The optional image topics, only present when a run was captured with

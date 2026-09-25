@@ -24,7 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from python_tools.context import build_common_parser, build_report_context
 from python_tools.data import alignment, metrics
 from python_tools.data.models import DiagnosticTimeBasis, OdometrySeries, ReportContext, ReportPage
-from python_tools.diagnostics.bag_diagnostics import diagnostic_time_axis_title
+from python_tools.diagnostics.bag_diagnostics import (
+    DIAGNOSTICS_TOPIC,
+    DRIVER_STATUS_NAME,
+    SYSTEM_STATE_TOPIC,
+    diagnostic_time_axis_title,
+    latest_status_values,
+    system_state_transitions,
+)
 from python_tools.reporting import figures, html, style
 
 TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
@@ -158,6 +165,56 @@ def _smoothness_and_consistency_table(
     )
 
 
+def _startup_window_section(context: ReportContext, summary_stats: dict[str, str]) -> str:
+    """!
+    @brief   Builds the start-up window section: every system state change
+             and the driver's final command-gate counters.
+
+    @param   context
+             The report context.
+    @param   summary_stats
+             Page summary statistics, updated in place with the first
+             READY time.
+
+    @return  The section HTML, or an empty string for a run without a
+             recorded system state.
+    """
+    state_series = context.bag.diagnostic_arrays.get(SYSTEM_STATE_TOPIC)
+    # Runs before the supervisor existed have nothing to show.
+    if state_series is None or not state_series.samples:
+        return ""
+    transitions = system_state_transitions(state_series)
+    rows = [[f"{time_s:.2f}", state, message] for time_s, state, message in transitions]
+    # The first READY closes the start-up window.
+    ready_times = [time_s for time_s, state, _ in transitions if state == "READY"]
+    if ready_times:
+        summary_stats["First READY"] = f"{ready_times[0]:.1f} s"
+    table = figures.summary_table(["Elapsed (s)", "State", "Supervisor message"], rows)
+    # Gate counters from the driver's latest recorded status.
+    diagnostics_series = context.bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+    gate_values = (
+        latest_status_values(diagnostics_series, DRIVER_STATUS_NAME)
+        if diagnostics_series is not None
+        else {}
+    )
+    gate_table = figures.summary_table(
+        ["Command gate", "Final count"],
+        [
+            ["Commands forwarded", gate_values.get("commands_forwarded", "n/a")],
+            ["Commands blocked", gate_values.get("commands_blocked", "n/a")],
+            ["Stop commands sent", gate_values.get("stop_commands", "n/a")],
+        ],
+    )
+    return (
+        "<section class='plot-section'><h2>Start-up window &amp; command gate</h2>"
+        "<p>Commands reach the actuators only while the supervisor's state is "
+        "READY with a fresh heartbeat; blocked commands are dropped, never "
+        "replayed.</p>"
+        f"{html.figure_to_fragment(table, 'kalman-system-state')}"
+        f"{html.figure_to_fragment(gate_table, 'kalman-command-gate')}</section>"
+    )
+
+
 def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
     """!
     @brief   Builds the Kalman-filter report page.
@@ -193,6 +250,11 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
         )
     else:
         warnings.append("alpha_kalman_filter parameter snapshot not found")
+
+    # Start-up window and command gate (runs from WP-01 Phase 2 onward).
+    startup_section = _startup_window_section(context, summary_stats)
+    if startup_section:
+        sections.append(startup_section)
 
     truth = context.bag.odometry.get(TOPIC_GROUND_TRUTH)
     estimate = context.bag.odometry.get(TOPIC_ESTIMATE)

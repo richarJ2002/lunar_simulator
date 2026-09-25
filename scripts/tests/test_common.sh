@@ -81,26 +81,29 @@ tc::start_simulator() {
   "$TC_LAUNCH_SIMULATOR" "${launch_args[@]}" > "$TC_LAUNCH_LOG" 2>&1 &
   TC_SIMULATOR_PID=$!
 
-  # inertial_odometry logs this once its startup calibration window
-  # completes, which is the last node-side readiness step: by then Alpha's
-  # whole stack (all of alpha_node's constructor delay, every subscription,
-  # and every publisher) is already up. Bounded so a genuinely broken
-  # launch fails the test instead of hanging it.
+  # Wait for the start-up supervisor's READY on /alpha/system/state: the
+  # same contract the driver's command gate enforces, so a command sent
+  # after this is obeyed rather than silently blocked. Bounded, and the
+  # launcher is polled so a genuinely broken launch fails fast.
   local waited=0
-  local timeout_s=60
-  while ! grep -q "calibration complete" "$TC_LAUNCH_LOG" 2>/dev/null; do
+  local timeout_s=180
+  python3 "$TC_ROOT/scripts/wait_for_system_ready.py" --timeout-s "$timeout_s" \
+    > "$TC_LOG_DIR/ready.log" 2>&1 &
+  local ready_pid=$!
+  while kill -0 "$ready_pid" 2>/dev/null; do
     if ! kill -0 "$TC_SIMULATOR_PID" 2>/dev/null; then
-      echo "[test] ERROR: scripts/launch_simulator.sh exited before becoming ready; see $TC_LAUNCH_LOG" >&2
-      exit 1
-    fi
-    if [ "$waited" -ge "$timeout_s" ]; then
-      echo "[test] ERROR: simulator did not become ready within ${timeout_s}s; see $TC_LAUNCH_LOG" >&2
+      kill -TERM "$ready_pid" 2>/dev/null || true
+      echo "[test] ERROR: scripts/launch_simulator.sh exited before READY; see $TC_LAUNCH_LOG" >&2
       exit 1
     fi
     sleep 1
     waited=$((waited + 1))
   done
-  echo "[test] simulator ready after ${waited}s"
+  if ! wait "$ready_pid"; then
+    echo "[test] ERROR: system not READY within ${timeout_s}s; see $TC_LAUNCH_LOG" >&2
+    exit 1
+  fi
+  echo "[test] system READY after ${waited}s ($(cat "$TC_LOG_DIR/ready.log"))"
 
   # The isolated project domain must contain exactly one /clock publisher.
   # Treat any other count as a hard setup failure because mixed clocks make
@@ -124,7 +127,10 @@ tc::publish_twist() {
   local linear_x_mps="$1"
   local angular_z_radps="$2"
 
-  ros2 topic pub --once /alpha/control/cmd/velocity geometry_msgs/msg/Twist \
+  # Wait for both subscribers (the Ackermann controller and the bag
+  # recorder); with the default of one, --once can fire after matching
+  # only the recorder and the controller never sees the command.
+  ros2 topic pub --once -w 2 /alpha/control/cmd/velocity geometry_msgs/msg/Twist \
     "{linear: {x: $linear_x_mps, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: $angular_z_radps}}" \
     > /dev/null
 }

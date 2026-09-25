@@ -23,6 +23,10 @@ visual_odometry:
     maximum_depth_m: 25.0
     maximum_input_age_s: 0.25
     maximum_keyframe_interval_s: 0.75
+    # Ready after this many consecutive accepted poses, until the pose is
+    # lost or no pose is accepted for readiness_maximum_pose_gap_s.
+    readiness_consecutive_poses: 3
+    readiness_maximum_pose_gap_s: 3.0
     feature_grid_rows: 4
     feature_grid_columns: 4
     maximum_features_per_cell: 40

@@ -223,6 +223,42 @@ class BagDiagnosticConversionTests(unittest.TestCase):
             bag_diagnostics.inertial_calibration_complete_elapsed_s(uncalibrated, 100_000_000_000)
         )
 
+    def test_system_state_transitions_skip_heartbeats(self) -> None:
+        """!
+        @brief  Only state changes are reported; repeated heartbeats of the
+                same state are skipped.
+        """
+        series = _collect(
+            [
+                _array(101, [_status("system_state", {"state": "INITIALISING"})]),
+                _array(102, [_status("system_state", {"state": "INITIALISING"})]),
+                _array(112, [_status("system_state", {"state": "READY"})]),
+                _array(113, [_status("system_state", {"state": "READY"})]),
+                _array(150, [_status("system_state", {"state": "HOLD"})]),
+            ]
+        )
+        transitions = bag_diagnostics.system_state_transitions(series)
+        self.assertEqual(
+            [(time_s, state) for time_s, state, _ in transitions],
+            [(1.0, "INITIALISING"), (12.0, "READY"), (50.0, "HOLD")],
+        )
+
+    def test_latest_status_values_prefers_the_newest(self) -> None:
+        """!
+        @brief  The latest status of a name wins; an absent name gives {}.
+        """
+        series = _collect(
+            [
+                _array(101, [_status("alpha_driver_node", {"commands_blocked": "1"})]),
+                _array(105, [_status("alpha_driver_node", {"commands_blocked": "4"})]),
+            ]
+        )
+        self.assertEqual(
+            bag_diagnostics.latest_status_values(series, "alpha_driver_node"),
+            {"commands_blocked": "4"},
+        )
+        self.assertEqual(bag_diagnostics.latest_status_values(series, "missing"), {})
+
     def test_axis_title_follows_time_basis(self) -> None:
         """!
         @brief  Recorded diagnostics plot on the elapsed-simulation axis;

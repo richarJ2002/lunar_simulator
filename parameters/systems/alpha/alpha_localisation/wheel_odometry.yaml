@@ -11,6 +11,10 @@ wheel_odometry:
     steering_position_stddev_rad: 0.002
     lateral_observability_threshold: 0.1
     maximum_integration_dt_s: 5.0
+    # Ready once all twelve joints resolve and odometry has been published
+    # for this long without a gap longer than readiness_maximum_gap_s.
+    readiness_continuous_period_s: 1.0
+    readiness_maximum_gap_s: 0.5
     estimate_slip_from_visual: false
     apply_slip_feedback: false
     slip_estimation_gain: 0.15

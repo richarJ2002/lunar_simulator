@@ -14,6 +14,9 @@ namespace systems::alpha::alpha_drivers
 
 void AlphaDriverNode::publishNoisyImuCallBack(const sensor_msgs::msg::Imu &message_in)
 {
+    /* Raw IMU freshness is half of this node's readiness. */
+    latestRawImuReceipt_s = now().seconds();
+
     /* Start from a copy of the raw, noise-free measurement. */
     sensor_msgs::msg::Imu message = message_in;
 

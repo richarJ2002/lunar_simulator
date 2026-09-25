@@ -19,6 +19,7 @@ target_link_libraries(alpha_node
   visual_odometry
   wheel_odometry
   alpha_kalman_filter
+  alpha_supervisor
   ackermann_controller
 )
 

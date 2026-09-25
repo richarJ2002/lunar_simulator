@@ -4,5 +4,6 @@ cmake_minimum_required(VERSION 3.16)
 # and CMake requires each target to already exist when a later
 # add_subdirectory() links against it.
 add_subdirectory(alpha_localisation)
+add_subdirectory(alpha_supervisor)
 add_subdirectory(alpha_drivers)
 add_subdirectory(alpha_node)

@@ -1,4 +1,4 @@
-/**
+/*!
  * @file            initializeFilter.cc
  *
  * @brief           Initializes Alpha's bias-aware ESKF from stationary IMU.
@@ -93,6 +93,8 @@ AlphaKalmanFilterNode::FilterStatus
     }
 
     stateTimestamp_s                   = timestampS_in;
+    initializationTimestamp_s          = timestampS_in;
+    visualFusedCountAtInitialization   = visualDiagnostics.fusedCount;
     latestState                        = nominalState;
     latestCovariance                   = filter.getCovariance();
     latestAngularVelocity_body_radPerS = Eigen::Vector3d::Zero();

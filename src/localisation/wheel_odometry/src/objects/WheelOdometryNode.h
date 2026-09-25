@@ -17,6 +17,7 @@
 /* None */
 
 /* Data include */
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -24,6 +25,7 @@
 /* Generic Libraries */
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -149,6 +151,27 @@ class WheelOdometryNode final : public rclcpp::Node
         maximumIntegrationDtS =
             declare_parameter<double>("maximum_integration_dt_s", 5.0);
 
+        /* Output topic: readiness and solve statistics, shared by every
+         * node of the owning system and recorded with every run. */
+        const std::string diagnosticsTopic =
+            declare_parameter<std::string>("diagnostics_topic",
+                                           "/" + systemName + "/diagnostics");
+
+        /* Readiness reported to the start-up supervisor: all twelve joints
+         * resolved and odometry published without a longer gap than
+         * readiness_maximum_gap_s for at least
+         * readiness_continuous_period_s. */
+        readinessContinuousPeriodS =
+            declare_parameter<double>("readiness_continuous_period_s", 1.0);
+        readinessMaximumGapS =
+            declare_parameter<double>("readiness_maximum_gap_s", 0.5);
+        if (!(readinessContinuousPeriodS >= 0.0) ||
+            !(readinessMaximumGapS > 0.0))
+        {
+            throw std::invalid_argument(
+                "Wheel readiness limits are outside valid bounds");
+        }
+
         /* Whether visual odometry is used to produce a slip observation at
          * all. */
         shouldEstimateSlip =
@@ -271,6 +294,15 @@ class WheelOdometryNode final : public rclcpp::Node
                 slipObservationTopic,
                 rclcpp::SensorDataQoS());
 
+        /* Readiness and solve statistics, once per simulated second. */
+        p_diagnosticsPublisher =
+            create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+                diagnosticsTopic,
+                rclcpp::QoS(10));
+        p_diagnosticsTimer =
+            create_timer(std::chrono::seconds(1),
+                         [this]() { publishDiagnosticsCallBack(); });
+
         /* Every incoming joint-state message triggers
          * handleJointStateCallBack(). */
         jointSubscription = create_subscription<sensor_msgs::msg::JointState>(
@@ -358,6 +390,15 @@ class WheelOdometryNode final : public rclcpp::Node
      */
     void handleWheelSlipEstimateCallBack(
         const std_msgs::msg::Float64MultiArray &message_in);
+
+    /*!
+     * @brief           Publishes this node's readiness on the diagnostics
+     *                  topic.
+     *
+     *                  Runs from a simulation-time timer once per second in
+     *                  the node's mutually exclusive default callback group.
+     */
+    void publishDiagnosticsCallBack();
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE METHODS
@@ -561,10 +602,20 @@ class WheelOdometryNode final : public rclcpp::Node
      */
     double wheelRadiusM{0.1425};
 
-    /** @brief Drive-rate standard deviation in radians per second. */
+    /*!
+     * @brief           Drive-rate standard deviation.
+     *
+     * @frame           Per-wheel drive joint
+     * @units           radians per second
+     */
     double wheelAngularVelocityStddevRadps{0.015};
 
-    /** @brief Steering-angle standard deviation in radians. */
+    /*!
+     * @brief           Steering-angle standard deviation.
+     *
+     * @frame           Per-wheel steering joint
+     * @units           radians
+     */
     double steeringPositionStddevRad{0.002};
 
     /*!
@@ -692,6 +743,68 @@ class WheelOdometryNode final : public rclcpp::Node
      */
     double yawRad{0.0};
 
+    /*!
+     * @brief           Publishes readiness and solve statistics.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
+        p_diagnosticsPublisher;
+
+    /*!
+     * @brief           Simulation-time timer driving
+     *                  publishDiagnosticsCallBack().
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    rclcpp::TimerBase::SharedPtr p_diagnosticsTimer;
+
+    /*!
+     * @brief           Shortest uninterrupted publishing period before this
+     *                  node reports itself ready.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double readinessContinuousPeriodS{1.0};
+
+    /*!
+     * @brief           Largest gap between publications that still counts
+     *                  as continuous.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double readinessMaximumGapS{0.5};
+
+    /*!
+     * @brief           Whether the latest joint-state message contained all
+     *                  twelve drive and steering joints.
+     *
+     * @frame           N/A
+     * @units           N/A
+     */
+    bool hasAllJoints{false};
+
+    /*!
+     * @brief           Node time at which the current uninterrupted run of
+     *                  publications began.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double continuousPublishStart_s{0.0};
+
+    /*!
+     * @brief           Node time of the latest publication; negative before
+     *                  the first.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double latestPublishTime_s{-1.0};
 };
 
 } /* namespace localisation::wheel_odometry */

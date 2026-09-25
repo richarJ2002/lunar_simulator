@@ -27,6 +27,8 @@ void VisualOdometryNode::handleResetCallBack(
     isVisualPoseAvailable     = true;
     latestAcceptedInterval_s  = 0.0;
     consecutiveFailureCount   = 0U;
+    consecutiveAcceptedCount  = 0U;
+    hasReadinessStreak        = false;
     LUNAR_LOG_INFO(get_logger(), "Visual odometry epoch reset");
 }
 

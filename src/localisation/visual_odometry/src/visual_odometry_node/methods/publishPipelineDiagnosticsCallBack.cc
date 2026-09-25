@@ -56,19 +56,42 @@ void VisualOdometryNode::publishPipelineDiagnosticsCallBack()
         calculateRateHz(acceptedPoseCount - previousReportedAcceptedCount,
                         reportInterval_s);
 
+    /* Readiness contract read by the start-up supervisor. */
+    std::string readinessReason = "tracking";
+    if (!isVisualPoseAvailable)
+    {
+        readinessReason = "pose unavailable";
+    }
+    else if (!hasReadinessStreak)
+    {
+        readinessReason = common::console::formatText(
+            "%llu/%llu consecutive poses",
+            static_cast<unsigned long long>(consecutiveAcceptedCount),
+            static_cast<unsigned long long>(readinessConsecutivePoses));
+    }
+    else if (reportTime.seconds() - latestAcceptedPoseTime_s >
+             readinessMaximumPoseGapS)
+    {
+        readinessReason = common::console::formatText(
+            "no pose for %.1f s",
+            reportTime.seconds() - latestAcceptedPoseTime_s);
+    }
+    const bool isReady = readinessReason == "tracking";
+
     /* One status carries every pipeline field; the keys are the contract
      * post_processing/python_tools/diagnostics/bag_diagnostics.py parses. */
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.name        = "visual_odometry";
     status.hardware_id = baseFrame;
-    status.level       = isVisualPoseAvailable
-                             ? diagnostic_msgs::msg::DiagnosticStatus::OK
-                             : diagnostic_msgs::msg::DiagnosticStatus::WARN;
+    status.level       = isReady ? diagnostic_msgs::msg::DiagnosticStatus::OK
+                                 : diagnostic_msgs::msg::DiagnosticStatus::WARN;
     status.message     = common::console::formatText(
         "VO %.1fHz inl %zu fail %llu",
         acceptedRateHz,
         latestInlierCount,
         static_cast<unsigned long long>(consecutiveFailureCount));
+    diagnostics::addFlagValue("ready", isReady, status);
+    diagnostics::addTextValue("reason", readinessReason, status);
     diagnostics::addCountValue("received", receivedPairCount, status);
     diagnostics::addCountValue("accepted", acceptedPoseCount, status);
     diagnostics::addCountValue("failed", failedPoseCount, status);

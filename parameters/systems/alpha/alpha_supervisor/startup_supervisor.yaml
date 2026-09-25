@@ -1,0 +1,23 @@
+# Alpha start-up supervisor (src/systems/alpha/alpha_supervisor/).
+# Aggregates each required component's self-reported readiness ("ready"
+# and "reason" on /alpha/diagnostics) into the latched /alpha/system/state
+# that alpha_driver_node's command gate enforces. Each component's own
+# readiness thresholds live in that component's parameter file.
+startup_supervisor:
+  ros__parameters:
+    diagnostics_topic: /alpha/diagnostics
+    system_state_topic: /alpha/system/state
+    # Components whose readiness gates motion commands; the terminal names
+    # the first one still pending, in this order.
+    required_components:
+      - alpha_driver_node
+      - inertial_odometry
+      - visual_odometry
+      - wheel_odometry
+      - continuous_ekf
+    # Shortest start-up window (simulated seconds) before READY.
+    minimum_init_window_s: 10.0
+    # A component status older than this no longer counts as ready.
+    component_timeout_s: 2.0
+    # Longest interval between two /alpha/system/state publications.
+    heartbeat_period_s: 1.0

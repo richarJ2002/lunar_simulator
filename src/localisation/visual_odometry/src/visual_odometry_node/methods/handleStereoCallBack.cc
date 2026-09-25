@@ -125,11 +125,18 @@ void VisualOdometryNode::handleStereoCallBack(
         {
             ++acceptedPoseCount;
             consecutiveFailureCount = 0U;
+            ++consecutiveAcceptedCount;
+            latestAcceptedPoseTime_s = now().seconds();
+            if (consecutiveAcceptedCount >= readinessConsecutivePoses)
+            {
+                hasReadinessStreak = true;
+            }
         }
         else
         {
             ++failedPoseCount;
             ++consecutiveFailureCount;
+            consecutiveAcceptedCount = 0U;
         }
     };
 
@@ -295,6 +302,7 @@ void VisualOdometryNode::handleStereoCallBack(
         worldFromOptical          = bodyFromOptical;
         accumulatedPoseCovariance = PoseCovariance::zeros();
         isVisualPoseAvailable     = true;
+        hasReadinessStreak        = false;
         storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
         finishDiagnostics(false);
         return;
@@ -704,6 +712,7 @@ void VisualOdometryNode::handleStereoCallBack(
          * the accumulated world pose unchanged and re-key only for current
          * diagnostics until an explicit reset starts a new visual epoch. */
         isVisualPoseAvailable = false;
+        hasReadinessStreak    = false;
         storePrevious(currentLeft, currentRight, p_left_in->header.stamp);
         LUNAR_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),

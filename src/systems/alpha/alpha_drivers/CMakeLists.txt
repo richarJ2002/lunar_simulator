@@ -5,12 +5,17 @@ cmake_minimum_required(VERSION 3.16)
 # configurable Gaussian noise/bias applied on each.
 add_library(alpha_drivers STATIC
   methods/addVarianceToCovariance.cc
+  methods/configureCommandGate.cc
   methods/configureImuInterface.cc
   methods/configureJointStateInterface.cc
   methods/configureWheelCommandInterface.cc
   methods/declareNonnegativeParameter.cc
   methods/declareTripletParameter.cc
+  methods/enforceCommandGateCallBack.cc
+  methods/evaluateCommandGate.cc
+  methods/handleSystemStateCallBack.cc
   methods/perturbOrientation.cc
+  methods/publishDiagnosticsCallBack.cc
   methods/publishNoisyImuCallBack.cc
   methods/publishNoisyJointStateCallBack.cc
   methods/publishNoisyWheelCommandCallBack.cc
@@ -18,9 +23,14 @@ add_library(alpha_drivers STATIC
 )
 target_compile_features(alpha_drivers PUBLIC cxx_std_17)
 target_include_directories(alpha_drivers PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(alpha_drivers common_console)
+target_link_libraries(alpha_drivers
+  alpha_supervisor
+  common_console
+  common_diagnostics
+)
 ament_target_dependencies(alpha_drivers
   actuator_msgs
+  diagnostic_msgs
   rclcpp
   sensor_msgs
   tf2

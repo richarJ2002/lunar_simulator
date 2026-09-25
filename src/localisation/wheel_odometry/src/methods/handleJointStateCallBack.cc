@@ -81,6 +81,7 @@ void WheelOdometryNode::handleJointStateCallBack(
                                     *get_clock(),
                                     3000,
                                     "Waiting for all 12 wheel joints");
+            hasAllJoints = false;
 
             /* Skip this callback entirely; try again next message. */
             return;
@@ -352,6 +353,17 @@ void WheelOdometryNode::handleJointStateCallBack(
 
     /* Publish the pose and body twist relative to startup-fixed. */
     publishOdometry(message_in.header.stamp, bodyTwist, bodyTwistCovariance);
+
+    /* Track uninterrupted publishing for the readiness report: a gap
+     * longer than readinessMaximumGapS starts a new run. */
+    hasAllJoints       = true;
+    const double now_s = now().seconds();
+    if (latestPublishTime_s < 0.0 ||
+        now_s - latestPublishTime_s > readinessMaximumGapS)
+    {
+        continuousPublishStart_s = now_s;
+    }
+    latestPublishTime_s = now_s;
 }
 
 } /* namespace localisation::wheel_odometry */

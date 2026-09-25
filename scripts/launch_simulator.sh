@@ -174,6 +174,10 @@ GENERATED_MODEL_FILE="" # Temporary SDF with camera noise patched
 GAZEBO_PID=""          # Gazebo process ID
 RECORDER_PID=""        # Background `ros2 bag record` process ID, once started
 RVIZ_PID=""            # RViz process ID when --rviz started it
+READY_WATCHER_PID=""   # Background wait_for_system_ready.py process ID
+# Wall-clock seconds the launcher waits for the start-up supervisor's READY
+# before warning (commands stay blocked by the driver's gate regardless).
+READY_TIMEOUT_S="${READY_TIMEOUT_S:-120}"
 BAG_DESTINATION=""     # Path passed to `ros2 bag record -o`
 RECORD_TOPICS=()       # Assembled by assemble_record_topics() from the profile
 ORIGINAL_ARGS=()       # This invocation's argv, captured before parsing/shifting
@@ -514,10 +518,14 @@ finalize_test_run() {
   if [ -n "$GENERATED_MODEL_FILE" ]; then
     rm -f -- "$GENERATED_MODEL_FILE"
   fi
-  # RViz belongs to this launcher now; close it on every exit path.
-  if [ -n "$RVIZ_PID" ] && kill -0 "$RVIZ_PID" 2>/dev/null; then
-    kill -TERM "$RVIZ_PID" 2>/dev/null || true
-  fi
+  # RViz and the READY watcher belong to this launcher; close them on
+  # every exit path.
+  local owned_pid
+  for owned_pid in "$RVIZ_PID" "$READY_WATCHER_PID"; do
+    if [ -n "$owned_pid" ] && kill -0 "$owned_pid" 2>/dev/null; then
+      kill -TERM "$owned_pid" 2>/dev/null || true
+    fi
+  done
   if [ "$SIMULATION_STARTED" -eq 1 ]; then
     prompt_for_test_run_name || true
   fi
@@ -671,6 +679,7 @@ unpause_simulation() {
 CORE_RECORD_TOPICS=(
   /clock
   /alpha/diagnostics
+  /alpha/system/state
   /alpha/drivers/ground_truth/odometry
   /alpha/localisation/ground_truth/odometry
   /alpha/drivers/imu
@@ -965,6 +974,20 @@ launch_ros_nodes() {
   fi
 }
 
+#!
+# @brief          Waits in the background for the start-up supervisor's
+#                 READY on /alpha/system/state and prints it (or a warning
+#                 after READY_TIMEOUT_S). Commands are gated by the driver
+#                 either way; this only tells the operator when they will
+#                 be obeyed. Started before the foreground bridge, which
+#                 provides the /clock the supervisor needs.
+start_ready_watcher() {
+  msg "Waiting for READY (commands blocked)"
+  python3 "$SCRIPT_DIR/wait_for_system_ready.py" \
+    --timeout-s "$READY_TIMEOUT_S" --prefix "[MSG] " &
+  READY_WATCHER_PID=$!
+}
+
 run_bridge() {
   msg "Starting bridge (logs/bridge.txt)"
   if ! ros2 run ros_gz_bridge parameter_bridge \
@@ -1016,6 +1039,7 @@ main() {
   unpause_simulation
   launch_ros_nodes
   start_recorder
+  start_ready_watcher
   run_bridge
   wait "$GAZEBO_PID"
 }

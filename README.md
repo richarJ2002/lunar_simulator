@@ -211,10 +211,33 @@ odometry page in the low tens of megabytes even with images included.
 5. Verify Alpha ground truth and estimate publish odometry and path topics
 6. Test: publish an `actuator_msgs/msg/Actuators` command to `/alpha/control/cmd/wheel_joint_states`, then verify joint states and odometry
 
+### Start-up window and command gate
+
+Commands are obeyed only once the system is `READY`. The `startup_supervisor`
+node combines every required component's self-reported readiness (driver
+inputs fresh, IMU calibrated, visual odometry tracking, wheel odometry
+publishing, Kalman filter initialised and settled) with a minimum 10 s
+start-up window, and publishes the latched state on `/alpha/system/state`.
+The launcher prints `[MSG] READY at sim <t> s` when it arrives. Until then,
+and whenever the state later drops to `HOLD` or its 1 Hz heartbeat goes
+stale, `alpha_driver_node` drops every command on the public command topic
+(it is never replayed; the terminal shows `CMD blocked: <reason>`), and a
+gate that closes after being open sends one zero-velocity command. Wait for
+READY before commanding:
+
+```bash
+python3 scripts/wait_for_system_ready.py --timeout-s 120
+```
+
+Anything published straight to the private `/alpha/drivers/cmd/*` topic
+bypasses the gate. Readiness thresholds are the `readiness_*` parameters in
+each component's file; the supervisor's own settings are in
+`parameters/systems/alpha/alpha_supervisor/startup_supervisor.yaml`.
+
 ### Alpha wheel command
 
 `/alpha/control/cmd/wheel_joint_states` accepts one `actuator_msgs/msg/Actuators`
-message. Both arrays must contain exactly six values in this order:
+message (obeyed only while the system is `READY`; see above). Both arrays must contain exactly six values in this order:
 
 1. front-left
 2. front-right

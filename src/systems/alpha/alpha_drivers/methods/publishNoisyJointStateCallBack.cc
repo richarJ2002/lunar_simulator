@@ -15,6 +15,10 @@ namespace systems::alpha::alpha_drivers
 void AlphaDriverNode::publishNoisyJointStateCallBack(
     const sensor_msgs::msg::JointState &message_in)
 {
+    /* Raw joint-state freshness is the other half of this node's
+     * readiness; it counts every raw message, before rate limiting. */
+    latestRawJointStateReceipt_s = now().seconds();
+
     constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000;
     const std::int64_t stamp_ns =
         static_cast<std::int64_t>(message_in.header.stamp.sec) *

@@ -13,12 +13,34 @@
 /* Generic Libraries */
 #include <algorithm>
 
+/* Other Project Module Includes */
+#include "console/console.h"
+
 namespace systems::alpha::alpha_drivers
 {
 
 void AlphaDriverNode::publishNoisyWheelCommandCallBack(
     const actuator_msgs::msg::Actuators &message_in)
 {
+    /* The gate drops every command while the system is not READY or its
+     * heartbeat is stale; a dropped command is never replayed. */
+    const CommandGateDecision gate =
+        evaluateCommandGate(latestSystemState,
+                            now().seconds() - latestSystemStateReceipt_s,
+                            maximumStateHeartbeatAgeS);
+    if (!gate.isOpen)
+    {
+        ++blockedCommandCount;
+        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+                                *get_clock(),
+                                3000,
+                                "CMD blocked: %s",
+                                gate.reason.c_str());
+        return;
+    }
+    ++forwardedCommandCount;
+    latestForwardedSteering_rad = message_in.position;
+
     /* Start from a copy of the commanded, noise-free actuator targets. */
     actuator_msgs::msg::Actuators message = message_in;
 

@@ -282,6 +282,29 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         initialGyroscopeBiasVariance =
             declare_parameter<double>("initial_gyroscope_bias_variance", 0.001);
 
+        /* Readiness reported to the start-up supervisor: initialised, fed
+         * enough visual corrections, settled for a while, and not
+         * diverged. The variance limit is a divergence guard, not a
+         * start-up criterion: visual-odometry covariance legitimately
+         * grows while driving. */
+        const std::int64_t configuredReadinessVisualUpdates =
+            declare_parameter<std::int64_t>("readiness_minimum_visual_updates",
+                                            3);
+        readinessSettleTimeS =
+            declare_parameter<double>("readiness_settle_time_s", 5.0);
+        readinessMaximumPositionVarianceM2 =
+            declare_parameter<double>("readiness_maximum_position_variance_m2",
+                                      1.0);
+        if (configuredReadinessVisualUpdates < 0 ||
+            !(readinessSettleTimeS >= 0.0) ||
+            !(readinessMaximumPositionVarianceM2 > 0.0))
+        {
+            throw std::invalid_argument(
+                "EKF readiness limits are outside valid bounds");
+        }
+        readinessMinimumVisualUpdates =
+            static_cast<std::uint64_t>(configuredReadinessVisualUpdates);
+
         /* Publish the fused estimate as ordinary odometry. */
         p_outputPublisher =
             create_publisher<nav_msgs::msg::Odometry>(outputTopic,
@@ -1442,6 +1465,52 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @units           count
      */
     std::uint64_t previousConsoleRejectedCount{0U};
+
+    /*!
+     * @brief           Visual updates that must be fused after
+     *                  initialisation before this node reports itself
+     *                  ready.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t readinessMinimumVisualUpdates{3U};
+
+    /*!
+     * @brief           Shortest time after initialisation before this node
+     *                  reports itself ready.
+     *
+     * @frame           N/A
+     * @units           seconds
+     */
+    double readinessSettleTimeS{5.0};
+
+    /*!
+     * @brief           Largest position-covariance trace for which this
+     *                  node still reports itself ready (divergence guard).
+     *
+     * @frame           startup-fixed
+     * @units           square metres
+     */
+    double readinessMaximumPositionVarianceM2{1.0};
+
+    /*!
+     * @brief           Stamp of the IMU sample that completed the latest
+     *                  initialisation.
+     *
+     * @frame           N/A
+     * @units           ROS seconds
+     */
+    double initializationTimestamp_s{0.0};
+
+    /*!
+     * @brief           Visual fused count when the filter was last
+     *                  initialised, so readiness counts only updates since.
+     *
+     * @frame           N/A
+     * @units           count
+     */
+    std::uint64_t visualFusedCountAtInitialization{0U};
 };
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

@@ -11,6 +11,9 @@
 /* Matching Declaration Include */
 #include "objects/AlphaKalmanFilterNode.h"
 
+/* C++ Standard Library Includes */
+#include <cmath>
+
 /* External Library Includes */
 #include <Eigen/Eigenvalues>
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -163,15 +166,59 @@ void AlphaKalmanFilterNode::publishDiagnosticsCallBack()
                                   rejectedCount - previousConsoleRejectedCount))
                         : std::string("EKF waiting for IMU init");
 
+    /* Readiness contract read by the start-up supervisor. */
+    const Eigen::Index errorPositionIndex = static_cast<Eigen::Index>(
+        ErrorStateIndex::ERROR_STATE_INDEX_POSITION_X);
+    const double positionVarianceM2 =
+        hasInitialState
+            ? latestCovariance
+                  .block<3, 3>(errorPositionIndex, errorPositionIndex)
+                  .trace()
+            : 0.0;
+    const std::uint64_t visualUpdatesSinceInit =
+        visualDiagnostics.fusedCount - visualFusedCountAtInitialization;
+    const double sinceInitialization_s =
+        now().seconds() - initializationTimestamp_s;
+    std::string readinessReason = "tracking";
+    if (!hasInitialState)
+    {
+        readinessReason = "waiting for IMU init";
+    }
+    else if (visualUpdatesSinceInit < readinessMinimumVisualUpdates)
+    {
+        readinessReason = common::console::formatText(
+            "%llu/%llu visual updates",
+            static_cast<unsigned long long>(visualUpdatesSinceInit),
+            static_cast<unsigned long long>(readinessMinimumVisualUpdates));
+    }
+    else if (sinceInitialization_s < readinessSettleTimeS)
+    {
+        readinessReason = common::console::formatText("settling %.1f/%.1f s",
+                                                      sinceInitialization_s,
+                                                      readinessSettleTimeS);
+    }
+    else if (!std::isfinite(positionVarianceM2) ||
+             positionVarianceM2 > readinessMaximumPositionVarianceM2)
+    {
+        readinessReason =
+            common::console::formatText("position variance %.2f m2",
+                                        positionVarianceM2);
+    }
+    const bool isReady = readinessReason == "tracking";
+
     /* Filter-wide snapshot shared by every source's record. */
     diagnostic_msgs::msg::DiagnosticStatus filterStatus;
     filterStatus.name        = "continuous_ekf";
     filterStatus.hardware_id = baseFrame;
-    filterStatus.level       = hasInitialState
-                                   ? diagnostic_msgs::msg::DiagnosticStatus::OK
-                                   : diagnostic_msgs::msg::DiagnosticStatus::WARN;
+    filterStatus.level = isReady ? diagnostic_msgs::msg::DiagnosticStatus::OK
+                                 : diagnostic_msgs::msg::DiagnosticStatus::WARN;
     filterStatus.message     = healthLine;
+    diagnostics::addFlagValue("ready", isReady, filterStatus);
+    diagnostics::addTextValue("reason", readinessReason, filterStatus);
     diagnostics::addFlagValue("initialized", hasInitialState, filterStatus);
+    diagnostics::addRealValue("position_variance_m2",
+                              positionVarianceM2,
+                              filterStatus);
     diagnostics::addRealValue("covariance_trace",
                               covarianceTrace,
                               filterStatus);

@@ -35,6 +35,7 @@ bash -n "$0" || fail "bash -n self"
 pass "bash -n"
 
 python3 -m py_compile "$LAUNCH_PY" || fail "py_compile alpha_launch.py"
+python3 -m py_compile "$ROOT/scripts/wait_for_system_ready.py" || fail "py_compile wait_for_system_ready.py"
 pass "py_compile"
 
 if command -v shellcheck >/dev/null 2>&1; then
@@ -61,6 +62,8 @@ required=(
   "parameters/systems/alpha/alpha_localisation/visual_odometry.yaml"
   "parameters/systems/alpha/alpha_localisation/wheel_odometry.yaml"
   "parameters/systems/alpha/alpha_control/ackermann_controller.yaml"
+  "parameters/systems/alpha/alpha_supervisor/startup_supervisor.yaml"
+  "scripts/wait_for_system_ready.py"
   "src/systems/alpha/alpha.rviz"
 )
 for rel in "${required[@]}"; do
@@ -108,12 +111,13 @@ checks = [
     ("parameters/systems/alpha/alpha_localisation/visual_odometry.yaml", "visual_odometry"),
     ("parameters/systems/alpha/alpha_localisation/wheel_odometry.yaml", "wheel_odometry"),
     ("parameters/systems/alpha/alpha_control/ackermann_controller.yaml", "ackermann_controller"),
+    ("parameters/systems/alpha/alpha_supervisor/startup_supervisor.yaml", "startup_supervisor"),
 ]
 for rel, key in checks:
     data = yaml.safe_load(open(root / rel))
     assert isinstance(data, dict) and key in data, f"{rel} missing {key}"
     assert isinstance(data[key].get("ros__parameters"), dict), f"{rel} empty params"
-print("[launch_test] OK: 7 param node keys")
+print("[launch_test] OK: 8 param node keys")
 PYEOF
 
 # ---------------------------------------------------------------------------- #
@@ -262,10 +266,10 @@ bash -c '
   parse_arguments --record-images
   [ "$RECORD_IMAGES" -eq 1 ]
   assemble_record_topics
-  [ "${#RECORD_TOPICS[@]}" -eq 24 ]
+  [ "${#RECORD_TOPICS[@]}" -eq 25 ]
   RECORD_IMAGES=0
   assemble_record_topics
-  [ "${#RECORD_TOPICS[@]}" -eq 21 ]
+  [ "${#RECORD_TOPICS[@]}" -eq 22 ]
 ' _ "$LAUNCH_SH" >/dev/null || fail "recording argument parsing / topic assembly"
 pass "recording argument parsing / topic assembly"
 
@@ -423,7 +427,7 @@ assert manifest[\"world\"] == \"lunar_surface\", manifest
 assert manifest[\"system\"] == \"alpha\", manifest
 assert manifest[\"recording_profile\"] == \"core\", manifest
 assert manifest[\"storage_identifier\"] == \"mcap\", manifest
-assert len(manifest[\"topics\"]) == 21, manifest
+assert len(manifest[\"topics\"]) == 22, manifest
 assert manifest[\"bag_destination\"].endswith(\"/localisation\"), manifest
 " "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
   # The recorder is still alive and has not yet finalized its metadata.

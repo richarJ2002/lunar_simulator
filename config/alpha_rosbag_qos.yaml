@@ -68,3 +68,14 @@
   depth: 1
   reliability: reliable
   durability: transient_local
+
+# Start-up supervisor's system state: diagnostic_msgs/msg/DiagnosticArray,
+# latched rclcpp::QoS(1).reliable().transient_local()
+# (src/systems/alpha/alpha_supervisor/.../AlphaStartupSupervisorNode.h).
+# Transient-local so a recorder that starts after the first state still
+# captures it.
+/alpha/system/state:
+  history: keep_last
+  depth: 1
+  reliability: reliable
+  durability: transient_local

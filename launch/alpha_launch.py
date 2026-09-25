@@ -3,8 +3,8 @@
 Source of truth for which nodes the Alpha system owns. Launches the
 single ``alpha_node`` executable (which composes ``alpha_driver_node``,
 ``ground_truth``, ``inertial_odometry``, ``visual_odometry``,
-``wheel_odometry``, ``continuous_ekf`` and ``ackermann_controller`` in one
-process) plus, optionally, Gazebo, the ``ros_gz_bridge`` and RViz.
+``wheel_odometry``, ``continuous_ekf``, ``ackermann_controller`` and
+``startup_supervisor`` in one process) plus, optionally, Gazebo, the ``ros_gz_bridge`` and RViz.
 
 ``system_name`` (default ``alpha``) selects the topic namespace every node
 uses for its own default topic names (e.g.
@@ -99,7 +99,7 @@ def generate_launch_description():
         description='RCUTILS_CONSOLE_OUTPUT_FORMAT for alpha_node.',
     )
 
-    # Hardcoded Alpha parameter tree: 7 files. use_sim_time is wired as a
+    # Hardcoded Alpha parameter tree: 8 files. use_sim_time is wired as a
     # Node parameter below, and the bridge is exempt per D5.
     parameters_root = [pkg_share, 'parameters', 'systems', 'alpha']
     alpha_parameters = [
@@ -110,6 +110,7 @@ def generate_launch_description():
         PathJoinSubstitution(parameters_root + ['alpha_localisation', 'visual_odometry.yaml']),
         PathJoinSubstitution(parameters_root + ['alpha_localisation', 'wheel_odometry.yaml']),
         PathJoinSubstitution(parameters_root + ['alpha_control', 'ackermann_controller.yaml']),
+        PathJoinSubstitution(parameters_root + ['alpha_supervisor', 'startup_supervisor.yaml']),
     ]
 
     gz_args = [
