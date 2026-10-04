@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "console/public_functions.h"
+#include "console/public_functions/public_functions.h"
 
 /* External Library Includes */
 #include <rcutils/logging.h>

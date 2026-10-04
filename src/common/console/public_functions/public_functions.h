@@ -19,7 +19,7 @@
 #include <rclcpp/logger.hpp>
 
 /* Object Includes */
-#include "console/objects/ConsoleSeverity.h"
+#include "console/objects/ConsoleSeverityEnum.h"
 
 namespace common::console
 {

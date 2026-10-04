@@ -1,5 +1,5 @@
 /*!
- * @file            ThrottleGate.h
+ * @file            ThrottleGateClass.h
  *
  * @brief           Declares the per-call-site rate limiter used by the
  *                  throttled console logging macros.
@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_H
-#define LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_H
+#ifndef LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
+#define LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -82,4 +82,4 @@ class ThrottleGate
 
 } /* namespace common::console */
 
-#endif /* LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_H */
+#endif /* LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H */

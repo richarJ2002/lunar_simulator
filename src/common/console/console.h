@@ -34,11 +34,11 @@
 #include <rclcpp/logger.hpp>
 
 /* Other Project Module Includes */
-#include "console/public_functions.h"
+#include "console/public_functions/public_functions.h"
 
 /* Object Includes */
-#include "console/objects/ConsoleSeverity.h"
-#include "console/objects/ThrottleGate.h"
+#include "console/objects/ConsoleSeverityEnum.h"
+#include "console/objects/ThrottleGateClass.h"
 
 /*!
  * @brief           Formats a printf-style message and logs it wrapped.
@@ -94,31 +94,41 @@
         }                                                                      \
     } while (false)
 
-/*! @brief Wrapped DEBUG message; see LUNAR_LOG. */
+/*!
+ * @brief           Wrapped DEBUG message; see LUNAR_LOG.
+ */
 #define LUNAR_LOG_DEBUG(logger, ...)                                           \
     LUNAR_LOG((logger),                                                        \
               ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_DEBUG,      \
               __VA_ARGS__)
 
-/*! @brief Wrapped INFO message; see LUNAR_LOG. */
+/*!
+ * @brief           Wrapped INFO message; see LUNAR_LOG.
+ */
 #define LUNAR_LOG_INFO(logger, ...)                                            \
     LUNAR_LOG((logger),                                                        \
               ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_INFO,       \
               __VA_ARGS__)
 
-/*! @brief Wrapped WARN message; see LUNAR_LOG. */
+/*!
+ * @brief           Wrapped WARN message; see LUNAR_LOG.
+ */
 #define LUNAR_LOG_WARN(logger, ...)                                            \
     LUNAR_LOG((logger),                                                        \
               ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_WARN,       \
               __VA_ARGS__)
 
-/*! @brief Wrapped ERROR message; see LUNAR_LOG. */
+/*!
+ * @brief           Wrapped ERROR message; see LUNAR_LOG.
+ */
 #define LUNAR_LOG_ERROR(logger, ...)                                           \
     LUNAR_LOG((logger),                                                        \
               ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_ERROR,      \
               __VA_ARGS__)
 
-/*! @brief Throttled wrapped INFO message; see LUNAR_LOG_THROTTLE. */
+/*!
+ * @brief           Throttled wrapped INFO message; see LUNAR_LOG_THROTTLE.
+ */
 #define LUNAR_LOG_INFO_THROTTLE(logger, clock, periodMs, ...)                  \
     LUNAR_LOG_THROTTLE(                                                        \
         (logger),                                                              \
@@ -127,7 +137,9 @@
         periodMs,                                                              \
         __VA_ARGS__)
 
-/*! @brief Throttled wrapped WARN message; see LUNAR_LOG_THROTTLE. */
+/*!
+ * @brief           Throttled wrapped WARN message; see LUNAR_LOG_THROTTLE.
+ */
 #define LUNAR_LOG_WARN_THROTTLE(logger, clock, periodMs, ...)                  \
     LUNAR_LOG_THROTTLE(                                                        \
         (logger),                                                              \
@@ -136,7 +148,9 @@
         periodMs,                                                              \
         __VA_ARGS__)
 
-/*! @brief Throttled wrapped ERROR message; see LUNAR_LOG_THROTTLE. */
+/*!
+ * @brief           Throttled wrapped ERROR message; see LUNAR_LOG_THROTTLE.
+ */
 #define LUNAR_LOG_ERROR_THROTTLE(logger, clock, periodMs, ...)                 \
     LUNAR_LOG_THROTTLE(                                                        \
         (logger),                                                              \

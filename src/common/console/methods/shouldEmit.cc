@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "console/objects/ThrottleGate.h"
+#include "console/objects/ThrottleGateClass.h"
 
 namespace common::console
 {

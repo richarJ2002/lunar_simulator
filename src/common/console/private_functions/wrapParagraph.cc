@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "console/private_functions.h"
+#include "console/private_functions/private_functions.h"
 
 /* C++ Standard Library Includes */
 #include <algorithm>
@@ -27,7 +27,7 @@ void wrapParagraph(const std::string        &paragraph_in,
 
     /* Text capacity of the line being built, excluding any indent. */
     const auto lineCapacity =
-        [&isFirstLine, &CONTINUATION_INDENT, lineLength_in]()
+        [&isFirstLine, &CONTINUATION_INDENT, lineLength_in]() -> std::size_t
     {
         return isFirstLine ? lineLength_in
                            : lineLength_in - CONTINUATION_INDENT.size();

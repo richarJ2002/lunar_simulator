@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.16)
 # record per line. Consumers include "console/console.h", so the include
 # root is this module's parent directory.
 add_library(common_console STATIC
-  methods/ThrottleGate/shouldEmit.cc
+  methods/shouldEmit.cc
   private_functions/wrapParagraph.cc
   public_functions/formatText.cc
   public_functions/isSeverityEnabled.cc

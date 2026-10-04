@@ -7,13 +7,13 @@
  */
 
 /* Matching Declaration Include */
-#include "console/public_functions.h"
+#include "console/public_functions/public_functions.h"
 
 /* C++ Standard Library Includes */
 #include <algorithm>
 
 /* Other Project Module Includes */
-#include "console/private_functions.h"
+#include "console/private_functions/private_functions.h"
 
 namespace common::console
 {
