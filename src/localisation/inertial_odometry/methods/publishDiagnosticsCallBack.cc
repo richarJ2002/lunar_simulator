@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -51,7 +51,7 @@ void InertialOdometryNode::publishDiagnosticsCallBack()
     if (isCalibrated)
     {
         diagnostics::addRealValue("calibration_complete_stamp_s",
-                                  calibrationCompleteStampS,
+                                  calibrationCompleteStamp_s,
                                   status);
     }
 

@@ -1,5 +1,5 @@
 /*!
- * @File:         InertialOdometryNode.h
+ * @File:         InertialOdometryNodeClass.h
  *
  * @Brief:        Declares the IMU-based dead-reckoning odometry node.
  *
@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_H
-#define LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
+#define LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -44,8 +44,10 @@ namespace localisation::inertial_odometry
  *                  body-frame quaternion, removes lunar gravity, and
  *                  double-integrates velocity and position. Pure inertial
  *                  integration drifts without external correction; bias
- *                  calibration assumes the rover is stationary when the node
- *                  starts. It is intended for a single-threaded executor.
+  *                  calibration assumes the rover is stationary when the node
+  *                  starts. Callbacks run in the node's mutually exclusive
+  *                  default callback group, which is the only
+  *                  synchronization this integration needs.
  */
 class InertialOdometryNode final : public rclcpp::Node
 {
@@ -97,13 +99,13 @@ class InertialOdometryNode final : public rclcpp::Node
         cutoffHz = declare_parameter<double>("low_pass_cutoff_hz", 5.0);
 
         /* Local gravity magnitude to remove from acceleration, in m/s^2. */
-        gravityMps2 = declare_parameter<double>("gravity_mps2", 1.62);
+        gravity_mPs2 = declare_parameter<double>("gravity_mps2", 1.62);
 
         /* Whether local gravity is subtracted from acceleration at all. */
         removeGravity = declare_parameter<bool>("remove_gravity", true);
 
         /* Largest inter-sample dt accepted before a sample is dropped. */
-        maximumDtS = declare_parameter<double>("maximum_dt_s", 0.25);
+        maximumDt_s = declare_parameter<double>("maximum_dt_s", 0.25);
 
         /* Number of startup samples averaged into the stationary bias;
          * clamp to at least one so calibration can always complete. */
@@ -112,11 +114,11 @@ class InertialOdometryNode final : public rclcpp::Node
             declare_parameter<std::int64_t>("calibration_samples", 100)));
 
         /* Odom-frame acceleration deadband in m/s^2. */
-        accelerationDeadbandMps2 =
+        accelerationDeadband_mPs2 =
             declare_parameter<double>("acceleration_deadband_mps2", 0.02);
 
         /* Body-frame angular-rate deadband in rad/s. */
-        angularRateDeadbandRadps =
+        angularRateDeadband_radPs =
             declare_parameter<double>("angular_rate_deadband_radps", 0.002);
 
         /* Publish integrated odometry with default reliable QoS. */
@@ -133,8 +135,8 @@ class InertialOdometryNode final : public rclcpp::Node
         imuSubscription = create_subscription<sensor_msgs::msg::Imu>(
             imuTopic,
             rclcpp::SensorDataQoS(),
-            [this](sensor_msgs::msg::Imu::ConstSharedPtr p_message)
-            { handleImuCallBack(*p_message); });
+            [this](sensor_msgs::msg::Imu::ConstSharedPtr p_message_in)
+            { handleImuCallBack(*p_message_in); });
 
         /* Report calibration status once per simulated second, on the
          * same clock as every other recorded topic. */
@@ -158,7 +160,7 @@ class InertialOdometryNode final : public rclcpp::Node
             imuTopic.c_str(),
             odometryTopic.c_str(),
             cutoffHz,
-            gravityMps2);
+            gravity_mPs2);
     }
 
     /*!
@@ -166,7 +168,7 @@ class InertialOdometryNode final : public rclcpp::Node
      *
      * @param[in]       stationaryMeanBody_in
      *                  Mean stationary accelerometer sample in body axes.
-     * @param[in]       gravityMagnitudeMps2_in
+     * @param[in]       gravityMagnitude_mPs2_in
      *                  Known local gravity magnitude in metres per second
      *                  squared.
      *
@@ -175,7 +177,7 @@ class InertialOdometryNode final : public rclcpp::Node
      */
     static tf2::Vector3 calculateGravitySpecificForceFixed(
         const tf2::Vector3 &stationaryMeanBody_in,
-        double gravityMagnitudeMps2_in);
+        double gravityMagnitude_mPs2_in);
 
     /*!
      * @brief           Removes fixed-frame gravity-specific force.
@@ -301,7 +303,7 @@ class InertialOdometryNode final : public rclcpp::Node
      * @frame           N/A
      * @units           ROS seconds
      */
-    double calibrationCompleteStampS{0.0};
+    double calibrationCompleteStamp_s{0.0};
 
     /*!
      * @brief       Fixed frame in which integrated odometry is expressed.
@@ -321,22 +323,22 @@ class InertialOdometryNode final : public rclcpp::Node
     /*!
      * @brief       Local gravity magnitude removed from acceleration, in m/s^2.
      */
-    double gravityMps2{1.62};
+    double gravity_mPs2{1.62};
 
     /*!
      * @brief       Maximum accepted inter-sample duration in seconds.
      */
-    double maximumDtS{0.25};
+    double maximumDt_s{0.25};
 
     /*!
      * @brief       Odom-frame acceleration deadband in m/s^2.
      */
-    double accelerationDeadbandMps2{0.02};
+    double accelerationDeadband_mPs2{0.02};
 
     /*!
      * @brief       Body-frame angular-rate deadband in rad/s.
      */
-    double angularRateDeadbandRadps{0.002};
+    double angularRateDeadband_radPs{0.002};
 
     /*!
      * @brief       Whether local gravity is subtracted from odom-frame
@@ -352,7 +354,7 @@ class InertialOdometryNode final : public rclcpp::Node
     /*!
      * @brief       Timestamp in seconds of the previously processed sample.
      */
-    double previousStampS{0.0};
+    double previousStamp_s{0.0};
 
     /*!
      * @brief       Low-pass filtered, bias-corrected body-frame acceleration in
@@ -393,12 +395,12 @@ class InertialOdometryNode final : public rclcpp::Node
      *              metres per second squared. Its direction is measured
      *              during calibration and need not align with fixed Z.
      */
-    tf2::Vector3 gravitySpecificForceFixedMps2{0.0, 0.0, 0.0};
+    tf2::Vector3 gravitySpecificForceFixed_mPs2{0.0, 0.0, 0.0};
 
     /*!
      * @brief       Integrated odom-frame velocity in m/s.
      */
-    std::array<double, 3> velocityMps{0.0, 0.0, 0.0};
+    std::array<double, 3> velocity_mPs{0.0, 0.0, 0.0};
 
     /*!
      * @brief       Integrated odom-frame position in m.
@@ -423,4 +425,4 @@ class InertialOdometryNode final : public rclcpp::Node
 
 } /* namespace localisation::inertial_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H */

@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -51,13 +51,13 @@ void InertialOdometryNode::publishOdometry(
 
     /*!
      * nav_msgs::msg::Odometry twist is defined in the child (body) frame by
-     * ROS convention, but velocityMps is integrated in the odom frame, so it
+     * ROS convention, but velocity_mPs is integrated in the odom frame, so it
      * is rotated into the body frame with the orientation's transpose
      * before publishing.
      */
-    const tf2::Vector3 velocityOdom(velocityMps[0],
-                                    velocityMps[1],
-                                    velocityMps[2]);
+    const tf2::Vector3 velocityOdom(velocity_mPs[0],
+                                    velocity_mPs[1],
+                                    velocity_mPs[2]);
 
     /* Rotate the odom-frame velocity into the body frame. */
     const tf2::Vector3 velocityBody =

@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 /* Data include */
 /* None */

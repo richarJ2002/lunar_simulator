@@ -11,7 +11,7 @@
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -29,7 +29,7 @@ void InertialOdometryNode::handleImuCallBack(
     const sensor_msgs::msg::Imu &message)
 {
     /* Convert this sample's ROS timestamp to seconds. */
-    const double stampS = stampToSeconds(message.header.stamp);
+    const double stamp_s = stampToSeconds(message.header.stamp);
 
     /*!
      * The very first sample only establishes a time origin: there is no
@@ -39,7 +39,7 @@ void InertialOdometryNode::handleImuCallBack(
     if (!hasPreviousStamp)
     {
         /* Remember this sample's time as the integration origin. */
-        previousStampS = stampS;
+        previousStamp_s = stamp_s;
 
         /* Every later sample now has a previous stamp to diff against. */
         hasPreviousStamp = true;
@@ -49,13 +49,13 @@ void InertialOdometryNode::handleImuCallBack(
     }
 
     /* Elapsed time since the previous processed sample. */
-    const double dtS = stampS - previousStampS;
+    const double dt_s = stamp_s - previousStamp_s;
 
     /* Advance the reference stamp for the next call. */
-    previousStampS = stampS;
+    previousStamp_s = stamp_s;
 
     /* Reject a non-positive or excessively large step. */
-    if (!(dtS > 0.0) || dtS > maximumDtS)
+    if (!(dt_s > 0.0) || dt_s > maximumDt_s)
     {
         /*!
          * A non-positive or excessively large dt (clock jump, dropped
@@ -66,7 +66,7 @@ void InertialOdometryNode::handleImuCallBack(
                                 *get_clock(),
                                 2000,
                                 "IMU dt %.3f s invalid; sample ignored",
-                                dtS);
+                                dt_s);
 
         /* Skip integration entirely for this sample. */
         return;
@@ -83,7 +83,8 @@ void InertialOdometryNode::handleImuCallBack(
 
     /* gain = dt / (tau + dt) is the discrete-time equivalent of that
      * continuous first-order filter for this sample's dt. */
-    const double gain = timeConstantS > 0.0 ? dtS / (timeConstantS + dtS) : 1.0;
+    const double gain =
+        timeConstantS > 0.0 ? dt_s / (timeConstantS + dt_s) : 1.0;
 
     /* Copy the raw body-frame acceleration into a fixed-size array so it
      * can be indexed uniformly with the angular rate below. */
@@ -105,7 +106,7 @@ void InertialOdometryNode::handleImuCallBack(
          * the average can be taken once enough samples are collected,
          * instead of integrating position/velocity from noisy raw data.
          */
-        for (std::size_t index = 0U; index < 3U; ++index)
+        for (std::size_t index = 0U; index < 3U; index++)
         {
             /* Accumulate this axis's raw acceleration sample. */
             accelerationCalibrationSum[index] += rawAcceleration[index];
@@ -115,13 +116,13 @@ void InertialOdometryNode::handleImuCallBack(
         }
 
         /* One more calibration sample has now been observed. */
-        ++calibrationSampleCount;
+        calibrationSampleCount++;
 
         /* The calibration window has just been completed. */
         if (calibrationSampleCount == calibrationSampleTarget)
         {
             std::array<double, 3> stationaryAccelerationMean{};
-            for (std::size_t index = 0U; index < 3U; ++index)
+            for (std::size_t index = 0U; index < 3U; index++)
             {
                 stationaryAccelerationMean[index] =
                     accelerationCalibrationSum[index] /
@@ -134,13 +135,13 @@ void InertialOdometryNode::handleImuCallBack(
             /* Static acceleration cannot separate all bias components from
              * gravity. Use measured direction plus known lunar magnitude as
              * the gravity prior; the residual is the accelerometer-bias prior. */
-            gravitySpecificForceFixedMps2 =
+            gravitySpecificForceFixed_mPs2 =
                 calculateGravitySpecificForceFixed(
                     tf2::Vector3(stationaryAccelerationMean[0],
                                  stationaryAccelerationMean[1],
                                  stationaryAccelerationMean[2]),
-                    gravityMps2);
-            if (gravitySpecificForceFixedMps2.length2() <= 1.0e-24)
+                    gravity_mPs2);
+            if (gravitySpecificForceFixed_mPs2.length2() <= 1.0e-24)
             {
                 LUNAR_LOG_ERROR(get_logger(),
                                 "IMU calibration found no gravity");
@@ -150,20 +151,20 @@ void InertialOdometryNode::handleImuCallBack(
                 return;
             }
 
-            for (std::size_t index = 0U; index < 3U; ++index)
+            for (std::size_t index = 0U; index < 3U; index++)
             {
                 accelerationBias[index] =
                     stationaryAccelerationMean[index] -
-                    gravitySpecificForceFixedMps2[
+                    gravitySpecificForceFixed_mPs2[
                         static_cast<int>(index)];
                 filteredAcceleration[index] =
-                    gravitySpecificForceFixedMps2[static_cast<int>(index)];
+                    gravitySpecificForceFixed_mPs2[static_cast<int>(index)];
                 filteredAngularRate[index] = 0.0;
             }
 
             /* Record calibration completion once, for the operator log and
              * the recorded calibration status. */
-            calibrationCompleteStampS = stampS;
+            calibrationCompleteStamp_s = stamp_s;
             LUNAR_LOG_INFO(get_logger(),
                            "IMU calibration complete (%d samples)",
                            calibrationSampleTarget);
@@ -173,7 +174,7 @@ void InertialOdometryNode::handleImuCallBack(
         return;
     }
 
-    for (std::size_t index = 0U; index < 3U; ++index)
+    for (std::size_t index = 0U; index < 3U; index++)
     {
         /*!
          * Exponential smoothing: filtered += gain * (bias-corrected raw -
@@ -190,7 +191,7 @@ void InertialOdometryNode::handleImuCallBack(
                     filteredAngularRate[index]);
 
         /* This axis's filtered angular rate is within the deadband. */
-        if (std::abs(filteredAngularRate[index]) < angularRateDeadbandRadps)
+        if (std::abs(filteredAngularRate[index]) < angularRateDeadband_radPs)
         {
             /*!
              * Suppress residual noise near zero rotation rate so a
@@ -224,7 +225,7 @@ void InertialOdometryNode::handleImuCallBack(
             tf2::Vector3(filteredAngularRate[0] / angularMagnitude,
                          filteredAngularRate[1] / angularMagnitude,
                          filteredAngularRate[2] / angularMagnitude),
-            angularMagnitude * dtS);
+            angularMagnitude * dt_s);
     }
     else
     {
@@ -262,26 +263,26 @@ void InertialOdometryNode::handleImuCallBack(
         accelerationOdom = calculateGravityFreeAccelerationFixed(
             orientation,
             accelerationBody,
-            gravitySpecificForceFixedMps2);
+            gravitySpecificForceFixed_mPs2);
     }
 
     /*!
      * Snap x to exactly zero if it lies within the acceleration deadband,
      * suppressing residual noise while stationary.
      */
-    if (std::abs(accelerationOdom.x()) < accelerationDeadbandMps2)
+    if (std::abs(accelerationOdom.x()) < accelerationDeadband_mPs2)
     {
         accelerationOdom.setX(0.0);
     }
 
     /* Apply the same deadband to the y component. */
-    if (std::abs(accelerationOdom.y()) < accelerationDeadbandMps2)
+    if (std::abs(accelerationOdom.y()) < accelerationDeadband_mPs2)
     {
         accelerationOdom.setY(0.0);
     }
 
     /* Apply the same deadband to the z component. */
-    if (std::abs(accelerationOdom.z()) < accelerationDeadbandMps2)
+    if (std::abs(accelerationOdom.z()) < accelerationDeadband_mPs2)
     {
         accelerationOdom.setZ(0.0);
     }
@@ -290,18 +291,18 @@ void InertialOdometryNode::handleImuCallBack(
      * Keep the pre-update velocity so trapezoidal integration below can average
      * it with the just-updated velocity.
      */
-    const std::array<double, 3> previousVelocity = velocityMps;
+    const std::array<double, 3> previousVelocity = velocity_mPs;
 
     /* Euler-integrate the x component of acceleration into velocity. */
-    velocityMps[0] += accelerationOdom.x() * dtS;
+    velocity_mPs[0] += accelerationOdom.x() * dt_s;
 
     /* Euler-integrate the y component of acceleration into velocity. */
-    velocityMps[1] += accelerationOdom.y() * dtS;
+    velocity_mPs[1] += accelerationOdom.y() * dt_s;
 
     /* Euler-integrate the z component of acceleration into velocity. */
-    velocityMps[2] += accelerationOdom.z() * dtS;
+    velocity_mPs[2] += accelerationOdom.z() * dt_s;
 
-    for (std::size_t index = 0U; index < 3U; ++index)
+    for (std::size_t index = 0U; index < 3U; index++)
     {
         /*!
          * Trapezoidal integration of velocity into position, using the
@@ -310,7 +311,7 @@ void InertialOdometryNode::handleImuCallBack(
          * guaranteed uniform.
          */
         positionM[index] +=
-            0.5 * (previousVelocity[index] + velocityMps[index]) * dtS;
+            0.5 * (previousVelocity[index] + velocity_mPs[index]) * dt_s;
     }
 
     /*!

@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 /* External Library Includes */
 #include <tf2/LinearMath/Matrix3x3.h>
