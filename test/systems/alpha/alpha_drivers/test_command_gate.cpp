@@ -9,7 +9,7 @@
 #include <limits>
 #include <optional>
 
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace
 {

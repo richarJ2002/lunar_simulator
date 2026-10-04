@@ -20,7 +20,7 @@
 /* None */
 
 /* Object Includes */
-#include "objects/ImuRingBuffer.h"
+#include "objects/ImuRingBufferClass.h"
 
 namespace
 {
@@ -32,9 +32,9 @@ ImuSample createSample(const double timestamp_s_in)
 {
     ImuSample sample;
     sample.timestamp_s = timestamp_s_in;
-    sample.linearAcceleration_body_mPerS2 =
+    sample.linearAcceleration_body_mPs2 =
         Eigen::Vector3d(timestamp_s_in, 2.0, 3.0);
-    sample.angularVelocity_body_radPerS =
+    sample.angularVelocity_body_radPs =
         Eigen::Vector3d(4.0, 5.0, timestamp_s_in);
     return sample;
 }
@@ -65,18 +65,18 @@ TEST(ImuRingBuffer, RejectsDuplicateReversedAndNonFiniteSamples)
     EXPECT_FALSE(buffer.push(createSample(2.0)));
     EXPECT_FALSE(buffer.push(createSample(1.0)));
 
-    ImuSample invalidTimestampSample = createSample(3.0);
-    invalidTimestampSample.timestamp_s =
+    ImuSample invalidTimestamp_sample = createSample(3.0);
+    invalidTimestamp_sample.timestamp_s =
         std::numeric_limits<double>::quiet_NaN();
-    EXPECT_FALSE(buffer.push(invalidTimestampSample));
+    EXPECT_FALSE(buffer.push(invalidTimestamp_sample));
 
     ImuSample invalidAccelerationSample = createSample(3.0);
-    invalidAccelerationSample.linearAcceleration_body_mPerS2.x() =
+    invalidAccelerationSample.linearAcceleration_body_mPs2.x() =
         std::numeric_limits<double>::infinity();
     EXPECT_FALSE(buffer.push(invalidAccelerationSample));
 
     ImuSample invalidAngularVelocitySample = createSample(3.0);
-    invalidAngularVelocitySample.angularVelocity_body_radPerS.z() =
+    invalidAngularVelocitySample.angularVelocity_body_radPs.z() =
         std::numeric_limits<double>::quiet_NaN();
     EXPECT_FALSE(buffer.push(invalidAngularVelocitySample));
 

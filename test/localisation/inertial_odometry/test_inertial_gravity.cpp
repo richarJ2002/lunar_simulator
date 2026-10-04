@@ -6,7 +6,7 @@
  * @date            21/09/2026
  */
 
-#include "objects/InertialOdometryNode.h"
+#include "objects/InertialOdometryNodeClass.h"
 
 #include <gtest/gtest.h>
 

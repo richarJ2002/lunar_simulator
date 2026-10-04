@@ -6,7 +6,7 @@
  * @date            21/09/2026
  */
 
-#include "objects/GroundTruthNode.h"
+#include "objects/GroundTruthNodeClass.h"
 
 #include <gtest/gtest.h>
 

@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 #include <cmath>
 #include <limits>

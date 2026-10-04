@@ -19,7 +19,7 @@
 #include <cstddef>
 #include <random>
 
-#include "public_functions.h"
+#include "public_functions/public_functions.h"
 
 namespace
 {
@@ -31,9 +31,9 @@ const std::array<double, 6> WHEEL_X_M{0.64, 0.64, 0.0, 0.0, -0.72, -0.72};
 const std::array<double, 6> WHEEL_Y_M{0.60, -0.60, 0.60, -0.60, 0.60, -0.60};
 
 /* Encoder noise 0.015 rad/s at radius 0.1425 m, steering 0.002 rad. */
-constexpr double ROLLING_STDDEV_MPS  = 0.1425 * 0.015;
+constexpr double ROLLING_STDDEV_mPs  = 0.1425 * 0.015;
 constexpr double STEERING_STDDEV_RAD = 0.002;
-constexpr double LATERAL_STDDEV_MPS  = 0.003;
+constexpr double LATERAL_STDDEV_mPs  = 0.003;
 
 /*!
  * @brief           Wheel angles and speeds produced by an exact body twist.
@@ -41,22 +41,22 @@ constexpr double LATERAL_STDDEV_MPS  = 0.003;
 struct WheelMeasurements
 {
     std::array<double, 6> steeringAngle_rad{};
-    std::array<double, 6> rollingSpeed_mps{};
+    std::array<double, 6> rollingSpeed_mPs{};
 };
 
-WheelMeasurements makeExactMeasurements(double vx_mps_in,
-                                        double vy_mps_in,
-                                        double wz_radps_in)
+WheelMeasurements makeExactMeasurements(double vx_mPs_in,
+                                        double vy_mPs_in,
+                                        double wz_radPs_in)
 {
     WheelMeasurements measurements;
     for (std::size_t index = 0U; index < 6U; ++index)
     {
-        const double wheelVx = vx_mps_in - wz_radps_in * WHEEL_Y_M[index];
-        const double wheelVy = vy_mps_in + wz_radps_in * WHEEL_X_M[index];
-        measurements.rollingSpeed_mps[index] = std::hypot(wheelVx, wheelVy);
+        const double wheelVx = vx_mPs_in - wz_radPs_in * WHEEL_Y_M[index];
+        const double wheelVy = vy_mPs_in + wz_radPs_in * WHEEL_X_M[index];
+        measurements.rollingSpeed_mPs[index] = std::hypot(wheelVx, wheelVy);
         /* A stationary wheel keeps its steering at zero. */
         measurements.steeringAngle_rad[index] =
-            measurements.rollingSpeed_mps[index] > 0.0
+            measurements.rollingSpeed_mPs[index] > 0.0
                 ? std::atan2(wheelVy, wheelVx)
                 : 0.0;
     }
@@ -66,23 +66,23 @@ WheelMeasurements makeExactMeasurements(double vx_mps_in,
 wheel::BodyTwistSolution solve(const WheelMeasurements &measurements_in)
 {
     return wheel::solveBodyTwist(measurements_in.steeringAngle_rad,
-                                 measurements_in.rollingSpeed_mps,
+                                 measurements_in.rollingSpeed_mPs,
                                  WHEEL_X_M,
                                  WHEEL_Y_M,
-                                 ROLLING_STDDEV_MPS,
+                                 ROLLING_STDDEV_mPs,
                                  STEERING_STDDEV_RAD,
-                                 LATERAL_STDDEV_MPS);
+                                 LATERAL_STDDEV_mPs);
 }
 
 void expectTwist(const wheel::BodyTwistSolution &solution_in,
-                 double                          vx_mps_in,
-                 double                          vy_mps_in,
-                 double                          wz_radps_in)
+                 double                          vx_mPs_in,
+                 double                          vy_mPs_in,
+                 double                          wz_radPs_in)
 {
     ASSERT_TRUE(solution_in.isValid);
-    EXPECT_NEAR(solution_in.twist_body.x(), vx_mps_in, 1.0e-12);
-    EXPECT_NEAR(solution_in.twist_body.y(), vy_mps_in, 1.0e-12);
-    EXPECT_NEAR(solution_in.twist_body.z(), wz_radps_in, 1.0e-12);
+    EXPECT_NEAR(solution_in.twist_body.x(), vx_mPs_in, 1.0e-12);
+    EXPECT_NEAR(solution_in.twist_body.y(), vy_mPs_in, 1.0e-12);
+    EXPECT_NEAR(solution_in.twist_body.z(), wz_radPs_in, 1.0e-12);
 }
 
 TEST(WheelSolve, ParallelStraightDriving)
@@ -104,26 +104,26 @@ TEST(WheelSolve, NoisyParallelWheelsDoNotAmplifyLateralVelocity)
      * leave |vy| at noise level. */
     std::mt19937                     generator(7302028);
     std::normal_distribution<double> steeringNoise(0.0, 0.004);
-    std::normal_distribution<double> speedNoise(0.0, ROLLING_STDDEV_MPS);
-    for (const double speed_mps : {0.0, 0.018})
+    std::normal_distribution<double> speedNoise(0.0, ROLLING_STDDEV_mPs);
+    for (const double speed_mPs : {0.0, 0.018})
     {
-        double maximumLateralMps = 0.0;
+        double maximumLateral_mPs = 0.0;
         for (int trial = 0; trial < 200; ++trial)
         {
             WheelMeasurements measurements =
-                makeExactMeasurements(speed_mps, 0.0, 0.0);
+                makeExactMeasurements(speed_mPs, 0.0, 0.0);
             for (std::size_t index = 0U; index < 6U; ++index)
             {
                 measurements.steeringAngle_rad[index] +=
                     steeringNoise(generator);
-                measurements.rollingSpeed_mps[index] += speedNoise(generator);
+                measurements.rollingSpeed_mPs[index] += speedNoise(generator);
             }
             const wheel::BodyTwistSolution solution = solve(measurements);
             ASSERT_TRUE(solution.isValid);
-            maximumLateralMps =
-                std::max(maximumLateralMps, std::abs(solution.twist_body.y()));
+            maximumLateral_mPs =
+                std::max(maximumLateral_mPs, std::abs(solution.twist_body.y()));
         }
-        EXPECT_LT(maximumLateralMps, 0.001) << "speed " << speed_mps;
+        EXPECT_LT(maximumLateral_mPs, 0.001) << "speed " << speed_mPs;
     }
 }
 
@@ -173,23 +173,23 @@ TEST(WheelSolve, InvalidInputsAreRejected)
     const WheelMeasurements measurements =
         makeExactMeasurements(0.018, 0.0, 0.0);
     EXPECT_FALSE(wheel::solveBodyTwist(measurements.steeringAngle_rad,
-                                       measurements.rollingSpeed_mps,
+                                       measurements.rollingSpeed_mPs,
                                        WHEEL_X_M,
                                        WHEEL_Y_M,
                                        0.0,
                                        STEERING_STDDEV_RAD,
-                                       LATERAL_STDDEV_MPS)
+                                       LATERAL_STDDEV_mPs)
                      .isValid);
     EXPECT_FALSE(wheel::solveBodyTwist(measurements.steeringAngle_rad,
-                                       measurements.rollingSpeed_mps,
+                                       measurements.rollingSpeed_mPs,
                                        WHEEL_X_M,
                                        WHEEL_Y_M,
-                                       ROLLING_STDDEV_MPS,
+                                       ROLLING_STDDEV_mPs,
                                        STEERING_STDDEV_RAD,
                                        -1.0)
                      .isValid);
     WheelMeasurements corrupt   = measurements;
-    corrupt.rollingSpeed_mps[2] = std::nan("");
+    corrupt.rollingSpeed_mPs[2] = std::nan("");
     EXPECT_FALSE(solve(corrupt).isValid);
 }
 

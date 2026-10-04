@@ -12,10 +12,10 @@
 #include <gtest/gtest.h>
 
 /* Object Include */
-#include "objects/AlphaKalmanFilterNode.h"
-#include "objects/ContinuousExtendedKalmanFilter.h"
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
+#include "objects/ContinuousExtendedKalmanFilterClass.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 /* Data include */
 #include <Eigen/Dense>
@@ -187,7 +187,7 @@ TEST(KalmanMath, BiasCorrectedStationaryImuDoesNotMoveState)
         static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
     const Eigen::Vector3d accelerometerBias(0.01, -0.02, 0.03);
     const Eigen::Vector3d gyroscopeBias(0.001, -0.002, 0.003);
-    const Eigen::Vector3d gravity_fixed_mPerS2(0.0, 0.0, -1.62);
+    const Eigen::Vector3d gravity_fixed_mPs2(0.0, 0.0, -1.62);
     state.segment<3>(accelerometerBiasIndex) = accelerometerBias;
     state.segment<3>(gyroscopeBiasIndex)     = gyroscopeBias;
 
@@ -197,7 +197,7 @@ TEST(KalmanMath, BiasCorrectedStationaryImuDoesNotMoveState)
                                        Eigen::Vector3d(0.0, 0.0, 1.62) +
                                            accelerometerBias,
                                        gyroscopeBias,
-                                       gravity_fixed_mPerS2,
+                                       gravity_fixed_mPs2,
                                        0.02,
                                        predictedState,
                                        processJacobian);
@@ -218,23 +218,23 @@ TEST(KalmanMath, CorrectedAttitudeControlsGravityProjection)
     tiltedState(quaternionIndex + 1) = wrongAttitude.y();
     tiltedState(quaternionIndex + 2) = wrongAttitude.z();
     tiltedState(quaternionIndex + 3) = wrongAttitude.w();
-    const Eigen::Vector3d gravity_fixed_mPerS2(0.0, 0.0, -1.62);
-    const Eigen::Vector3d stationarySpecificForce_body_mPerS2(0.0, 0.0, 1.62);
+    const Eigen::Vector3d gravity_fixed_mPs2(0.0, 0.0, -1.62);
+    const Eigen::Vector3d stationarySpecificForce_body_mPs2(0.0, 0.0, 1.62);
 
     AlphaFilter::NominalStateVector wrongPrediction;
     AlphaFilter::NominalStateVector correctedPrediction;
     AlphaFilter::ErrorStateMatrix   processJacobian;
     AlphaFilter::calculateProcessModel(tiltedState,
-                                       stationarySpecificForce_body_mPerS2,
+                                       stationarySpecificForce_body_mPs2,
                                        Eigen::Vector3d::Zero(),
-                                       gravity_fixed_mPerS2,
+                                       gravity_fixed_mPs2,
                                        1.0,
                                        wrongPrediction,
                                        processJacobian);
     AlphaFilter::calculateProcessModel(correctedState,
-                                       stationarySpecificForce_body_mPerS2,
+                                       stationarySpecificForce_body_mPs2,
                                        Eigen::Vector3d::Zero(),
-                                       gravity_fixed_mPerS2,
+                                       gravity_fixed_mPs2,
                                        1.0,
                                        correctedPrediction,
                                        processJacobian);
@@ -412,23 +412,23 @@ TEST(KalmanMath, HoldsSingleSampleImuShock)
         systems::alpha::alpha_localisation::alpha_kalman_filter::ImuSample;
     ImuSample previous;
     previous.timestamp_s                    = 10.00;
-    previous.linearAcceleration_body_mPerS2 = Eigen::Vector3d(0.1, 0.0, 1.62);
+    previous.linearAcceleration_body_mPs2 = Eigen::Vector3d(0.1, 0.0, 1.62);
 
     /* The wheel-contact sample recorded in run ab4r2-increment. */
     ImuSample shock;
     shock.timestamp_s                    = 10.02;
-    shock.linearAcceleration_body_mPerS2 = Eigen::Vector3d(5.19, 7.75, 12.68);
-    shock.angularVelocity_body_radPerS   = Eigen::Vector3d(0.01, 0.0, 0.0);
-    const Eigen::Vector3d change = shock.linearAcceleration_body_mPerS2 -
-                                   previous.linearAcceleration_body_mPerS2;
+    shock.linearAcceleration_body_mPs2 = Eigen::Vector3d(5.19, 7.75, 12.68);
+    shock.angularVelocity_body_radPs   = Eigen::Vector3d(0.01, 0.0, 0.0);
+    const Eigen::Vector3d change = shock.linearAcceleration_body_mPs2 -
+                                   previous.linearAcceleration_body_mPs2;
 
     ASSERT_TRUE(AlphaFilter::holdImuShock(previous, 3.0, shock));
-    EXPECT_TRUE(shock.linearAcceleration_body_mPerS2.isApprox(
-        previous.linearAcceleration_body_mPerS2));
+    EXPECT_TRUE(shock.linearAcceleration_body_mPs2.isApprox(
+        previous.linearAcceleration_body_mPs2));
     EXPECT_TRUE(
-        shock.discardedDeltaVelocity_body_mPerS.isApprox(change * 0.02, 1e-12));
+        shock.discardedDeltaVelocity_body_mPs.isApprox(change * 0.02, 1e-12));
     /* The gyro is not gated. */
-    EXPECT_DOUBLE_EQ(shock.angularVelocity_body_radPerS.x(), 0.01);
+    EXPECT_DOUBLE_EQ(shock.angularVelocity_body_radPs.x(), 0.01);
 }
 
 TEST(KalmanMath, ImuShockGateAcceptsNoiseAndPersistentChange)
@@ -437,31 +437,31 @@ TEST(KalmanMath, ImuShockGateAcceptsNoiseAndPersistentChange)
         systems::alpha::alpha_localisation::alpha_kalman_filter::ImuSample;
     ImuSample previous;
     previous.timestamp_s                    = 10.00;
-    previous.linearAcceleration_body_mPerS2 = Eigen::Vector3d(0.0, 0.0, 1.62);
+    previous.linearAcceleration_body_mPs2 = Eigen::Vector3d(0.0, 0.0, 1.62);
 
     /* Just below the threshold: accepted unchanged. */
     ImuSample noisy;
     noisy.timestamp_s = 10.02;
-    noisy.linearAcceleration_body_mPerS2 =
-        previous.linearAcceleration_body_mPerS2 +
+    noisy.linearAcceleration_body_mPs2 =
+        previous.linearAcceleration_body_mPs2 +
         Eigen::Vector3d(2.99, 0.0, 0.0);
     const ImuSample noisyCopy = noisy;
     EXPECT_FALSE(AlphaFilter::holdImuShock(previous, 3.0, noisy));
-    EXPECT_TRUE(noisy.linearAcceleration_body_mPerS2.isApprox(
-        noisyCopy.linearAcceleration_body_mPerS2));
-    EXPECT_TRUE(noisy.discardedDeltaVelocity_body_mPerS.isZero(0.0));
+    EXPECT_TRUE(noisy.linearAcceleration_body_mPs2.isApprox(
+        noisyCopy.linearAcceleration_body_mPs2));
+    EXPECT_TRUE(noisy.discardedDeltaVelocity_body_mPs.isZero(0.0));
 
     /* A zero threshold disables the gate. */
     ImuSample large                      = noisy;
-    large.linearAcceleration_body_mPerS2 = Eigen::Vector3d(50.0, 0.0, 1.62);
+    large.linearAcceleration_body_mPs2 = Eigen::Vector3d(50.0, 0.0, 1.62);
     EXPECT_FALSE(AlphaFilter::holdImuShock(previous, 0.0, large));
 
     /* After one held sample, a change that persists is accepted. */
     ImuSample heldPrevious = previous;
-    heldPrevious.discardedDeltaVelocity_body_mPerS =
+    heldPrevious.discardedDeltaVelocity_body_mPs =
         Eigen::Vector3d(0.1, 0.0, 0.0);
     EXPECT_FALSE(AlphaFilter::holdImuShock(heldPrevious, 3.0, large));
-    EXPECT_DOUBLE_EQ(large.linearAcceleration_body_mPerS2.x(), 50.0);
+    EXPECT_DOUBLE_EQ(large.linearAcceleration_body_mPs2.x(), 50.0);
 
     /* A non-increasing stamp has no interval to integrate over. */
     ImuSample stale   = large;
@@ -916,34 +916,34 @@ TEST(KalmanMath, VisualRollingSpeedRecoversWheelSlipRatio)
     constexpr double      wheelYM           = 0.60;
     constexpr double      steeringRad       = 0.31;
     const Eigen::Vector3d visualTwistBody(0.18, 0.03, 0.07);
-    const double          expectedRollingSpeedMps =
+    const double          expectedRollingSpeed_mPs =
         std::cos(steeringRad) *
             (visualTwistBody.x() - wheelYM * visualTwistBody.z()) +
         std::sin(steeringRad) *
             (visualTwistBody.y() + wheelXM * visualTwistBody.z());
-    const double rawWheelSpeedMps =
-        expectedRollingSpeedMps / (1.0 - expectedSlipRatio);
+    const double rawWheelSpeed_mPs =
+        expectedRollingSpeed_mPs / (1.0 - expectedSlipRatio);
     const double observedSlipRatio =
-        1.0 - expectedRollingSpeedMps / rawWheelSpeedMps;
+        1.0 - expectedRollingSpeed_mPs / rawWheelSpeed_mPs;
 
     EXPECT_NEAR(observedSlipRatio, expectedSlipRatio, 1.0e-12);
-    EXPECT_NEAR(rawWheelSpeedMps * (1.0 - observedSlipRatio),
-                expectedRollingSpeedMps,
+    EXPECT_NEAR(rawWheelSpeed_mPs * (1.0 - observedSlipRatio),
+                expectedRollingSpeed_mPs,
                 1.0e-12);
 }
 
 TEST(KalmanMath, VisualRollingSpeedRecoversForwardSkidRatio)
 {
     constexpr double expectedSlipRatio       = -0.20;
-    constexpr double expectedRollingSpeedMps = 0.18;
-    const double     rawWheelSpeedMps =
-        expectedRollingSpeedMps / (1.0 - expectedSlipRatio);
+    constexpr double expectedRollingSpeed_mPs = 0.18;
+    const double     rawWheelSpeed_mPs =
+        expectedRollingSpeed_mPs / (1.0 - expectedSlipRatio);
     const double observedSlipRatio =
-        1.0 - expectedRollingSpeedMps / rawWheelSpeedMps;
+        1.0 - expectedRollingSpeed_mPs / rawWheelSpeed_mPs;
 
     EXPECT_NEAR(observedSlipRatio, expectedSlipRatio, 1.0e-12);
-    EXPECT_NEAR(rawWheelSpeedMps * (1.0 - observedSlipRatio),
-                expectedRollingSpeedMps,
+    EXPECT_NEAR(rawWheelSpeed_mPs * (1.0 - observedSlipRatio),
+                expectedRollingSpeed_mPs,
                 1.0e-12);
 }
 

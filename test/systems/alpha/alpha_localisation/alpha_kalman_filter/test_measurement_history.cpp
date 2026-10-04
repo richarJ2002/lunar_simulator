@@ -21,7 +21,7 @@
 /* None */
 
 /* Object Includes */
-#include "objects/MeasurementHistory.h"
+#include "objects/MeasurementHistoryClass.h"
 
 namespace
 {

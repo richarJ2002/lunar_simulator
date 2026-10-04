@@ -11,8 +11,8 @@
 #include <cmath>
 #include <limits>
 
-#include "estimate_filter/objects/EstimateLowPassFilter.h"
-#include "estimate_filter/public_functions.h"
+#include "estimate_filter/objects/EstimateLowPassFilterClass.h"
+#include "estimate_filter/public_functions/public_functions.h"
 
 namespace
 {
@@ -161,7 +161,7 @@ TEST(EstimateFilter, ConfigurationMustBePositiveAndFinite)
     zeroCutoff.positionCutoffHz = 0.0;
     EXPECT_FALSE(lpf::isConfigurationValid(zeroCutoff));
     lpf::LowPassConfiguration infiniteGap;
-    infiniteGap.maximumGapS = std::numeric_limits<double>::infinity();
+    infiniteGap.maximumGap_s = std::numeric_limits<double>::infinity();
     EXPECT_FALSE(lpf::isConfigurationValid(infiniteGap));
 }
 
