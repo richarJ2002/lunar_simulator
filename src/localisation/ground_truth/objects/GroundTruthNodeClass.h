@@ -1,5 +1,5 @@
 /*!
- * @File:         GroundTruthNode.h
+ * @File:         GroundTruthNodeClass.h
  *
  * @Brief:        Declares the Alpha ground-truth path/TF publishing node.
  *
@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_H
-#define LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
+#define LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -41,8 +41,8 @@ namespace localisation::ground_truth
  * The first valid input pose defines `alpha/startup_fixed`. The node publishes
  * that full initial position and attitude as a static transform from `map`,
  * then expresses all comparison odometry below the fixed frame. No estimator
- * consumes this private truth-derived transform. It is intended for a
- * single-threaded executor.
+ * consumes this private truth-derived transform. Callbacks run in the node's
+ * mutually exclusive default callback group.
  */
 class GroundTruthNode final : public rclcpp::Node
 {
@@ -137,8 +137,8 @@ class GroundTruthNode final : public rclcpp::Node
         p_odometrySubscription = create_subscription<nav_msgs::msg::Odometry>(
             odometryTopic,
             rclcpp::QoS(10).reliable(),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
-            { handleOdometryCallBack(*p_message); });
+            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message_in)
+            { handleOdometryCallBack(*p_message_in); });
 
         /* Topic wiring is already captured by the run's parameter
          * snapshot, so it is debug detail rather than operator output. */
@@ -301,4 +301,4 @@ class GroundTruthNode final : public rclcpp::Node
 
 } /* namespace localisation::ground_truth */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H */

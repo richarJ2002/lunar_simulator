@@ -11,7 +11,7 @@
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/GroundTruthNode.h"
+#include "objects/GroundTruthNodeClass.h"
 
 /* Data include */
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>

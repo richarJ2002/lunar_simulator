@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/GroundTruthNode.h"
+#include "objects/GroundTruthNodeClass.h"
 
 /* Data Includes */
 #include <geometry_msgs/msg/transform_stamped.hpp>

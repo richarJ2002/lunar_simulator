@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/GroundTruthNode.h"
+#include "objects/GroundTruthNodeClass.h"
 
 /* Data include */
 #include <geometry_msgs/msg/pose_stamped.hpp>

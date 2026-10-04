@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/GroundTruthNode.h"
+#include "objects/GroundTruthNodeClass.h"
 
 namespace localisation::ground_truth
 {

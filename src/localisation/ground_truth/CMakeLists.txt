@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 
 add_library(ground_truth STATIC
-  src/methods/calculateFixedFromBody.cc
-  src/methods/stampToNanoseconds.cc
-  src/methods/isPoseValid.cc
-  src/methods/handleOdometryCallBack.cc
-  src/methods/appendPathPose.cc
-  src/methods/publishTransform.cc
-  src/methods/publishStartupFixedTransform.cc
+  methods/calculateFixedFromBody.cc
+  methods/stampToNanoseconds.cc
+  methods/isPoseValid.cc
+  methods/handleOdometryCallBack.cc
+  methods/appendPathPose.cc
+  methods/publishTransform.cc
+  methods/publishStartupFixedTransform.cc
 )
 
 target_compile_features(ground_truth PUBLIC cxx_std_17)
 
-target_include_directories(ground_truth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(ground_truth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(ground_truth common_console)
 
