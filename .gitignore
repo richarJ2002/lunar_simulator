@@ -29,3 +29,7 @@ __pycache__/
 # Opencode artifacts
 AGENTS.md
 .agents/*
+
+# Claude Code artifacts
+CLAUDE.md
+.claude/
