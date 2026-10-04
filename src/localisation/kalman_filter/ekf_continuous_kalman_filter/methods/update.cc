@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/ContinuousExtendedKalmanFilter.h"
+#include "objects/ContinuousExtendedKalmanFilterClass.h"
 
 /* Generic Libraries */
 /* None */

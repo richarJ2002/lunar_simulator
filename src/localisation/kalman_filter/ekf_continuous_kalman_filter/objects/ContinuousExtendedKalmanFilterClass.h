@@ -1,5 +1,5 @@
 /*!
- * @File:         ContinuousExtendedKalmanFilter.h
+ * @File:         ContinuousExtendedKalmanFilterClass.h
  *
  * @Brief:        Declares a reusable, model-agnostic continuous-discrete
  *                EKF math engine.
@@ -8,14 +8,14 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_H
-#define LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_CLASS_H
+#define LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_CLASS_H
 
 /* Function Includes */
 /* None */
 
 /* Object Include */
-#include "objects/FilterStatus.h"
+#include "objects/FilterStatusEnum.h"
 
 /* Data include */
 #include <Eigen/Dense>
@@ -58,17 +58,36 @@ class ContinuousExtendedKalmanFilter
      */
     ContinuousExtendedKalmanFilter() noexcept = default;
 
-    /*! @brief Releases the filter without external side effects. */
+    /*!
+     * @brief           Releases the filter without external side effects.
+     */
     ~ContinuousExtendedKalmanFilter() noexcept = default;
 
+    /*!
+     * @brief           Copying is forbidden: the engine retains
+     *                      mutable filter state with single ownership.
+     */
     ContinuousExtendedKalmanFilter(
         const ContinuousExtendedKalmanFilter &otherFilter_in) = delete;
-    ContinuousExtendedKalmanFilter &
-    operator=(const ContinuousExtendedKalmanFilter &otherFilter_in) = delete;
+
+    /*!
+     * @brief           Copy assignment is forbidden; see above.
+     */
+    ContinuousExtendedKalmanFilter &operator=(
+        const ContinuousExtendedKalmanFilter &otherFilter_in) = delete;
+
+    /*!
+     * @brief           Moving is forbidden; the retained state stays
+     *                      with its constructing owner.
+     */
     ContinuousExtendedKalmanFilter(
         ContinuousExtendedKalmanFilter &&otherFilter_in) = delete;
+
+    /*!
+     * @brief           Move assignment is forbidden; see above.
+     */
     ContinuousExtendedKalmanFilter &
-    operator=(ContinuousExtendedKalmanFilter &&otherFilter_in) = delete;
+        operator=(ContinuousExtendedKalmanFilter &&otherFilter_in) = delete;
 
     /* ---------------------------------------------------------------------- *
      * PUBLIC METHODS
@@ -79,20 +98,24 @@ class ContinuousExtendedKalmanFilter
      *
      * @param[in]       stateSize_in
      *                  Number of scalar states; must be positive.
+     *
      * @param[in]       initialState_in
      *                  Initial state, of length stateSize_in.
+     *
      * @param[in]       initialCovariance_in
      *                  Initial state covariance, stateSize_in x
      *                  stateSize_in.
+     *
      * @return          Lifecycle status.
+     *
      * @post            A successful call permits predict(), update(),
      *                  getState(), getCovariance(), setState() and
      *                  terminate() calls.
      */
     [[nodiscard]] FilterStatus
-    initialize(Eigen::Index stateSize_in,
-              const Eigen::VectorXd &initialState_in,
-              const Eigen::MatrixXd &initialCovariance_in) noexcept;
+        initialize(Eigen::Index           stateSize_in,
+                   const Eigen::VectorXd &initialState_in,
+                   const Eigen::MatrixXd &initialCovariance_in) noexcept;
 
     /*!
      * @brief           Advances state and covariance by one bounded
@@ -108,21 +131,26 @@ class ContinuousExtendedKalmanFilter
      *                  calling this repeatedly to cover a longer gap,
      *                  re-evaluating stateDerivative_in/processJacobian_in
      *                  at the new state (via getState()) before each call.
+     *
      * @param[in]       stateDerivative_in
      *                  f(x) evaluated at the current state, length
      *                  stateSize.
+     *
      * @param[in]       processJacobian_in
      *                  F = df/dx evaluated at the current state, stateSize
      *                  x stateSize.
+     *
      * @param[in]       processNoise_in
      *                  Continuous process-noise density, stateSize x
      *                  stateSize, in state units squared per second.
+     *
      * @return          Lifecycle or numerical status.
      */
     [[nodiscard]] FilterStatus
-    predict(double dtS_in, const Eigen::VectorXd &stateDerivative_in,
-           const Eigen::MatrixXd &processJacobian_in,
-           const Eigen::MatrixXd &processNoise_in) noexcept;
+        predict(double                 dtS_in,
+                const Eigen::VectorXd &stateDerivative_in,
+                const Eigen::MatrixXd &processJacobian_in,
+                const Eigen::MatrixXd &processNoise_in) noexcept;
 
     /*!
      * @brief           Applies one discrete Joseph-form measurement
@@ -134,17 +162,20 @@ class ContinuousExtendedKalmanFilter
      *                  already wrapped/normalized by the caller where the
      *                  observed quantity requires it (e.g. an angle); length
      *                  m.
+     *
      * @param[in]       observationMatrix_in
      *                  H = dh/dx evaluated at the current state, m x
      *                  stateSize.
+     *
      * @param[in]       measurementNoise_in
      *                  Measurement-noise covariance, m x m.
+     *
      * @return          Lifecycle or numerical status.
      */
     [[nodiscard]] FilterStatus
-    update(const Eigen::VectorXd &innovation_in,
-          const Eigen::MatrixXd &observationMatrix_in,
-          const Eigen::MatrixXd &measurementNoise_in) noexcept;
+        update(const Eigen::VectorXd &innovation_in,
+               const Eigen::MatrixXd &observationMatrix_in,
+               const Eigen::MatrixXd &measurementNoise_in) noexcept;
 
     /*!
      * @brief           Clears state and returns to the uninitialized
@@ -170,42 +201,46 @@ class ContinuousExtendedKalmanFilter
 
     /*!
      * @brief           Overwrites the current state, e.g. after the caller
-     *                   wraps an angular component into its canonical
-     *                   range.
+     *                  wraps an angular component into its canonical
+     *                  range.
      *
      * @param[in]       state_in
      *                  Replacement state, length stateSize.
      * @return          Lifecycle or numerical status.
      */
-    [[nodiscard]] FilterStatus setState(const Eigen::VectorXd &state_in) noexcept;
+    [[nodiscard]] FilterStatus
+        setState(const Eigen::VectorXd &state_in) noexcept;
 
     /*!
      * @brief           Applies a validated covariance-coordinate transform.
      *
-     * Computes P' = J P J^T and validates the resulting covariance. This is
-     * intended for model-specific error-state reset Jacobians without exposing
-     * an unchecked covariance setter.
+     *                  Computes P' = J P J^T and validates the resulting
+     *                  covariance. This is intended for model-specific
+     *                  error-state reset Jacobians without exposing an
+     *                  unchecked covariance setter.
      *
      * @param[in]       transform_in
      *                  Square stateSize-by-stateSize reset transform.
      *
      * @return          Lifecycle, input, or numerical status.
      */
-    [[nodiscard]] FilterStatus applyCovarianceTransform(
-        const Eigen::MatrixXd &transform_in) noexcept;
+    [[nodiscard]] FilterStatus
+        applyCovarianceTransform(const Eigen::MatrixXd &transform_in) noexcept;
 
     /*!
      * @brief           Restores a previously validated state and covariance.
      *
      * @param[in]       state_in
      *                  State checkpoint matching the configured state size.
+     *
      * @param[in]       covariance_in
      *                  Finite symmetric PSD covariance checkpoint.
+     *
      * @return          Lifecycle, input, or numerical status.
      */
-    [[nodiscard]] FilterStatus restore(
-        const Eigen::VectorXd &state_in,
-        const Eigen::MatrixXd &covariance_in) noexcept;
+    [[nodiscard]] FilterStatus
+        restore(const Eigen::VectorXd &state_in,
+                const Eigen::MatrixXd &covariance_in) noexcept;
 
   private:
     /*!
@@ -213,10 +248,11 @@ class ContinuousExtendedKalmanFilter
      *
      * @param[in]       covariance_in
      *                  Candidate square covariance matrix.
+     *
      * @return          True when valid within numerical roundoff tolerance.
      */
-    static bool isCovarianceValid(
-        const Eigen::MatrixXd &covariance_in) noexcept;
+    static bool
+        isCovarianceValid(const Eigen::MatrixXd &covariance_in) noexcept;
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
@@ -246,4 +282,5 @@ class ContinuousExtendedKalmanFilter
 
 } /* namespace localisation::kalman_filter::ekf_continuous_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_CONTINUOUS_EKF_CLASS_H \
+        */

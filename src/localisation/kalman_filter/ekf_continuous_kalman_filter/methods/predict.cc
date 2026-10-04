@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/ContinuousExtendedKalmanFilter.h"
+#include "objects/ContinuousExtendedKalmanFilterClass.h"
 
 /* Generic Libraries */
 #include <cmath>
@@ -26,6 +26,7 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
     const Eigen::MatrixXd &processJacobian_in,
     const Eigen::MatrixXd &processNoise_in) noexcept
 {
+    /* Nothing to propagate before initialization. */
     if (!isInitialized)
     {
         return FilterStatus::FILTER_STATUS_NOT_INITIALIZED;
@@ -50,21 +51,25 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
 
+    /* Every caller input must be finite before use. */
     if (!stateDerivative_in.allFinite() || !processJacobian_in.allFinite() ||
         !processNoise_in.allFinite())
     {
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
 
-    /* Compute into temporaries so a rejected numerical step cannot corrupt
-     * the last valid posterior retained by the engine. */
-    const Eigen::VectorXd predictedState =
-        state + stateDerivative_in * dtS_in;
+    /*!
+     * Compute into temporaries so a rejected numerical step cannot corrupt
+     * the last valid posterior retained by the engine.
+     */
+    const Eigen::VectorXd predictedState = state + stateDerivative_in * dtS_in;
 
-    /* First-order discretization Phi = I + F dt. Propagating covariance as
+    /*!
+     * First-order discretization Phi = I + F dt. Propagating covariance as
      * Phi P Phi^T + Q dt preserves positive semidefiniteness; directly
      * applying forward Euler to Pdot can make a valid covariance indefinite
-     * when strongly coupled state blocks begin at very different scales. */
+     * when strongly coupled state blocks begin at very different scales.
+     */
     const Eigen::MatrixXd transitionMatrix =
         Eigen::MatrixXd::Identity(stateSize, stateSize) +
         processJacobian_in * dtS_in;
@@ -79,8 +84,7 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
     predictedCovariance =
         0.5 * (predictedCovariance + predictedCovariance.transpose());
 
-    if (!predictedState.allFinite() ||
-        !isCovarianceValid(predictedCovariance))
+    if (!predictedState.allFinite() || !isCovarianceValid(predictedCovariance))
     {
         /*!
          * A non-finite result means this step's linearization broke down
@@ -89,6 +93,7 @@ FilterStatus ContinuousExtendedKalmanFilter::predict(
         return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
     }
 
+    /* Commit the validated prediction to the retained state. */
     state      = predictedState;
     covariance = predictedCovariance;
 

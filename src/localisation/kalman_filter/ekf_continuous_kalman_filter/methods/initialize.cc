@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/ContinuousExtendedKalmanFilter.h"
+#include "objects/ContinuousExtendedKalmanFilterClass.h"
 
 /* Generic Libraries */
 /* None */
@@ -56,7 +56,7 @@ FilterStatus ContinuousExtendedKalmanFilter::initialize(
      * Every diagonal covariance entry must be strictly positive for the matrix
      * to remain a valid covariance.
      */
-    for (Eigen::Index index = 0; index < stateSize_in; ++index)
+    for (Eigen::Index index = 0; index < stateSize_in; index++)
     {
         if (initialCovariance_in(index, index) <= 0.0)
         {

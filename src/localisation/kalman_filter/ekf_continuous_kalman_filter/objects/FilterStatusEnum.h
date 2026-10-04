@@ -1,5 +1,5 @@
 /*!
- * @File:         FilterStatus.h
+ * @File:         FilterStatusEnum.h
  *
  * @Brief:        Declares continuous EKF lifecycle result values.
  *
@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_H
-#define LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_ENUM_H
+#define LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_ENUM_H
 
 /* Function Includes */
 /* None */
@@ -34,22 +34,26 @@ enum class FilterStatus : std::uint8_t
      * @brief       Operation completed successfully.
      */
     FILTER_STATUS_SUCCESS = 0U,
+
     /*!
      * @brief       Configuration contains a non-positive state size, a
      *              dimension mismatch, or non-finite/invalid covariance
      *              values.
      */
     FILTER_STATUS_INVALID_CONFIGURATION = 1U,
+
     /*!
      * @brief       Call input contains a dimension mismatch against the
      *              configured state size, or non-finite/invalid values.
      */
     FILTER_STATUS_INVALID_INPUT = 2U,
+
     /*!
      * @brief       Operation was requested before the filter was
      *              initialized.
      */
     FILTER_STATUS_NOT_INITIALIZED = 3U,
+
     /*!
      * @brief       Matrix operations produced a non-finite result.
      */
@@ -58,4 +62,5 @@ enum class FilterStatus : std::uint8_t
 
 } /* namespace localisation::kalman_filter::ekf_continuous_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_EKF_CONTINUOUS_KALMAN_FILTER_FILTER_STATUS_ENUM_H \
+        */
