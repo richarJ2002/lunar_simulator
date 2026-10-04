@@ -7,7 +7,8 @@ packages. Entry point is `src/systems/alpha/alpha_node/main.cpp`.
 
 ## AlphaNode composition
 
-Placeholder. One `AlphaNode` process composes the driver, four localisation
+Placeholder. The physical system (Alpha today) composes modules into one
+`AlphaNode` process: the driver, four localisation
 producers, the Alpha ESKF, the Ackermann controller, the estimate low-pass
 filter, and the start-up supervisor:
 

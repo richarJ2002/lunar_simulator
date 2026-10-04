@@ -4,9 +4,12 @@
 
 ## Vision
 
-`lunar_simulator` is a proving ground for Mars-mission rover architectures:
-autonomy stacks (localisation, control, supervision) developed and tested in
-simulation first, on the Moon today and on Mars surfaces next.
+`lunar_simulator` is the workspace for developing rover autonomy stacks,
+starting with basic algorithms and building toward mission-specific systems.
+ROS is used for quick development of qualified algorithms; lower-level
+software and middleware are kept reusable so proven work ports quickly, with
+custom middleware/firmware in practical application. The codebase aims toward
+JSF-compliant R&D practice (proposed, not certified).
 
 ## What and where
 
@@ -15,8 +18,12 @@ colcon workspace: `src/` (nodes and libraries), `parameters/` (runtime
 tuning), `launch/` (system launch), `worlds/` (environments), `config/`
 (bridge wiring), `post_processing/` (run reports).
 
-Alpha is the first and currently only system: a single-process `AlphaNode`
-rover driving on the `lunar_surface` world.
+A physical system composes modules. Alpha is the current and only physical
+system: an ExoMars-scale replica (Europe's first rover) used as the first
+step to establish an architecture for low-level code that people can pick up
+quickly. Its near-term goal is following simple commands. Current modules
+(`localisation`, `control`, `common`) are basic first implementations and
+will grow with new modules and mission-specific stacks.
 
 ## Start here
 

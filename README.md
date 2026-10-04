@@ -75,8 +75,7 @@ Full documentation lives in `docs/` (MkDocs Material site):
 | TODO (Mars, second system) | [docs/todo.md](docs/todo.md) |
 | Contributing docs | [docs/contributing-docs.md](docs/contributing-docs.md) |
 
-Project site: `https://richarJ2002.github.io/lunar_simulator` (planned
-publishing target — not yet confirmed live; see WP-04.07).
+Project site: <https://richarJ2002.github.io/lunar_simulator> (live).
 
 ## What moved
 

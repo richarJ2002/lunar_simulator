@@ -10,6 +10,10 @@ theme:
 plugins:
   - search
 
+extra_javascript:
+  - https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
+
 markdown_extensions:
   - admonition
   - pymdownx.superfences:

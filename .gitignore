@@ -14,6 +14,7 @@ build/*
 install/*
 log/*
 test_runs/
+site/
 
 # Blender ignores
 *.blend

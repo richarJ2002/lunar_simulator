@@ -2,10 +2,11 @@
 
 > Code is truth — values below describe; YAML/source linked wins on conflict.
 
-Purpose: Alpha is the first and currently only rover system — a six-wheel
-Ackermann rover driven by one `AlphaNode` process. It fuses four odometry
-producers through an Alpha-specific ESKF and gates motion on start-up
-readiness.
+Purpose: Alpha is the current physical system — an ExoMars-scale replica
+used as the first step to establish low-level code architecture that people
+can pick up quickly. Its near-term goal is following simple commands. In
+software it runs as one `AlphaNode` process fusing four odometry producers
+through an Alpha-specific ESKF and gating motion on start-up readiness.
 
 Where: `src/systems/alpha/`
 ([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/)).
