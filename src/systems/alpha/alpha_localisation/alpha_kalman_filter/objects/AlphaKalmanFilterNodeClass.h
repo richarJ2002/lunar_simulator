@@ -1,5 +1,5 @@
 /*!
- * @File:         AlphaKalmanFilterNode.h
+ * @File:         AlphaKalmanFilterNodeClass.h
  *
  * @Brief:        Declares the ROS wrapper that fuses Alpha odometry through
  *                the reusable continuous-discrete EKF engine.
@@ -8,24 +8,24 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_H
+#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
+#define LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/ContinuousExtendedKalmanFilter.h"
-#include "objects/ErrorStateIndex.h"
-#include "objects/FilterStatus.h"
-#include "objects/FusedMeasurement.h"
-#include "objects/ImuRingBuffer.h"
-#include "objects/ImuSample.h"
-#include "objects/MeasurementFusionResult.h"
-#include "objects/MeasurementHistory.h"
-#include "objects/MeasurementKind.h"
-#include "objects/SourceDiagnostics.h"
-#include "objects/StateIndex.h"
+#include "objects/ContinuousExtendedKalmanFilterClass.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/FilterStatusEnum.h"
+#include "objects/FusedMeasurementStruct.h"
+#include "objects/ImuRingBufferClass.h"
+#include "objects/ImuSampleStruct.h"
+#include "objects/MeasurementFusionResultEnum.h"
+#include "objects/MeasurementHistoryClass.h"
+#include "objects/MeasurementKindEnum.h"
+#include "objects/SourceDiagnosticsStruct.h"
+#include "objects/StateIndexEnum.h"
 
 /* Data include */
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
@@ -76,8 +76,9 @@ namespace systems::alpha::alpha_localisation::alpha_kalman_filter
  * unconditionally broadcast as the odom_frame -> base_frame transform and
  * appended to a retained, rate-limited path on estimated_path_topic (see
  * publishEstimatedPath()). This node owns the ContinuousExtendedKalmanFilter
- * instance exclusively and is intended for a single-threaded executor; it is
- * not thread-safe.
+ * instance exclusively; its callbacks run in the node's mutually exclusive
+ * default callback group, which is the only synchronization this integration
+ * needs.
  */
 class AlphaKalmanFilterNode final : public rclcpp::Node
 {
@@ -224,9 +225,9 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
          * corresponding 1 kHz /clock update reaches this node; before this
          * tolerance every such message was rejected as negative age
          * (LOC-4). */
-        maximumFutureStampS =
+        maximumFutureStamp_s =
             declare_parameter<double>("maximum_future_stamp_s", 0.02);
-        if (!(maximumFutureStampS >= 0.0))
+        if (!(maximumFutureStamp_s >= 0.0))
         {
             throw std::invalid_argument(
                 "maximum_future_stamp_s must not be negative");
@@ -234,9 +235,9 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
         /* Sample-to-sample specific-force change above which one IMU
          * sample is held as a contact shock; zero disables the gate. */
-        imuShockThresholdMps2 =
+        imuShockThreshold_mPs2 =
             declare_parameter<double>("imu_shock_threshold_mps2", 3.0);
-        if (!(imuShockThresholdMps2 >= 0.0))
+        if (!(imuShockThreshold_mPs2 >= 0.0))
         {
             throw std::invalid_argument(
                 "imu_shock_threshold_mps2 must not be negative");
@@ -255,8 +256,9 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
         const std::int64_t configuredInitializationSamples =
             declare_parameter<std::int64_t>("imu_initialization_samples", 100);
-        gravityMagnitudeMps2 = declare_parameter<double>("gravity_mps2", 1.62);
-        if (configuredInitializationSamples <= 0 || gravityMagnitudeMps2 <= 0.0)
+        gravityMagnitude_mPs2 = declare_parameter<double>("gravity_mps2", 1.62);
+        if (configuredInitializationSamples <= 0 ||
+            gravityMagnitude_mPs2 <= 0.0)
         {
             throw std::invalid_argument(
                 "IMU initialization samples and gravity must be positive");
@@ -279,7 +281,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
          * filter follow that drift.
          */
         const std::string visualFusionMode =
-            declare_parameter<std::string>("visual_fusion_mode", "increment");
+            declare_parameter<std::string>("visual_fusion_mode", "pose");
         if (visualFusionMode != "pose" && visualFusionMode != "increment")
         {
             throw std::invalid_argument(
@@ -314,7 +316,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
         /* Variance floor applied to wheel-odometry measurements. */
         wheelVariance =
-            declare_parameter<double>("wheel_measurement_variance", 2.5e-4);
+            declare_parameter<double>("wheel_measurement_variance", 0.10);
 
         /* Raw-IMU and bias random-walk noise are continuous-time variances. */
         processNoise = ErrorStateMatrix::Zero();
@@ -350,9 +352,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
          * enough visual corrections, settled for a while, and not
          * diverged. The variance limit is a divergence guard, not a
          * start-up criterion: visual-odometry covariance legitimately
-         * grows while driving. It applies in pose mode only; in
-         * increment mode position is dead-reckoned and its variance grows
-         * without bound by design. */
+         * grows while driving. */
         const std::int64_t configuredReadinessVisualUpdates =
             declare_parameter<std::int64_t>("readiness_minimum_visual_updates",
                                             3);
@@ -409,20 +409,20 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         p_imuSubscription = create_subscription<sensor_msgs::msg::Imu>(
             rawImuTopic,
             rclcpp::SensorDataQoS(),
-            [this](sensor_msgs::msg::Imu::ConstSharedPtr p_message)
-            { handleImuCallBack(*p_message); });
+            [this](sensor_msgs::msg::Imu::ConstSharedPtr p_message_in)
+            { handleImuCallBack(*p_message_in); });
 
         /* Every visual-odometry message is fused as a visual measurement. */
         p_visualSubscription = create_subscription<nav_msgs::msg::Odometry>(
             visualTopic,
             rclcpp::SensorDataQoS(),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
+            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message_in)
             {
                 /* Delegate to the shared fusion logic, tagged so it applies
                  * the visual-specific observation model, variance and age
                  * check. */
                 handleMeasurementCallBack(
-                    *p_message,
+                    *p_message_in,
                     MeasurementKind::MEASUREMENT_KIND_VISUAL);
             });
 
@@ -430,12 +430,12 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         p_wheelSubscription = create_subscription<nav_msgs::msg::Odometry>(
             wheelTopic,
             rclcpp::SensorDataQoS(),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
+            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message_in)
             {
                 /* Delegate to the shared fusion logic, tagged so it applies
                  * the wheel-specific observation model and variance. */
                 handleMeasurementCallBack(
-                    *p_message,
+                    *p_message_in,
                     MeasurementKind::MEASUREMENT_KIND_WHEEL);
             });
 
@@ -577,7 +577,10 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     static constexpr Eigen::Index ERROR_STATE_SIZE =
         static_cast<Eigen::Index>(ErrorStateIndex::ERROR_STATE_INDEX_COUNT);
 
-    /*! @brief Number of wheels in the retained neutral compatibility output. */
+    /*!
+     * @brief           Number of wheels in the retained neutral compatibility
+     *                  output.
+     */
     static constexpr Eigen::Index WHEEL_COUNT = 6;
 
     /*!
@@ -585,12 +588,12 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *
      * @param[in]       state_in
      *                  Nominal state at the beginning of the interval.
-     * @param[in]       specificForceBodyMps2_in
+     * @param[in]       specificForceBody_mPs2_in
      *                  Raw body-frame specific force in metres per second
      *                  squared.
      * @param[in]       angularVelocityBodyRadPerS_in
      *                  Raw body-frame angular velocity in radians per second.
-     * @param[in]       gravityAccelerationFixedMps2_in
+     * @param[in]       gravityAccelerationFixed_mPs2_in
      *                  Physical gravity vector in startup-fixed, in metres per
      *                  second squared.
      * @param[in]       timeStepS_in
@@ -602,9 +605,9 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     static void calculateProcessModel(
         const NominalStateVector &state_in,
-        const Eigen::Vector3d    &specificForceBodyMps2_in,
+        const Eigen::Vector3d    &specificForceBody_mPs2_in,
         const Eigen::Vector3d    &angularVelocityBodyRadPerS_in,
-        const Eigen::Vector3d    &gravityAccelerationFixedMps2_in,
+        const Eigen::Vector3d    &gravityAccelerationFixed_mPs2_in,
         double                    timeStepS_in,
         NominalStateVector       &predictedState_out,
         ErrorStateMatrix         &processJacobian_out);
@@ -614,7 +617,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *
      * @param[in]       state_in
      *                  Nominal state containing fixed velocity and attitude.
-     * @param[out]      predictedVelocityBodyMps_out
+     * @param[out]      predictedVelocityBody_mPs_out
      *                  Predicted body-frame x/y/z velocity in metres per
      *                  second.
      * @param[out]      observationMatrix_out
@@ -622,7 +625,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     static void calculateWheelVelocityObservation(
         const NominalStateVector       &state_in,
-        Eigen::Vector3d                &predictedVelocityBodyMps_out,
+        Eigen::Vector3d                &predictedVelocityBody_mPs_out,
         WheelVelocityObservationMatrix &observationMatrix_out);
 
     /*!
@@ -707,7 +710,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *
      * @param[in]       previousSample_in
      *                  Newest retained sample, as stored (possibly held).
-     * @param[in]       thresholdMps2_in
+     * @param[in]       threshold_mPs2_in
      *                  Largest accepted change in metres per second squared;
      *                  zero disables the gate.
      * @param[in,out]   sample_inout
@@ -716,7 +719,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @return          True when sample_inout was held as a shock.
      */
     static bool holdImuShock(const ImuSample &previousSample_in,
-                             double           thresholdMps2_in,
+                             double           threshold_mPs2_in,
                              ImuSample       &sample_inout);
 
     /*!
@@ -849,7 +852,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *
      * @param[in]       state_in
      *                  Nominal state at which the model is evaluated.
-     * @param[in]       specificForceBodyMps2_in
+     * @param[in]       specificForceBody_mPs2_in
      *                  Raw body-frame specific force in metres per second
      *                  squared.
      * @param[in]       angularVelocityBodyRadPerS_in
@@ -863,7 +866,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      */
     void computeProcessModel(
         const NominalStateVector &state_in,
-        const Eigen::Vector3d    &specificForceBodyMps2_in,
+        const Eigen::Vector3d    &specificForceBody_mPs2_in,
         const Eigen::Vector3d    &angularVelocityBodyRadPerS_in,
         double                    timeStepS_in,
         NominalStateVector       &predictedState_out,
@@ -874,12 +877,12 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                   timestamp, re-linearizing computeProcessModel() at
      *                   the engine's current state every bounded substep.
      *
-     * @param[in]       targetTimestampS_in
+     * @param[in]       targetTimestamp_s_in
      *                  Monotonic target time in seconds; must not precede
      *                  the filter's current time.
      * @return          Lifecycle or numerical status.
      */
-    FilterStatus predictTo(double targetTimestampS_in,
+    FilterStatus predictTo(double targetTimestamp_s_in,
                            bool   shouldSaveCheckpoints_in = true);
 
     /*!
@@ -890,25 +893,25 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                  discarded velocity change rotated into
      *                  startup-fixed by the current nominal attitude.
      *
-     * @param[in]       deltaVelocityBodyMps_in
+     * @param[in]       deltaVelocityBody_mPs_in
      *                  Discarded velocity change in metres per second, body
      *                  frame.
      *
      * @return          Filter status from writing the inflated covariance.
      */
     [[nodiscard]] FilterStatus addShockVelocityUncertainty(
-        const Eigen::Vector3d &deltaVelocityBodyMps_in);
+        const Eigen::Vector3d &deltaVelocityBody_mPs_in);
 
     /*!
      * @brief           Initializes an identity nominal state and covariance.
      *
-     * @param[in]       timestampS_in
+     * @param[in]       timestamp_s_in
      *                  Sensor epoch at which the identity state is valid, in
      *                  ROS seconds.
      *
      * @return          Filter lifecycle status.
      */
-    [[nodiscard]] FilterStatus initializeFilter(double timestampS_in);
+    [[nodiscard]] FilterStatus initializeFilter(double timestamp_s_in);
 
     /*!
      * @brief           Saves or replaces the checkpoint at the current filter
@@ -921,16 +924,16 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @return          True when a suitable valid checkpoint was restored.
      */
     [[nodiscard]] bool
-        restoreFilterCheckpointAtOrBefore(double targetTimestampS_in);
+        restoreFilterCheckpointAtOrBefore(double targetTimestamp_s_in);
 
     /*!
      * @brief           Discards checkpoints newer than the supplied epoch.
      *
-     * @param[in]       targetTimestampS_in
+     * @param[in]       targetTimestamp_s_in
      *                  Epoch after which checkpoints are discarded, ROS
      *                  seconds.
      */
-    void discardFilterCheckpointsAfter(double targetTimestampS_in) noexcept;
+    void discardFilterCheckpointsAfter(double targetTimestamp_s_in) noexcept;
 
     /*!
      * @brief           Removes all retained rollback checkpoints.
@@ -950,7 +953,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                  Odometry measurement from one upstream source.
      * @param[in]       kind_in
      *                  Source that produced message_in.
-     * @param[in]       measurementTimestampS_in
+     * @param[in]       measurementTimestamp_s_in
      *                  Header stamp of message_in, ROS seconds.
      * @param[in]       intervalStartS_in
      *                  Previous visual stamp bounding an increment's
@@ -964,7 +967,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     [[nodiscard]] bool
         buildMeasurementRecord(const nav_msgs::msg::Odometry &message_in,
                                MeasurementKind                kind_in,
-                               double            measurementTimestampS_in,
+                               double            measurementTimestamp_s_in,
                                double            intervalStartS_in,
                                FusedMeasurement &record_out) const;
 
@@ -1005,18 +1008,18 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      *                  record that the gate now rejects is skipped but kept
      *                  for later replays.
      *
-     * @param[in]       rollbackTimestampS_in
+     * @param[in]       rollbackTimestamp_s_in
      *                  Epoch of the delayed measurement just fused, ROS
      *                  seconds; only records strictly after it replay.
-     * @param[in]       presentTimestampS_in
+     * @param[in]       presentTimestamp_s_in
      *                  Filter epoch before the rollback, ROS seconds.
      *
      * @return          Success, or the first prediction or numerical
      *                  failure; the caller then restores the present state.
      */
     [[nodiscard]] FilterStatus
-        replayMeasurementsAfter(double rollbackTimestampS_in,
-                                double presentTimestampS_in);
+        replayMeasurementsAfter(double rollbackTimestamp_s_in,
+                                double presentTimestamp_s_in);
 
     /*!
      * @brief           Injects one posterior error into the nominal state.
@@ -1498,7 +1501,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
     /*!
      * @brief       Minimum wheel measurement variance floor.
      */
-    double wheelVariance{2.5e-4};
+    double wheelVariance{0.10};
 
     /*!
      * @brief           Known lunar gravitational-acceleration magnitude.
@@ -1506,7 +1509,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           N/A
      * @units           metres per second squared
      */
-    double gravityMagnitudeMps2{1.62};
+    double gravityMagnitude_mPs2{1.62};
 
     /*!
      * @brief           Physical gravitational acceleration.
@@ -1514,7 +1517,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           startup-fixed
      * @units           metres per second squared
      */
-    Eigen::Vector3d gravityAcceleration_fixed_mPerS2{
+    Eigen::Vector3d gravityAcceleration_fixed_mPs2{
         Eigen::Vector3d(0.0, 0.0, -1.62)};
 
     /*!
@@ -1524,7 +1527,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           body
      * @units           metres per second squared
      */
-    Eigen::Vector3d initializationSpecificForceSum_body_mPerS2{
+    Eigen::Vector3d initializationSpecificForceSum_body_mPs2{
         Eigen::Vector3d::Zero()};
 
     /*!
@@ -1534,7 +1537,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           body
      * @units           radians per second
      */
-    Eigen::Vector3d initializationAngularVelocitySum_body_radPerS{
+    Eigen::Vector3d initializationAngularVelocitySum_body_radPs{
         Eigen::Vector3d::Zero()};
 
     /*!
@@ -1576,7 +1579,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           body
      * @units           radians per second
      */
-    Eigen::Vector3d latestAngularVelocity_body_radPerS{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d latestAngularVelocity_body_radPs{Eigen::Vector3d::Zero()};
 
     /*!
      * @brief       Maximum accepted visual-odometry measurement age in seconds.
@@ -1590,7 +1593,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           N/A
      * @units           N/A
      */
-    bool isVisualIncrementMode{true};
+    bool isVisualIncrementMode{false};
 
     /*!
      * @brief           Variance floor of an increment-mode visual body
@@ -1626,7 +1629,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           N/A
      * @units           seconds
      */
-    double maximumFutureStampS{0.02};
+    double maximumFutureStamp_s{0.02};
 
     /*!
      * @brief           Sample-to-sample specific-force change above which one
@@ -1636,7 +1639,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
      * @frame           body
      * @units           metres per second squared
      */
-    double imuShockThresholdMps2{3.0};
+    double imuShockThreshold_mPs2{3.0};
 
     /*!
      * @brief           Maximum permitted age of a held IMU sample.
@@ -1808,4 +1811,4 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_H */
+#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H */

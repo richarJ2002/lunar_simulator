@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -17,11 +17,11 @@
 #include <Eigen/Dense>
 
 /* Object Includes */
-#include "objects/FusedMeasurement.h"
-#include "objects/ImuSample.h"
-#include "objects/MeasurementFusionResult.h"
-#include "objects/MeasurementKind.h"
-#include "objects/StateIndex.h"
+#include "objects/FusedMeasurementStruct.h"
+#include "objects/ImuSampleStruct.h"
+#include "objects/MeasurementFusionResultEnum.h"
+#include "objects/MeasurementKindEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -34,7 +34,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL ? visualDiagnostics
                                                             : wheelDiagnostics;
     const double admissionTimestamp_s = now().seconds();
-    ++diagnostics.receivedCount;
+    diagnostics.receivedCount++;
     diagnostics.callbackAdmissionTimestamp_s = admissionTimestamp_s;
     diagnostics.processingStartTimestamp_s   = admissionTimestamp_s;
     diagnostics.publicationTimestamp_s =
@@ -56,8 +56,8 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     }
     if (!hasInitialState)
     {
-        ++diagnostics.ageRejectedCount;
-        ++diagnostics.preInitRejectedCount;
+        diagnostics.ageRejectedCount++;
+        diagnostics.preInitRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -68,7 +68,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     if (!std::isfinite(measurementTimestamp_s) || !std::isfinite(callbackAge_s))
     {
         /* A non-finite stamp is malformed input, not a timing decision. */
-        ++diagnostics.numericalRejectedCount;
+        diagnostics.numericalRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -76,19 +76,19 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
     /* Age rejections are split by reason so a dominant cause (a stamp
      * slightly ahead of a lagging /clock versus a genuinely stale message)
      * can be told apart from the periodic diagnostics alone. A stamp at
-     * most maximumFutureStampS ahead of this node's clock is fused: the
+     * most maximumFutureStamp_s ahead of this node's clock is fused: the
      * state is predicted forward to it like any newer measurement. */
-    if (callbackAge_s < -maximumFutureStampS)
+    if (callbackAge_s < -maximumFutureStamp_s)
     {
-        ++diagnostics.ageRejectedCount;
-        ++diagnostics.negativeAgeRejectedCount;
+        diagnostics.ageRejectedCount++;
+        diagnostics.negativeAgeRejectedCount++;
         finishDiagnostics();
         return;
     }
     if (callbackAge_s > maximumVisualMeasurementAgeS)
     {
-        ++diagnostics.ageRejectedCount;
-        ++diagnostics.tooOldRejectedCount;
+        diagnostics.ageRejectedCount++;
+        diagnostics.tooOldRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -99,8 +99,8 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         stateTimestamp_s - measurementTimestamp_s;
     if (std::abs(stateAgeFromMeasurement_s) > maximumVisualMeasurementAgeS)
     {
-        ++diagnostics.ageRejectedCount;
-        ++diagnostics.stateGapRejectedCount;
+        diagnostics.ageRejectedCount++;
+        diagnostics.stateGapRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -127,7 +127,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
                                 intervalStart_s,
                                 record))
     {
-        ++diagnostics.numericalRejectedCount;
+        diagnostics.numericalRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -151,8 +151,8 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
             stateTimestamp_s = presentCheckpoint.timestamp_s;
             latestState      = nominalState;
             latestCovariance = filter.getCovariance();
-            ++diagnostics.ageRejectedCount;
-            ++diagnostics.rollbackFailedCount;
+            diagnostics.ageRejectedCount++;
+            diagnostics.rollbackFailedCount++;
             finishDiagnostics();
             return;
         }
@@ -163,14 +163,14 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         const FilterStatus predictionStatus = predictTo(measurementTimestamp_s);
         if (predictionStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
-            ++diagnostics.ageRejectedCount;
-            ++diagnostics.predictFailedCount;
+            diagnostics.ageRejectedCount++;
+            diagnostics.predictFailedCount++;
             finishDiagnostics();
             return;
         }
     }
 
-    ++diagnostics.acceptedCount;
+    diagnostics.acceptedCount++;
     const MeasurementFusionResult fusionResult =
         fuseMeasurementRecord(record,
                               diagnostics.normalizedInnovationSquared,
@@ -190,11 +190,11 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         if (fusionResult ==
             MeasurementFusionResult::MEASUREMENT_FUSION_RESULT_NIS_REJECTED)
         {
-            ++diagnostics.nisRejectedCount;
+            diagnostics.nisRejectedCount++;
         }
         else
         {
-            ++diagnostics.numericalRejectedCount;
+            diagnostics.numericalRejectedCount++;
         }
         finishDiagnostics();
         return;
@@ -224,7 +224,7 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
             clearFilterCheckpoints();
             measurementHistory.clear();
             saveFilterCheckpoint();
-            ++diagnostics.numericalRejectedCount;
+            diagnostics.numericalRejectedCount++;
             logStepFailure(replayStatus);
             finishDiagnostics();
             return;
@@ -238,13 +238,13 @@ void AlphaKalmanFilterNode::handleMeasurementCallBack(
         {
             const Eigen::Index gyroscopeBiasIndex = static_cast<Eigen::Index>(
                 StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
-            latestAngularVelocity_body_radPerS =
-                latestSample->angularVelocity_body_radPerS -
+            latestAngularVelocity_body_radPs =
+                latestSample->angularVelocity_body_radPs -
                 nominalState.segment<3>(gyroscopeBiasIndex);
         }
     }
 
-    ++diagnostics.fusedCount;
+    diagnostics.fusedCount++;
     saveFilterCheckpoint();
     finishDiagnostics();
 }

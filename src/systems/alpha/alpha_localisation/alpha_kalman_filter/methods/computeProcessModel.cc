@@ -7,23 +7,23 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 void AlphaKalmanFilterNode::computeProcessModel(
     const NominalStateVector &state_in,
-    const Eigen::Vector3d    &specificForceBodyMps2_in,
+    const Eigen::Vector3d    &specificForceBody_mPs2_in,
     const Eigen::Vector3d    &angularVelocityBodyRadPerS_in,
     double                    timeStepS_in,
     NominalStateVector       &predictedState_out,
     ErrorStateMatrix         &processJacobian_out) const
 {
     calculateProcessModel(state_in,
-                          specificForceBodyMps2_in,
+                          specificForceBody_mPs2_in,
                           angularVelocityBodyRadPerS_in,
-                          gravityAcceleration_fixed_mPerS2,
+                          gravityAcceleration_fixed_mPs2,
                           timeStepS_in,
                           predictedState_out,
                           processJacobian_out);

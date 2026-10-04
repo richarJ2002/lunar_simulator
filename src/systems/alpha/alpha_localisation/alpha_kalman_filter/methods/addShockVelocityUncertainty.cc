@@ -8,21 +8,21 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* External Library Includes */
 #include <Eigen/Geometry>
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 AlphaKalmanFilterNode::FilterStatus
     AlphaKalmanFilterNode::addShockVelocityUncertainty(
-        const Eigen::Vector3d &deltaVelocityBodyMps_in)
+        const Eigen::Vector3d &deltaVelocityBody_mPs_in)
 {
     const Eigen::Index quaternionIndex =
         static_cast<Eigen::Index>(StateIndex::STATE_INDEX_QUATERNION_X);
@@ -35,14 +35,14 @@ AlphaKalmanFilterNode::FilterStatus
         nominalState(quaternionIndex + 1),
         nominalState(quaternionIndex + 2));
     quaternion_bodyToFixed.normalize();
-    const Eigen::Vector3d deltaVelocity_fixed_mPerS =
-        quaternion_bodyToFixed * deltaVelocityBodyMps_in;
+    const Eigen::Vector3d deltaVelocity_fixed_mPs =
+        quaternion_bodyToFixed * deltaVelocityBody_mPs_in;
 
     /* The velocity error-state is expressed in startup-fixed, like the
      * nominal velocity. */
     ErrorStateMatrix covariance = filter.getCovariance();
     covariance.block<3, 3>(errorVelocityIndex, errorVelocityIndex) +=
-        deltaVelocity_fixed_mPerS * deltaVelocity_fixed_mPerS.transpose();
+        deltaVelocity_fixed_mPs * deltaVelocity_fixed_mPs.transpose();
     return filter.restore(filter.getState(), covariance);
 }
 

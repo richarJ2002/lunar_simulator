@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/MeasurementHistory.h"
+#include "objects/MeasurementHistoryClass.h"
 
 /* C++ Standard Library Includes */
 /* None */

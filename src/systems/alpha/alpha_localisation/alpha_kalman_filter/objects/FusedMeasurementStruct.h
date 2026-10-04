@@ -1,5 +1,5 @@
 /*!
- * @file            FusedMeasurement.h
+ * @file            FusedMeasurementStruct.h
  *
  * @brief           Declares one fused odometry measurement retained for
  *                  rollback replay.
@@ -7,8 +7,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_STRUCT_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_STRUCT_H
 
 /* C++ Standard Library Includes */
 /* None */
@@ -23,7 +23,7 @@
 /* None */
 
 /* Object Includes */
-#include "objects/MeasurementKind.h"
+#include "objects/MeasurementKindEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -77,8 +77,8 @@ struct FusedMeasurement
      *                  Unused trailing entries are zero.
      *
      * @frame           body for velocities; startup_fixed for pose
-     * @units           m/s and rad/s for velocities; m for position;
-     *                  unitless quaternion
+     * @units           meters per second and radians per second for
+     *                  velocities; meters for position; unitless quaternion
      */
     Eigen::Matrix<double, 7, 1> measuredValues{
         Eigen::Matrix<double, 7, 1>::Zero()};
@@ -115,10 +115,10 @@ struct FusedMeasurement
      * @frame           body
      * @units           radians per second
      */
-    double meanRawYawRate_radPerS{0.0};
+    double meanRawYawRate_radPs{0.0};
 };
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_FUSED_MEASUREMENT_STRUCT_H \
         */

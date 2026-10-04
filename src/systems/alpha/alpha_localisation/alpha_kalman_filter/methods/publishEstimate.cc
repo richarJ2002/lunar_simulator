@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cstddef>
@@ -16,8 +16,8 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -53,7 +53,7 @@ void AlphaKalmanFilterNode::publishEstimate(const rclcpp::Time &stamp_in)
         quaternion_bodyToFixed.toRotationMatrix();
     const Eigen::Matrix3d rotation_fixedToBody =
         rotation_bodyToFixed.transpose();
-    const Eigen::Vector3d velocity_body_mPerS =
+    const Eigen::Vector3d velocity_body_mPs =
         rotation_fixedToBody * latestState.segment<3>(velocityIndex);
 
     nav_msgs::msg::Odometry output;
@@ -68,12 +68,12 @@ void AlphaKalmanFilterNode::publishEstimate(const rclcpp::Time &stamp_in)
                                    quaternion_bodyToFixed.y(),
                                    quaternion_bodyToFixed.z(),
                                    quaternion_bodyToFixed.w()));
-    output.twist.twist.linear.x  = velocity_body_mPerS.x();
-    output.twist.twist.linear.y  = velocity_body_mPerS.y();
-    output.twist.twist.linear.z  = velocity_body_mPerS.z();
-    output.twist.twist.angular.x = latestAngularVelocity_body_radPerS.x();
-    output.twist.twist.angular.y = latestAngularVelocity_body_radPerS.y();
-    output.twist.twist.angular.z = latestAngularVelocity_body_radPerS.z();
+    output.twist.twist.linear.x  = velocity_body_mPs.x();
+    output.twist.twist.linear.y  = velocity_body_mPs.y();
+    output.twist.twist.linear.z  = velocity_body_mPs.z();
+    output.twist.twist.angular.x = latestAngularVelocity_body_radPs.x();
+    output.twist.twist.angular.y = latestAngularVelocity_body_radPs.y();
+    output.twist.twist.angular.z = latestAngularVelocity_body_radPs.z();
 
     Eigen::Matrix<double, 6, ERROR_STATE_SIZE> poseJacobian =
         Eigen::Matrix<double, 6, ERROR_STATE_SIZE>::Zero();
@@ -84,10 +84,10 @@ void AlphaKalmanFilterNode::publishEstimate(const rclcpp::Time &stamp_in)
         poseJacobian * latestCovariance * poseJacobian.transpose();
 
     Eigen::Matrix3d velocityCrossMatrix = Eigen::Matrix3d::Zero();
-    velocityCrossMatrix << 0.0, -velocity_body_mPerS.z(),
-        velocity_body_mPerS.y(), velocity_body_mPerS.z(), 0.0,
-        -velocity_body_mPerS.x(), -velocity_body_mPerS.y(),
-        velocity_body_mPerS.x(), 0.0;
+    velocityCrossMatrix << 0.0, -velocity_body_mPs.z(),
+        velocity_body_mPs.y(), velocity_body_mPs.z(), 0.0,
+        -velocity_body_mPs.x(), -velocity_body_mPs.y(),
+        velocity_body_mPs.x(), 0.0;
     Eigen::Matrix<double, 6, ERROR_STATE_SIZE> twistJacobian =
         Eigen::Matrix<double, 6, ERROR_STATE_SIZE>::Zero();
     twistJacobian.block<3, 3>(0, errorVelocityIndex) = rotation_fixedToBody;
@@ -99,9 +99,9 @@ void AlphaKalmanFilterNode::publishEstimate(const rclcpp::Time &stamp_in)
     twistCovariance.block<3, 3>(3, 3) +=
         processNoise.block<3, 3>(errorAttitudeIndex, errorAttitudeIndex);
 
-    for (Eigen::Index row = 0; row < 6; ++row)
+    for (Eigen::Index row = 0; row < 6; row++)
     {
-        for (Eigen::Index column = 0; column < 6; ++column)
+        for (Eigen::Index column = 0; column < 6; column++)
         {
             const std::size_t covarianceIndex =
                 static_cast<std::size_t>(row * 6 + column);

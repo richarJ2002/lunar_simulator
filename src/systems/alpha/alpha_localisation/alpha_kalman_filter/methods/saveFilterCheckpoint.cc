@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -45,7 +45,7 @@ void AlphaKalmanFilterNode::saveFilterCheckpoint()
         (nextFilterCheckpointIndex + 1U) % FILTER_CHECKPOINT_CAPACITY;
     if (filterCheckpointCount < FILTER_CHECKPOINT_CAPACITY)
     {
-        ++filterCheckpointCount;
+        filterCheckpointCount++;
     }
     else
     {

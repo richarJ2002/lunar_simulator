@@ -1,13 +1,13 @@
 /**
- * @file            ErrorStateIndex.h
+ * @file            ErrorStateIndexEnum.h
  *
  * @brief           Declares indices for Alpha's multiplicative EKF error state.
  *
  * @date            20/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_ENUM_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_ENUM_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -115,5 +115,5 @@ enum class ErrorStateIndex : std::uint8_t
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_ERROR_STATE_INDEX_ENUM_H \
         */

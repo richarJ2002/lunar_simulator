@@ -7,13 +7,13 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 void AlphaKalmanFilterNode::discardFilterCheckpointsAfter(
-    double targetTimestampS_in) noexcept
+    double targetTimestamp_s_in) noexcept
 {
     constexpr double TIMESTAMP_TOLERANCE_S = 1.0e-9;
     std::size_t retainedCount = 0U;
@@ -23,11 +23,11 @@ void AlphaKalmanFilterNode::discardFilterCheckpointsAfter(
             (oldestFilterCheckpointIndex + retainedCount) %
             FILTER_CHECKPOINT_CAPACITY];
         if (checkpoint.timestamp_s >
-            targetTimestampS_in + TIMESTAMP_TOLERANCE_S)
+            targetTimestamp_s_in + TIMESTAMP_TOLERANCE_S)
         {
             break;
         }
-        ++retainedCount;
+        retainedCount++;
     }
     filterCheckpointCount = retainedCount;
     nextFilterCheckpointIndex =

@@ -7,19 +7,19 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 bool AlphaKalmanFilterNode::holdImuShock(const ImuSample &previousSample_in,
-                                         double           thresholdMps2_in,
+                                         double           threshold_mPs2_in,
                                          ImuSample       &sample_inout)
 {
     /* A held previous sample means the change persisted into this one, so
      * it is real and must be accepted. */
-    if (!(thresholdMps2_in > 0.0) ||
-        !previousSample_in.discardedDeltaVelocity_body_mPerS.isZero(0.0))
+    if (!(threshold_mPs2_in > 0.0) ||
+        !previousSample_in.discardedDeltaVelocity_body_mPs.isZero(0.0))
     {
         return false;
     }
@@ -30,10 +30,10 @@ bool AlphaKalmanFilterNode::holdImuShock(const ImuSample &previousSample_in,
         return false;
     }
 
-    const Eigen::Vector3d specificForceChange_body_mPerS2 =
-        sample_inout.linearAcceleration_body_mPerS2 -
-        previousSample_in.linearAcceleration_body_mPerS2;
-    if (!(specificForceChange_body_mPerS2.norm() > thresholdMps2_in))
+    const Eigen::Vector3d specificForceChange_body_mPs2 =
+        sample_inout.linearAcceleration_body_mPs2 -
+        previousSample_in.linearAcceleration_body_mPs2;
+    if (!(specificForceChange_body_mPs2.norm() > threshold_mPs2_in))
     {
         return false;
     }
@@ -41,10 +41,10 @@ bool AlphaKalmanFilterNode::holdImuShock(const ImuSample &previousSample_in,
     /* Prediction holds a sample's specific force over the interval that
      * ends at its stamp, so this is the velocity change it would have
      * integrated. */
-    sample_inout.discardedDeltaVelocity_body_mPerS =
-        specificForceChange_body_mPerS2 * interval_s;
-    sample_inout.linearAcceleration_body_mPerS2 =
-        previousSample_in.linearAcceleration_body_mPerS2;
+    sample_inout.discardedDeltaVelocity_body_mPs =
+        specificForceChange_body_mPs2 * interval_s;
+    sample_inout.linearAcceleration_body_mPs2 =
+        previousSample_in.linearAcceleration_body_mPs2;
     return true;
 }
 

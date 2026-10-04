@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <algorithm>
@@ -17,8 +17,8 @@
 #include <optional>
 
 /* Object Includes */
-#include "objects/ImuSample.h"
-#include "objects/StateIndex.h"
+#include "objects/ImuSampleStruct.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -26,13 +26,13 @@ namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 bool AlphaKalmanFilterNode::buildMeasurementRecord(
     const nav_msgs::msg::Odometry &message_in,
     MeasurementKind                kind_in,
-    double                         measurementTimestampS_in,
+    double                         measurementTimestamp_s_in,
     double                         intervalStartS_in,
     FusedMeasurement              &record_out) const
 {
     FusedMeasurement record;
     record.kind        = kind_in;
-    record.timestamp_s = measurementTimestampS_in;
+    record.timestamp_s = measurementTimestamp_s_in;
     record.isVisualIncrement =
         kind_in == MeasurementKind::MEASUREMENT_KIND_VISUAL &&
         isVisualIncrementMode;
@@ -52,31 +52,31 @@ bool AlphaKalmanFilterNode::buildMeasurementRecord(
         /* The yaw-rate row compares the increment with the mean raw gyro
          * over the same interval; capture it now so a replay does not need
          * the IMU samples to still be buffered. */
-        double      rawYawRateSum_radPerS = 0.0;
+        double      rawYawRateSum_radPs = 0.0;
         std::size_t rawYawRateCount       = 0U;
         for (std::size_t sampleIndex = 0U;
              sampleIndex < imuBuffer.getSampleCount();
-             ++sampleIndex)
+             sampleIndex++)
         {
             const std::optional<ImuSample> sample =
                 imuBuffer.getSample(sampleIndex);
             if (sample.has_value() && sample->timestamp_s > intervalStartS_in &&
-                sample->timestamp_s <= measurementTimestampS_in)
+                sample->timestamp_s <= measurementTimestamp_s_in)
             {
-                rawYawRateSum_radPerS +=
-                    sample->angularVelocity_body_radPerS.z();
-                ++rawYawRateCount;
+                rawYawRateSum_radPs +=
+                    sample->angularVelocity_body_radPs.z();
+                rawYawRateCount++;
             }
         }
         record.hasYawRate = rawYawRateCount > 0U;
-        record.meanRawYawRate_radPerS =
+        record.meanRawYawRate_radPs =
             record.hasYawRate
-                ? rawYawRateSum_radPerS / static_cast<double>(rawYawRateCount)
+                ? rawYawRateSum_radPs / static_cast<double>(rawYawRateCount)
                 : 0.0;
 
         /* Increment noise comes from VO's own twist covariance, floored;
          * the pose variance floor does not apply to a velocity. */
-        for (Eigen::Index axis = 0; axis < 3; ++axis)
+        for (Eigen::Index axis = 0; axis < 3; axis++)
         {
             const double reported =
                 message_in.twist
@@ -105,7 +105,7 @@ bool AlphaKalmanFilterNode::buildMeasurementRecord(
 
         /* Roll and pitch use the configured attitude variance; visual
          * odometry only reports a meaningful yaw variance. */
-        for (Eigen::Index axis = 0; axis < 3; ++axis)
+        for (Eigen::Index axis = 0; axis < 3; axis++)
         {
             record.noiseVariances(axis) = variances(axis);
             record.noiseVariances(axis + 3) =

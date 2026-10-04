@@ -7,17 +7,17 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 AlphaKalmanFilterNode::FilterStatus
-    AlphaKalmanFilterNode::initializeFilter(double timestampS_in)
+    AlphaKalmanFilterNode::initializeFilter(double timestamp_s_in)
 {
     if (imuInitializationSampleCount < imuInitializationSampleTarget)
     {
@@ -26,14 +26,14 @@ AlphaKalmanFilterNode::FilterStatus
 
     const double initializationSampleCount =
         static_cast<double>(imuInitializationSampleCount);
-    const Eigen::Vector3d meanSpecificForce_body_mPerS2 =
-        initializationSpecificForceSum_body_mPerS2 / initializationSampleCount;
-    const Eigen::Vector3d meanAngularVelocity_body_radPerS =
-        initializationAngularVelocitySum_body_radPerS /
+    const Eigen::Vector3d meanSpecificForce_body_mPs2 =
+        initializationSpecificForceSum_body_mPs2 / initializationSampleCount;
+    const Eigen::Vector3d meanAngularVelocity_body_radPs =
+        initializationAngularVelocitySum_body_radPs /
         initializationSampleCount;
-    const double measuredSpecificForceMagnitude_mPerS2 =
-        meanSpecificForce_body_mPerS2.norm();
-    if (measuredSpecificForceMagnitude_mPerS2 <= 1.0e-12)
+    const double measuredSpecificForceMagnitude_mPs2 =
+        meanSpecificForce_body_mPs2.norm();
+    if (measuredSpecificForceMagnitude_mPs2 <= 1.0e-12)
     {
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
@@ -41,11 +41,11 @@ AlphaKalmanFilterNode::FilterStatus
     /* At rest, body-to-fixed is identity and specific force is the negative
      * of physical gravity. The known lunar magnitude separates a bounded
      * accelerometer-bias prior from the measured direction. */
-    gravityAcceleration_fixed_mPerS2 = -gravityMagnitudeMps2 *
-                                       meanSpecificForce_body_mPerS2 /
-                                       measuredSpecificForceMagnitude_mPerS2;
-    const Eigen::Vector3d initialAccelerometerBias_body_mPerS2 =
-        meanSpecificForce_body_mPerS2 + gravityAcceleration_fixed_mPerS2;
+    gravityAcceleration_fixed_mPs2 = -gravityMagnitude_mPs2 *
+                                       meanSpecificForce_body_mPs2 /
+                                       measuredSpecificForceMagnitude_mPs2;
+    const Eigen::Vector3d initialAccelerometerBias_body_mPs2 =
+        meanSpecificForce_body_mPs2 + gravityAcceleration_fixed_mPs2;
 
     nominalState = NominalStateVector::Zero();
     const Eigen::Index quaternionWIndex =
@@ -56,9 +56,9 @@ AlphaKalmanFilterNode::FilterStatus
         static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
     nominalState(quaternionWIndex) = 1.0;
     nominalState.segment<3>(accelerometerBiasIndex) =
-        initialAccelerometerBias_body_mPerS2;
+        initialAccelerometerBias_body_mPs2;
     nominalState.segment<3>(gyroscopeBiasIndex) =
-        meanAngularVelocity_body_radPerS;
+        meanAngularVelocity_body_radPs;
 
     ErrorStateMatrix   initialCovariance  = ErrorStateMatrix::Identity();
     const Eigen::Index errorPositionIndex = static_cast<Eigen::Index>(
@@ -92,12 +92,12 @@ AlphaKalmanFilterNode::FilterStatus
         return status;
     }
 
-    stateTimestamp_s                   = timestampS_in;
-    initializationTimestamp_s          = timestampS_in;
+    stateTimestamp_s                   = timestamp_s_in;
+    initializationTimestamp_s          = timestamp_s_in;
     visualFusedCountAtInitialization   = visualDiagnostics.fusedCount;
     latestState                        = nominalState;
     latestCovariance                   = filter.getCovariance();
-    latestAngularVelocity_body_radPerS = Eigen::Vector3d::Zero();
+    latestAngularVelocity_body_radPs = Eigen::Vector3d::Zero();
     hasInitialState                    = true;
     hasEstimate                        = true;
     clearFilterCheckpoints();

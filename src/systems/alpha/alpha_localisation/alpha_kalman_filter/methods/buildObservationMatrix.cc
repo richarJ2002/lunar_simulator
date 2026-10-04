@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Generic Libraries */
 /* None */
@@ -29,7 +29,7 @@ Eigen::MatrixXd AlphaKalmanFilterNode::buildObservationMatrix(
     Eigen::MatrixXd observation = Eigen::MatrixXd::Zero(
         static_cast<Eigen::Index>(observedIndices_in.size()), stateSize_in);
 
-    for (std::size_t row = 0; row < observedIndices_in.size(); ++row)
+    for (std::size_t row = 0; row < observedIndices_in.size(); row++)
     {
         observation(static_cast<Eigen::Index>(row), observedIndices_in[row]) =
             1.0;

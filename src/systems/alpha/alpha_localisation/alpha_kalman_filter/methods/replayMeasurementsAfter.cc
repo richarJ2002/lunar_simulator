@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cstddef>
@@ -17,15 +17,15 @@ namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 AlphaKalmanFilterNode::FilterStatus
-    AlphaKalmanFilterNode::replayMeasurementsAfter(double rollbackTimestampS_in,
-                                                   double presentTimestampS_in)
+    AlphaKalmanFilterNode::replayMeasurementsAfter(
+        double rollbackTimestamp_s_in, double presentTimestamp_s_in)
 {
     /* Records at the rollback epoch itself were fused before the restored
      * checkpoint was saved, so only strictly later ones are re-applied. */
     constexpr double TIMESTAMP_TOLERANCE_S = 1.0e-9;
     for (std::size_t recordIndex = 0U;
          recordIndex < measurementHistory.getRecordCount();
-         ++recordIndex)
+         recordIndex++)
     {
         const std::optional<FusedMeasurement> record =
             measurementHistory.getRecord(recordIndex);
@@ -34,7 +34,7 @@ AlphaKalmanFilterNode::FilterStatus
             return FilterStatus::FILTER_STATUS_NUMERICAL_FAILURE;
         }
         if (record->timestamp_s <=
-            rollbackTimestampS_in + TIMESTAMP_TOLERANCE_S)
+            rollbackTimestamp_s_in + TIMESTAMP_TOLERANCE_S)
         {
             continue;
         }
@@ -61,15 +61,15 @@ AlphaKalmanFilterNode::FilterStatus
         if (fusionResult ==
             MeasurementFusionResult::MEASUREMENT_FUSION_RESULT_NIS_REJECTED)
         {
-            ++diagnostics.replayRejectedCount;
+            diagnostics.replayRejectedCount++;
         }
         else
         {
-            ++diagnostics.replayedCount;
+            diagnostics.replayedCount++;
         }
         saveFilterCheckpoint();
     }
-    return predictTo(presentTimestampS_in);
+    return predictTo(presentTimestamp_s_in);
 }
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */

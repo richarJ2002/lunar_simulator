@@ -1,5 +1,5 @@
 /*!
- * @file            MeasurementHistory.h
+ * @file            MeasurementHistoryClass.h
  *
  * @brief           Declares Alpha's fixed-capacity, stamp-ordered history of
  *                  fused odometry measurements.
@@ -7,8 +7,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_CLASS_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <array>
@@ -25,7 +25,7 @@
 /* None */
 
 /* Object Includes */
-#include "objects/FusedMeasurement.h"
+#include "objects/FusedMeasurementStruct.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -145,5 +145,5 @@ class MeasurementHistory
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_HISTORY_CLASS_H \
         */

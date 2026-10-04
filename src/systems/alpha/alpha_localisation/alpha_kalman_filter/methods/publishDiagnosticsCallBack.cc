@@ -9,7 +9,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -272,7 +272,7 @@ void AlphaKalmanFilterNode::publishDiagnosticsCallBack()
     record.status.push_back(makeSourceStatus("visual", visualDiagnostics));
     record.status.push_back(makeSourceStatus("wheel", wheelDiagnostics));
     p_diagnosticsPublisher->publish(record);
-    ++diagnosticsRecordCount;
+    diagnosticsRecordCount++;
 
     /* The console carries only the short health line, every fifth record. */
     if (diagnosticsRecordCount % CONSOLE_HEALTH_PERIOD_TICKS != 0U)

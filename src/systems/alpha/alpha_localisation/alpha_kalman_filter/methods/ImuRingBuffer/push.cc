@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/ImuRingBuffer.h"
+#include "objects/ImuRingBufferClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -31,8 +31,8 @@ bool ImuRingBuffer::push(const ImuSample &sample_in) noexcept
 {
     /* Reject malformed physical data before it can enter prediction. */
     if (!std::isfinite(sample_in.timestamp_s) ||
-        !sample_in.linearAcceleration_body_mPerS2.allFinite() ||
-        !sample_in.angularVelocity_body_radPerS.allFinite())
+        !sample_in.linearAcceleration_body_mPs2.allFinite() ||
+        !sample_in.angularVelocity_body_radPs.allFinite())
     {
         return false;
     }
@@ -52,7 +52,7 @@ bool ImuRingBuffer::push(const ImuSample &sample_in) noexcept
     nextWriteIndex          = (nextWriteIndex + 1U) % CAPACITY;
     if (sampleCount < CAPACITY)
     {
-        ++sampleCount;
+        sampleCount++;
     }
 
     return true;

@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {

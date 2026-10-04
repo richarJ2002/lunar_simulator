@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/MeasurementHistory.h"
+#include "objects/MeasurementHistoryClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -45,7 +45,7 @@ bool MeasurementHistory::insert(const FusedMeasurement &record_in) noexcept
         {
             return false;
         }
-        for (std::size_t index = 1U; index < CAPACITY; ++index)
+        for (std::size_t index = 1U; index < CAPACITY; index++)
         {
             records[index - 1U] = records[index];
         }
@@ -63,7 +63,7 @@ bool MeasurementHistory::insert(const FusedMeasurement &record_in) noexcept
         --insertIndex;
     }
     records[insertIndex] = record_in;
-    ++recordCount;
+    recordCount++;
     return true;
 }
 

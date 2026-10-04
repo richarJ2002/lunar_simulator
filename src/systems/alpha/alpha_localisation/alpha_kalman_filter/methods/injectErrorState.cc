@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 /* None */
@@ -23,8 +23,8 @@
 /* None */
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {

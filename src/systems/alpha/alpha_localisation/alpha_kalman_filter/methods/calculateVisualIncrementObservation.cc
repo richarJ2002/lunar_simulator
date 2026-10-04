@@ -7,11 +7,11 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -43,21 +43,21 @@ void AlphaKalmanFilterNode::calculateVisualIncrementObservation(
     quaternion_bodyToFixed.normalize();
     const Eigen::Matrix3d rotation_fixedToBody =
         quaternion_bodyToFixed.toRotationMatrix().transpose();
-    const Eigen::Vector3d velocity_body_mPerS =
+    const Eigen::Vector3d velocity_body_mPs =
         rotation_fixedToBody * state_in.segment<3>(velocityIndex);
 
     /* Right perturbation R = R_hat Exp(dtheta) gives
      * R^T v = R_hat^T v + [R_hat^T v]x dtheta to first order. */
     Eigen::Matrix3d velocityCrossMatrix;
-    velocityCrossMatrix << 0.0, -velocity_body_mPerS.z(),
-        velocity_body_mPerS.y(), velocity_body_mPerS.z(), 0.0,
-        -velocity_body_mPerS.x(), -velocity_body_mPerS.y(),
-        velocity_body_mPerS.x(), 0.0;
+    velocityCrossMatrix << 0.0, -velocity_body_mPs.z(),
+        velocity_body_mPs.y(), velocity_body_mPs.z(), 0.0,
+        -velocity_body_mPs.x(), -velocity_body_mPs.y(),
+        velocity_body_mPs.x(), 0.0;
 
     const Eigen::Index rowCount = hasYawRate_in ? 4 : 3;
     predictedMeasurement_out    = Eigen::VectorXd::Zero(rowCount);
     observationMatrix_out = Eigen::MatrixXd::Zero(rowCount, ERROR_STATE_SIZE);
-    predictedMeasurement_out.head<3>() = velocity_body_mPerS;
+    predictedMeasurement_out.head<3>() = velocity_body_mPs;
     observationMatrix_out.block<3, 3>(0, errorVelocityIndex) =
         rotation_fixedToBody;
     observationMatrix_out.block<3, 3>(0, errorAttitudeIndex) =

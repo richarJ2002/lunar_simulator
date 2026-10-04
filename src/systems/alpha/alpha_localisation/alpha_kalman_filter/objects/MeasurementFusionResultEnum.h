@@ -1,13 +1,13 @@
 /*!
- * @file            MeasurementFusionResult.h
+ * @file            MeasurementFusionResultEnum.h
  *
  * @brief           Declares the outcome of applying one odometry update.
  *
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_ENUM_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_ENUM_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -41,5 +41,5 @@ enum class MeasurementFusionResult : std::uint8_t
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_MEASUREMENT_FUSION_RESULT_ENUM_H \
         */

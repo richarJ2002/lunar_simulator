@@ -1,13 +1,13 @@
 /**
- * @file            ImuRingBuffer.h
+ * @file            ImuRingBufferClass.h
  *
  * @brief           Declares Alpha's fixed-capacity filtered-IMU ring buffer.
  *
  * @date            20/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_CLASS_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <array>
@@ -24,7 +24,7 @@
 /* None */
 
 /* Object Includes */
-#include "objects/ImuSample.h"
+#include "objects/ImuSampleStruct.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -136,5 +136,5 @@ class ImuRingBuffer
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_LOCALISATION_ALPHA_KALMAN_FILTER_IMU_RING_BUFFER_CLASS_H \
         */

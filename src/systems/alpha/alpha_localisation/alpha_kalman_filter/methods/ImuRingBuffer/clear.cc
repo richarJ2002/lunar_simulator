@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/ImuRingBuffer.h"
+#include "objects/ImuRingBufferClass.h"
 
 /* C++ Standard Library Includes */
 /* None */

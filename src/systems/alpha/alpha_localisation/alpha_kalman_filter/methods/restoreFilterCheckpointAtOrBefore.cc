@@ -7,23 +7,23 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 bool AlphaKalmanFilterNode::restoreFilterCheckpointAtOrBefore(
-    double targetTimestampS_in)
+    double targetTimestamp_s_in)
 {
     constexpr double        TIMESTAMP_TOLERANCE_S = 1.0e-9;
     const FilterCheckpoint *p_selectedCheckpoint  = nullptr;
-    for (std::size_t index = 0U; index < filterCheckpointCount; ++index)
+    for (std::size_t index = 0U; index < filterCheckpointCount; index++)
     {
         const FilterCheckpoint &checkpoint =
             filterCheckpoints[(oldestFilterCheckpointIndex + index) %
                               FILTER_CHECKPOINT_CAPACITY];
         if (checkpoint.timestamp_s <=
-            targetTimestampS_in + TIMESTAMP_TOLERANCE_S)
+            targetTimestamp_s_in + TIMESTAMP_TOLERANCE_S)
         {
             p_selectedCheckpoint = &checkpoint;
         }

@@ -7,18 +7,18 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 void AlphaKalmanFilterNode::calculateWheelVelocityObservation(
     const NominalStateVector       &state_in,
-    Eigen::Vector3d                &predictedVelocityBodyMps_out,
+    Eigen::Vector3d                &predictedVelocityBody_mPs_out,
     WheelVelocityObservationMatrix &observationMatrix_out)
 {
     const Eigen::Index quaternionIndex =
@@ -37,15 +37,15 @@ void AlphaKalmanFilterNode::calculateWheelVelocityObservation(
     quaternion_bodyToFixed.normalize();
     const Eigen::Matrix3d rotation_fixedToBody =
         quaternion_bodyToFixed.toRotationMatrix().transpose();
-    const Eigen::Vector3d velocity_body_mPerS =
+    const Eigen::Vector3d velocity_body_mPs =
         rotation_fixedToBody * state_in.segment<3>(velocityIndex);
-    predictedVelocityBodyMps_out = velocity_body_mPerS;
+    predictedVelocityBody_mPs_out = velocity_body_mPs;
 
     Eigen::Matrix3d velocityCrossMatrix = Eigen::Matrix3d::Zero();
-    velocityCrossMatrix << 0.0, -velocity_body_mPerS.z(),
-        velocity_body_mPerS.y(), velocity_body_mPerS.z(), 0.0,
-        -velocity_body_mPerS.x(), -velocity_body_mPerS.y(),
-        velocity_body_mPerS.x(), 0.0;
+    velocityCrossMatrix << 0.0, -velocity_body_mPs.z(),
+        velocity_body_mPs.y(), velocity_body_mPs.z(), 0.0,
+        -velocity_body_mPs.x(), -velocity_body_mPs.y(),
+        velocity_body_mPs.x(), 0.0;
     observationMatrix_out.setZero();
     observationMatrix_out.block<3, 3>(0, errorVelocityIndex) =
         rotation_fixedToBody;

@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Other Project Module Includes */
 #include "console/console.h"
@@ -17,8 +17,8 @@
 #include <optional>
 
 /* Object Includes */
-#include "objects/ImuSample.h"
-#include "objects/StateIndex.h"
+#include "objects/ImuSampleStruct.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -27,7 +27,7 @@ void AlphaKalmanFilterNode::handleImuCallBack(
     const sensor_msgs::msg::Imu &message_in)
 {
     const double admissionTimestamp_s = now().seconds();
-    ++imuDiagnostics.receivedCount;
+    imuDiagnostics.receivedCount++;
     imuDiagnostics.callbackAdmissionTimestamp_s = admissionTimestamp_s;
     imuDiagnostics.processingStartTimestamp_s   = admissionTimestamp_s;
     const auto finishDiagnostics                = [this]()
@@ -39,21 +39,21 @@ void AlphaKalmanFilterNode::handleImuCallBack(
     ImuSample sample;
     sample.timestamp_s =
         rclcpp::Time(message_in.header.stamp, RCL_ROS_TIME).seconds();
-    sample.linearAcceleration_body_mPerS2 =
+    sample.linearAcceleration_body_mPs2 =
         Eigen::Vector3d(message_in.linear_acceleration.x,
                         message_in.linear_acceleration.y,
                         message_in.linear_acceleration.z);
-    sample.angularVelocity_body_radPerS =
+    sample.angularVelocity_body_radPs =
         Eigen::Vector3d(message_in.angular_velocity.x,
                         message_in.angular_velocity.y,
                         message_in.angular_velocity.z);
     imuDiagnostics.publicationTimestamp_s = sample.timestamp_s;
 
     if (!std::isfinite(sample.timestamp_s) ||
-        !sample.linearAcceleration_body_mPerS2.allFinite() ||
-        !sample.angularVelocity_body_radPerS.allFinite())
+        !sample.linearAcceleration_body_mPs2.allFinite() ||
+        !sample.angularVelocity_body_radPs.allFinite())
     {
-        ++imuDiagnostics.numericalRejectedCount;
+        imuDiagnostics.numericalRejectedCount++;
         finishDiagnostics();
         return;
     }
@@ -78,34 +78,34 @@ void AlphaKalmanFilterNode::handleImuCallBack(
         lastPublishedStateTimestamp_s = -1.0;
         previousVisualStamp_s         = -1.0;
         imuInitializationSampleCount = 0U;
-        initializationSpecificForceSum_body_mPerS2.setZero();
-        initializationAngularVelocitySum_body_radPerS.setZero();
-        ++imuDiagnostics.ageRejectedCount;
+        initializationSpecificForceSum_body_mPs2.setZero();
+        initializationAngularVelocitySum_body_radPs.setZero();
+        imuDiagnostics.ageRejectedCount++;
     }
 
     /* Queried after the reset above, which may have emptied the buffer. */
     const std::optional<ImuSample> previousSample = imuBuffer.getLatestSample();
     if (previousSample.has_value() &&
-        holdImuShock(*previousSample, imuShockThresholdMps2, sample))
+        holdImuShock(*previousSample, imuShockThreshold_mPs2, sample))
     {
-        ++imuDiagnostics.shockHeldCount;
+        imuDiagnostics.shockHeldCount++;
     }
 
     if (!imuBuffer.push(sample))
     {
-        ++imuDiagnostics.numericalRejectedCount;
+        imuDiagnostics.numericalRejectedCount++;
         finishDiagnostics();
         return;
     }
-    ++imuDiagnostics.acceptedCount;
+    imuDiagnostics.acceptedCount++;
 
     if (!hasInitialState)
     {
-        initializationSpecificForceSum_body_mPerS2 +=
-            sample.linearAcceleration_body_mPerS2;
-        initializationAngularVelocitySum_body_radPerS +=
-            sample.angularVelocity_body_radPerS;
-        ++imuInitializationSampleCount;
+        initializationSpecificForceSum_body_mPs2 +=
+            sample.linearAcceleration_body_mPs2;
+        initializationAngularVelocitySum_body_radPs +=
+            sample.angularVelocity_body_radPs;
+        imuInitializationSampleCount++;
         if (imuInitializationSampleCount < imuInitializationSampleTarget)
         {
             finishDiagnostics();
@@ -116,12 +116,12 @@ void AlphaKalmanFilterNode::handleImuCallBack(
             initializeFilter(sample.timestamp_s);
         if (initializeStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
-            ++imuDiagnostics.numericalRejectedCount;
+            imuDiagnostics.numericalRejectedCount++;
             logStepFailure(initializeStatus);
             finishDiagnostics();
             return;
         }
-        ++imuDiagnostics.fusedCount;
+        imuDiagnostics.fusedCount++;
         LUNAR_LOG_INFO(get_logger(),
                        "EKF IMU init complete (%zu samples)",
                        imuInitializationSampleCount);
@@ -134,8 +134,8 @@ void AlphaKalmanFilterNode::handleImuCallBack(
     {
         const Eigen::Index gyroscopeBiasIndex =
             static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
-        latestAngularVelocity_body_radPerS =
-            sample.angularVelocity_body_radPerS -
+        latestAngularVelocity_body_radPs =
+            sample.angularVelocity_body_radPs -
             nominalState.segment<3>(gyroscopeBiasIndex);
         finishDiagnostics();
         return;
@@ -144,17 +144,17 @@ void AlphaKalmanFilterNode::handleImuCallBack(
     const FilterStatus predictionStatus = predictTo(sample.timestamp_s);
     if (predictionStatus != FilterStatus::FILTER_STATUS_SUCCESS)
     {
-        ++imuDiagnostics.numericalRejectedCount;
+        imuDiagnostics.numericalRejectedCount++;
         logStepFailure(predictionStatus);
     }
     else
     {
         const Eigen::Index gyroscopeBiasIndex =
             static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
-        latestAngularVelocity_body_radPerS =
-            sample.angularVelocity_body_radPerS -
+        latestAngularVelocity_body_radPs =
+            sample.angularVelocity_body_radPs -
             nominalState.segment<3>(gyroscopeBiasIndex);
-        ++imuDiagnostics.fusedCount;
+        imuDiagnostics.fusedCount++;
         saveFilterCheckpoint();
 
         /* Each propagation to a new IMU stamp yields one new estimate. */

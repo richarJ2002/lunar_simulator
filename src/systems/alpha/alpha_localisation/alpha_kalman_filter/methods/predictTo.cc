@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <algorithm>
@@ -15,14 +15,14 @@
 #include <optional>
 
 /* Object Includes */
-#include "objects/ImuSample.h"
-#include "objects/StateIndex.h"
+#include "objects/ImuSampleStruct.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 AlphaKalmanFilterNode::FilterStatus
-    AlphaKalmanFilterNode::predictTo(double targetTimestampS_in,
+    AlphaKalmanFilterNode::predictTo(double targetTimestamp_s_in,
                                      bool   shouldSaveCheckpoints_in)
 {
     constexpr double TIMESTAMP_TOLERANCE_S = 1.0e-9;
@@ -32,23 +32,23 @@ AlphaKalmanFilterNode::FilterStatus
     {
         return FilterStatus::FILTER_STATUS_NOT_INITIALIZED;
     }
-    if (targetTimestampS_in < stateTimestamp_s - TIMESTAMP_TOLERANCE_S)
+    if (targetTimestamp_s_in < stateTimestamp_s - TIMESTAMP_TOLERANCE_S)
     {
         return FilterStatus::FILTER_STATUS_INVALID_INPUT;
     }
-    if (targetTimestampS_in <= stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
+    if (targetTimestamp_s_in <= stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
     {
         return FilterStatus::FILTER_STATUS_SUCCESS;
     }
 
     const auto propagateInterval =
         [this, MAXIMUM_SUBSTEP_S](
-            double                 intervalEndTimestampS_in,
-            const Eigen::Vector3d &specificForceBodyMps2_in,
+            double                 intervalEndTimestamp_s_in,
+            const Eigen::Vector3d &specificForceBody_mPs2_in,
             const Eigen::Vector3d &angularVelocityBodyRadPerS_in)
         -> FilterStatus
     {
-        double remainingTime_s = intervalEndTimestampS_in - stateTimestamp_s;
+        double remainingTime_s = intervalEndTimestamp_s_in - stateTimestamp_s;
         while (remainingTime_s > 0.0)
         {
             const double timeStep_s =
@@ -56,7 +56,7 @@ AlphaKalmanFilterNode::FilterStatus
             NominalStateVector predictedState;
             ErrorStateMatrix   processJacobian;
             computeProcessModel(nominalState,
-                                specificForceBodyMps2_in,
+                                specificForceBody_mPs2_in,
                                 angularVelocityBodyRadPerS_in,
                                 timeStep_s,
                                 predictedState,
@@ -79,7 +79,7 @@ AlphaKalmanFilterNode::FilterStatus
 
     const std::size_t retainedSampleCount = imuBuffer.getSampleCount();
     for (std::size_t sampleIndex = 0U; sampleIndex < retainedSampleCount;
-         ++sampleIndex)
+         sampleIndex++)
     {
         const std::optional<ImuSample> sample =
             imuBuffer.getSample(sampleIndex);
@@ -92,11 +92,11 @@ AlphaKalmanFilterNode::FilterStatus
             continue;
         }
         const double intervalEndTimestamp_s =
-            std::min(sample->timestamp_s, targetTimestampS_in);
+            std::min(sample->timestamp_s, targetTimestamp_s_in);
         const FilterStatus propagationStatus =
             propagateInterval(intervalEndTimestamp_s,
-                              sample->linearAcceleration_body_mPerS2,
-                              sample->angularVelocity_body_radPerS);
+                              sample->linearAcceleration_body_mPs2,
+                              sample->angularVelocity_body_radPs);
         if (propagationStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             return propagationStatus;
@@ -105,10 +105,10 @@ AlphaKalmanFilterNode::FilterStatus
          * is added once, when propagation reaches the sample's stamp; a
          * replay from an earlier checkpoint adds it again consistently. */
         if (intervalEndTimestamp_s >= sample->timestamp_s &&
-            !sample->discardedDeltaVelocity_body_mPerS.isZero(0.0))
+            !sample->discardedDeltaVelocity_body_mPs.isZero(0.0))
         {
             const FilterStatus shockStatus = addShockVelocityUncertainty(
-                sample->discardedDeltaVelocity_body_mPerS);
+                sample->discardedDeltaVelocity_body_mPs);
             if (shockStatus != FilterStatus::FILTER_STATUS_SUCCESS)
             {
                 return shockStatus;
@@ -118,26 +118,26 @@ AlphaKalmanFilterNode::FilterStatus
         {
             saveFilterCheckpoint();
         }
-        if (sample->timestamp_s > targetTimestampS_in + TIMESTAMP_TOLERANCE_S)
+        if (sample->timestamp_s > targetTimestamp_s_in + TIMESTAMP_TOLERANCE_S)
         {
             break;
         }
     }
 
-    if (targetTimestampS_in > stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
+    if (targetTimestamp_s_in > stateTimestamp_s + TIMESTAMP_TOLERANCE_S)
     {
         const std::optional<ImuSample> latestSample =
             imuBuffer.getLatestSample();
         if (!latestSample.has_value() ||
-            targetTimestampS_in - latestSample->timestamp_s >
+            targetTimestamp_s_in - latestSample->timestamp_s >
                 maximumImuMeasurementAgeS)
         {
             return FilterStatus::FILTER_STATUS_INVALID_INPUT;
         }
         const FilterStatus propagationStatus =
-            propagateInterval(targetTimestampS_in,
-                              latestSample->linearAcceleration_body_mPerS2,
-                              latestSample->angularVelocity_body_radPerS);
+            propagateInterval(targetTimestamp_s_in,
+                              latestSample->linearAcceleration_body_mPs2,
+                              latestSample->angularVelocity_body_radPs);
         if (propagationStatus != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             return propagationStatus;
@@ -149,8 +149,8 @@ AlphaKalmanFilterNode::FilterStatus
     {
         const Eigen::Index gyroscopeBiasIndex =
             static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
-        latestAngularVelocity_body_radPerS =
-            latestSample->angularVelocity_body_radPerS -
+        latestAngularVelocity_body_radPs =
+            latestSample->angularVelocity_body_radPs -
             nominalState.segment<3>(gyroscopeBiasIndex);
     }
     latestState      = nominalState;

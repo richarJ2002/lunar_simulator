@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Data include */
 /* None */

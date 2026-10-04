@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Generic Libraries */
 #include <algorithm>
@@ -35,7 +35,7 @@ AlphaKalmanFilterNode::MeasurementVarianceVector
     MeasurementVarianceVector variances =
         MeasurementVarianceVector::Constant(minimumVariance_in);
 
-    for (Eigen::Index index = 0; index < 6; ++index)
+    for (Eigen::Index index = 0; index < 6; index++)
     {
         /*!
          * nav_msgs::msg::Odometry stores each 6x6 covariance as a

@@ -8,11 +8,11 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
@@ -38,7 +38,7 @@ MeasurementFusionResult AlphaKalmanFilterNode::fuseMeasurementRecord(
     {
         Eigen::VectorXd predictedIncrement;
         calculateVisualIncrementObservation(nominalState,
-                                            record_in.meanRawYawRate_radPerS,
+                                            record_in.meanRawYawRate_radPs,
                                             record_in.hasYawRate,
                                             predictedIncrement,
                                             observation);
@@ -75,13 +75,13 @@ MeasurementFusionResult AlphaKalmanFilterNode::fuseMeasurementRecord(
     }
     else
     {
-        Eigen::Vector3d                predictedVelocity_body_mPerS;
+        Eigen::Vector3d                predictedVelocity_body_mPs;
         WheelVelocityObservationMatrix wheelObservation;
         calculateWheelVelocityObservation(nominalState,
-                                          predictedVelocity_body_mPerS,
+                                          predictedVelocity_body_mPs,
                                           wheelObservation);
         innovation =
-            record_in.measuredValues.head<3>() - predictedVelocity_body_mPerS;
+            record_in.measuredValues.head<3>() - predictedVelocity_body_mPs;
         observation      = wheelObservation;
         measurementNoise = record_in.noiseVariances.head<3>().asDiagonal();
     }

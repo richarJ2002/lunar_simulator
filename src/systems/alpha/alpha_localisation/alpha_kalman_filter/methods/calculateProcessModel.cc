@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaKalmanFilterNode.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -17,17 +17,17 @@
 #include <Eigen/Geometry>
 
 /* Object Includes */
-#include "objects/ErrorStateIndex.h"
-#include "objects/StateIndex.h"
+#include "objects/ErrorStateIndexEnum.h"
+#include "objects/StateIndexEnum.h"
 
 namespace systems::alpha::alpha_localisation::alpha_kalman_filter
 {
 
 void AlphaKalmanFilterNode::calculateProcessModel(
     const NominalStateVector &state_in,
-    const Eigen::Vector3d    &specificForceBodyMps2_in,
+    const Eigen::Vector3d    &specificForceBody_mPs2_in,
     const Eigen::Vector3d    &angularVelocityBodyRadPerS_in,
-    const Eigen::Vector3d    &gravityAccelerationFixedMps2_in,
+    const Eigen::Vector3d    &gravityAccelerationFixed_mPs2_in,
     double                    timeStepS_in,
     NominalStateVector       &predictedState_out,
     ErrorStateMatrix         &processJacobian_out)
@@ -44,11 +44,11 @@ void AlphaKalmanFilterNode::calculateProcessModel(
         static_cast<Eigen::Index>(StateIndex::STATE_INDEX_GYROSCOPE_BIAS_X);
 
     const Eigen::Vector3d position_fixed_m = state_in.segment<3>(positionIndex);
-    const Eigen::Vector3d velocity_fixed_mPerS =
+    const Eigen::Vector3d velocity_fixed_mPs =
         state_in.segment<3>(velocityIndex);
-    const Eigen::Vector3d accelerometerBias_body_mPerS2 =
+    const Eigen::Vector3d accelerometerBias_body_mPs2 =
         state_in.segment<3>(accelerometerBiasIndex);
-    const Eigen::Vector3d gyroscopeBias_body_radPerS =
+    const Eigen::Vector3d gyroscopeBias_body_radPs =
         state_in.segment<3>(gyroscopeBiasIndex);
     Eigen::Quaterniond quaternion_bodyToFixed(state_in(quaternionIndex + 3),
                                               state_in(quaternionIndex),
@@ -56,18 +56,18 @@ void AlphaKalmanFilterNode::calculateProcessModel(
                                               state_in(quaternionIndex + 2));
     quaternion_bodyToFixed.normalize();
 
-    const Eigen::Vector3d correctedSpecificForce_body_mPerS2 =
-        specificForceBodyMps2_in - accelerometerBias_body_mPerS2;
-    const Eigen::Vector3d correctedAngularVelocity_body_radPerS =
-        angularVelocityBodyRadPerS_in - gyroscopeBias_body_radPerS;
+    const Eigen::Vector3d correctedSpecificForce_body_mPs2 =
+        specificForceBody_mPs2_in - accelerometerBias_body_mPs2;
+    const Eigen::Vector3d correctedAngularVelocity_body_radPs =
+        angularVelocityBodyRadPerS_in - gyroscopeBias_body_radPs;
     const Eigen::Matrix3d rotation_bodyToFixed =
         quaternion_bodyToFixed.toRotationMatrix();
-    const Eigen::Vector3d acceleration_fixed_mPerS2 =
-        rotation_bodyToFixed * correctedSpecificForce_body_mPerS2 +
-        gravityAccelerationFixedMps2_in;
+    const Eigen::Vector3d acceleration_fixed_mPs2 =
+        rotation_bodyToFixed * correctedSpecificForce_body_mPs2 +
+        gravityAccelerationFixed_mPs2_in;
 
     const Eigen::Vector3d rotationVector_body_rad =
-        correctedAngularVelocity_body_radPerS * timeStepS_in;
+        correctedAngularVelocity_body_radPs * timeStepS_in;
     const double       rotationMagnitude_rad = rotationVector_body_rad.norm();
     Eigen::Quaterniond rotationIncrement_bodyToBody =
         Eigen::Quaterniond::Identity();
@@ -84,10 +84,10 @@ void AlphaKalmanFilterNode::calculateProcessModel(
 
     predictedState_out = state_in;
     predictedState_out.segment<3>(positionIndex) =
-        position_fixed_m + velocity_fixed_mPerS * timeStepS_in +
-        0.5 * acceleration_fixed_mPerS2 * timeStepS_in * timeStepS_in;
+        position_fixed_m + velocity_fixed_mPs * timeStepS_in +
+        0.5 * acceleration_fixed_mPs2 * timeStepS_in * timeStepS_in;
     predictedState_out.segment<3>(velocityIndex) =
-        velocity_fixed_mPerS + acceleration_fixed_mPerS2 * timeStepS_in;
+        velocity_fixed_mPs + acceleration_fixed_mPs2 * timeStepS_in;
     predictedState_out(quaternionIndex) = predictedQuaternion_bodyToFixed.x();
     predictedState_out(quaternionIndex + 1) =
         predictedQuaternion_bodyToFixed.y();
@@ -97,20 +97,20 @@ void AlphaKalmanFilterNode::calculateProcessModel(
         predictedQuaternion_bodyToFixed.w();
 
     Eigen::Matrix3d specificForceCrossMatrix = Eigen::Matrix3d::Zero();
-    specificForceCrossMatrix << 0.0, -correctedSpecificForce_body_mPerS2.z(),
-        correctedSpecificForce_body_mPerS2.y(),
-        correctedSpecificForce_body_mPerS2.z(), 0.0,
-        -correctedSpecificForce_body_mPerS2.x(),
-        -correctedSpecificForce_body_mPerS2.y(),
-        correctedSpecificForce_body_mPerS2.x(), 0.0;
+    specificForceCrossMatrix << 0.0, -correctedSpecificForce_body_mPs2.z(),
+        correctedSpecificForce_body_mPs2.y(),
+        correctedSpecificForce_body_mPs2.z(), 0.0,
+        -correctedSpecificForce_body_mPs2.x(),
+        -correctedSpecificForce_body_mPs2.y(),
+        correctedSpecificForce_body_mPs2.x(), 0.0;
     Eigen::Matrix3d angularVelocityCrossMatrix = Eigen::Matrix3d::Zero();
     angularVelocityCrossMatrix << 0.0,
-        -correctedAngularVelocity_body_radPerS.z(),
-        correctedAngularVelocity_body_radPerS.y(),
-        correctedAngularVelocity_body_radPerS.z(), 0.0,
-        -correctedAngularVelocity_body_radPerS.x(),
-        -correctedAngularVelocity_body_radPerS.y(),
-        correctedAngularVelocity_body_radPerS.x(), 0.0;
+        -correctedAngularVelocity_body_radPs.z(),
+        correctedAngularVelocity_body_radPs.y(),
+        correctedAngularVelocity_body_radPs.z(), 0.0,
+        -correctedAngularVelocity_body_radPs.x(),
+        -correctedAngularVelocity_body_radPs.y(),
+        correctedAngularVelocity_body_radPs.x(), 0.0;
 
     const Eigen::Index errorPositionIndex = static_cast<Eigen::Index>(
         ErrorStateIndex::ERROR_STATE_INDEX_POSITION_X);
