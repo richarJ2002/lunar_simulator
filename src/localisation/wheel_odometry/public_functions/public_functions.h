@@ -13,7 +13,7 @@
 #include <array>
 
 /* Object Includes */
-#include "objects/BodyTwistSolution.h"
+#include "objects/BodyTwistSolutionStruct.h"
 
 namespace localisation::wheel_odometry
 {
@@ -34,8 +34,8 @@ namespace localisation::wheel_odometry
  *                              + (x_i cos d_i + y_i sin d_i) wz = 0
  *
  *                  Rolling rows carry the encoder noise
- *                  rollingSpeedStddevMps_in. No-side-slip rows carry the
- *                  expected lateral slip lateralSlipStddevMps_in plus the
+ *                  rollingSpeedStddev_mPs_in. No-side-slip rows carry the
+ *                  expected lateral slip lateralSlipStddev_mPs_in plus the
  *                  steering-encoder noise projected through the row's
  *                  derivative with respect to d_i, which is -s_i; a parked
  *                  rover's steering noise therefore cannot create lateral
@@ -51,7 +51,7 @@ namespace localisation::wheel_odometry
  * @param[in]       steeringAngle_rad_in
  *                  Steering angle per wheel, radians, in wheel order.
  *
- * @param[in]       rollingSpeed_mps_in
+ * @param[in]       rollingSpeed_mPs_in
  *                  Signed, slip-adjusted circumferential speed per wheel,
  *                  metres per second, in wheel order.
  *
@@ -61,15 +61,15 @@ namespace localisation::wheel_odometry
  * @param[in]       wheelY_m_in
  *                  Body-frame y position per wheel, metres.
  *
- * @param[in]       rollingSpeedStddevMps_in
+ * @param[in]       rollingSpeedStddev_mPs_in
  *                  Rolling-speed measurement standard deviation, metres
  *                  per second; must be positive.
  *
- * @param[in]       steeringStddevRad_in
+ * @param[in]       steeringStddev_rad_in
  *                  Steering-angle standard deviation, radians; must not
  *                  be negative.
  *
- * @param[in]       lateralSlipStddevMps_in
+ * @param[in]       lateralSlipStddev_mPs_in
  *                  Expected lateral slip standard deviation of a wheel,
  *                  metres per second; must be positive.
  *
@@ -79,12 +79,12 @@ namespace localisation::wheel_odometry
  */
 BodyTwistSolution
     solveBodyTwist(const std::array<double, 6> &steeringAngle_rad_in,
-                   const std::array<double, 6> &rollingSpeed_mps_in,
+                   const std::array<double, 6> &rollingSpeed_mPs_in,
                    const std::array<double, 6> &wheelX_m_in,
                    const std::array<double, 6> &wheelY_m_in,
-                   double                       rollingSpeedStddevMps_in,
-                   double                       steeringStddevRad_in,
-                   double                       lateralSlipStddevMps_in);
+                   double                       rollingSpeedStddev_mPs_in,
+                   double                       steeringStddev_rad_in,
+                   double                       lateralSlipStddev_mPs_in);
 
 } /* namespace localisation::wheel_odometry */
 

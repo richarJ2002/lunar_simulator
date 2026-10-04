@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -60,7 +60,7 @@ void WheelOdometryNode::handleVisualOdometryCallBack(
 
     /* Record when this reference was produced, for the staleness and
      * timeout checks elsewhere in this node. */
-    latestVisualStampS = stampToSeconds(message_in.header.stamp);
+    latestVisualStamp_s = stampToSeconds(message_in.header.stamp);
 
     /* Mark that at least one reference has now been accepted. */
     hasVisualReference = true;

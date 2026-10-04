@@ -1,21 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
 
 add_library(wheel_odometry STATIC
-  src/methods/loadSixValues.cc
-  src/methods/stampToSeconds.cc
-  src/methods/findJoint.cc
-  src/methods/handleVisualOdometryCallBack.cc
-  src/methods/publishSlipObservation.cc
-  src/methods/publishSlipRatios.cc
-  src/methods/handleWheelSlipEstimateCallBack.cc
-  src/methods/handleJointStateCallBack.cc
-  src/methods/wrapAngle.cc
-  src/methods/publishDiagnosticsCallBack.cc
-  src/methods/publishOdometry.cc
-  src/public_functions/solveBodyTwist.cc
+  methods/loadSixValues.cc
+  methods/stampToSeconds.cc
+  methods/findJoint.cc
+  methods/handleVisualOdometryCallBack.cc
+  methods/publishSlipObservation.cc
+  methods/publishSlipRatios.cc
+  methods/handleWheelSlipEstimateCallBack.cc
+  methods/handleJointStateCallBack.cc
+  methods/wrapAngle.cc
+  methods/publishDiagnosticsCallBack.cc
+  methods/publishOdometry.cc
+  public_functions/solveBodyTwist.cc
 )
 target_compile_features(wheel_odometry PUBLIC cxx_std_17)
-target_include_directories(wheel_odometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(wheel_odometry PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(wheel_odometry
   common_console
   common_diagnostics

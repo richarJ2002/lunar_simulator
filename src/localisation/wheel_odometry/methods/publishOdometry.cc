@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -44,20 +44,20 @@ void WheelOdometryNode::publishOdometry(
     output.child_frame_id = baseFrame;
 
     /* Write the integrated x position. */
-    output.pose.pose.position.x = positionXM;
+    output.pose.pose.position.x = positionX_m;
 
     /* Write the integrated y position. */
-    output.pose.pose.position.y = positionYM;
+    output.pose.pose.position.y = positionY_m;
 
     /* Planar wheel integration does not observe fixed-frame vertical motion. */
-    output.pose.pose.position.z = positionZM;
+    output.pose.pose.position.z = positionZ_m;
 
     /*!
      * Wheel odometry independently observes only planar heading. Roll and
      * pitch remain identity and their covariance below is unknown.
      */
     tf2::Quaternion orientation;
-    orientation.setRPY(0.0, 0.0, yawRad);
+    orientation.setRPY(0.0, 0.0, yaw_rad);
     output.pose.pose.orientation = tf2::toMsg(orientation);
 
     /* Write the current body-frame x velocity. */
@@ -103,9 +103,9 @@ void WheelOdometryNode::publishOdometry(
     output.pose.covariance[35] = 0.04;
 
     const std::array<std::size_t, 3> covarianceAxes{0U, 1U, 5U};
-    for (Eigen::Index row = 0; row < 3; ++row)
+    for (Eigen::Index row = 0; row < 3; row++)
     {
-        for (Eigen::Index column = 0; column < 3; ++column)
+        for (Eigen::Index column = 0; column < 3; column++)
         {
             const std::size_t outputRow =
                 covarianceAxes[static_cast<std::size_t>(row)];
@@ -119,7 +119,7 @@ void WheelOdometryNode::publishOdometry(
     /* The planar solve does not observe vertical velocity; the reported
      * vz = 0 is the ground-contact constraint, with its own variance. */
     output.twist.covariance[14] =
-        verticalVelocityStddevMps * verticalVelocityStddevMps;
+        verticalVelocityStddev_mPs * verticalVelocityStddev_mPs;
 
     /* Large, effectively "unknown", roll-rate variance. */
     output.twist.covariance[21] = 1.0e3;

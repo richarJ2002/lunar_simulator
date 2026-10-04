@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -22,7 +22,7 @@
 namespace localisation::wheel_odometry
 {
 
-double WheelOdometryNode::wrapAngle(double angleRad_in)
+double WheelOdometryNode::wrapAngle(double angle_rad_in)
 {
     /* A local named constant reads better than the bare literal below. */
     constexpr double pi = 3.14159265358979323846;
@@ -34,21 +34,21 @@ double WheelOdometryNode::wrapAngle(double angleRad_in)
      * iterative wrap is sufficient because a single integration step
      * never advances yaw by more than a small fraction of a full turn.
      */
-    while (angleRad_in > pi)
+    while (angle_rad_in > pi)
     {
         /* Subtract one full turn until back within range. */
-        angleRad_in -= 2.0 * pi;
+        angle_rad_in -= 2.0 * pi;
     }
 
     /* Symmetric wrap for an angle that drifted below -pi. */
-    while (angleRad_in < -pi)
+    while (angle_rad_in < -pi)
     {
         /* Add one full turn until back within range. */
-        angleRad_in += 2.0 * pi;
+        angle_rad_in += 2.0 * pi;
     }
 
     /* Return the now-wrapped angle. */
-    return angleRad_in;
+    return angle_rad_in;
 }
 
 } /* namespace localisation::wheel_odometry */

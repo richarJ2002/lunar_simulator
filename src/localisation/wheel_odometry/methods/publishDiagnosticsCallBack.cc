@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -31,19 +31,19 @@ void WheelOdometryNode::publishDiagnosticsCallBack()
         reason = "waiting for 12 joints";
     }
     else if (latestPublishTime_s < 0.0 ||
-             now_s - latestPublishTime_s > readinessMaximumGapS)
+             now_s - latestPublishTime_s > readinessMaximumGap_s)
     {
         reason = common::console::formatText(
             "no odometry for %.1f s",
             latestPublishTime_s < 0.0 ? 0.0 : now_s - latestPublishTime_s);
     }
     else if (latestPublishTime_s - continuousPublishStart_s <
-             readinessContinuousPeriodS)
+             readinessContinuousPeriod_s)
     {
         reason = common::console::formatText("continuous %.1f/%.1f s",
                                              latestPublishTime_s -
                                                  continuousPublishStart_s,
-                                             readinessContinuousPeriodS);
+                                             readinessContinuousPeriod_s);
     }
     const bool isReady = reason == "publishing";
 
@@ -64,10 +64,10 @@ void WheelOdometryNode::publishDiagnosticsCallBack()
                               latestNormalCondition,
                               status);
     diagnostics::addRealValue("lateral_velocity_mps",
-                              latestLateralVelocityMps,
+                              latestLateralVelocity_mPs,
                               status);
     diagnostics::addRealValue("lateral_velocity_stddev_mps",
-                              latestLateralVelocityStddevMps,
+                              latestLateralVelocityStddev_mPs,
                               status);
 
     diagnostic_msgs::msg::DiagnosticArray record;

@@ -12,7 +12,7 @@
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Generic Libraries */
 #include <algorithm>
@@ -53,7 +53,7 @@ void WheelOdometryNode::handleWheelSlipEstimateCallBack(
      * has to speak for the whole rover (see AlphaKalmanFilterNode's own
      * class-level doc comment for why rotational slip needs this).
      */
-    for (std::size_t wheel = 0U; wheel < slipRatios.size(); ++wheel)
+    for (std::size_t wheel = 0U; wheel < slipRatios.size(); wheel++)
     {
         const double estimate = message_in.data[wheel];
 

@@ -11,7 +11,7 @@
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */

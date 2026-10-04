@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -33,7 +33,7 @@ bool WheelOdometryNode::findJoint(const sensor_msgs::msg::JointState &message_in
      * here: the message only ever carries twelve joints (six drive, six
      * steer).
      */
-    for (std::size_t index = 0U; index < message_in.name.size(); ++index)
+    for (std::size_t index = 0U; index < message_in.name.size(); index++)
     {
         /* Skip every entry that is not the joint being searched for. */
         if (message_in.name[index] == name_in)

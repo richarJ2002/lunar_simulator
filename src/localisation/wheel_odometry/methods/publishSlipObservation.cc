@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/WheelOdometryNode.h"
+#include "objects/WheelOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -26,9 +26,9 @@ namespace localisation::wheel_odometry
 {
 
 void WheelOdometryNode::publishSlipObservation(
-    double                       jointStampS_in,
-    const std::array<double, 6> &rawWheelSpeedMps_in,
-    const std::array<double, 6> &steerAngleRad_in)
+    double                       jointStamp_s_in,
+    const std::array<double, 6> &rawWheelSpeed_mPs_in,
+    const std::array<double, 6> &steerAngle_rad_in)
 {
     /*!
      * Only attempt an observation when: slip estimation is enabled, a
@@ -39,9 +39,9 @@ void WheelOdometryNode::publishSlipObservation(
      * repeatedly on stale data).
      */
     if (!shouldEstimateSlip || !hasVisualReference ||
-        std::abs(jointStampS_in - latestVisualStampS) >
-            visualOdometryTimeoutS ||
-        latestVisualStampS <= lastSlipUpdateStampS)
+        std::abs(jointStamp_s_in - latestVisualStamp_s) >
+            visualOdometryTimeout_s ||
+        latestVisualStamp_s <= lastSlipUpdateStamp_s)
     {
         /* One of the preconditions above failed; nothing to publish this
          * cycle. */
@@ -65,30 +65,30 @@ void WheelOdometryNode::publishSlipObservation(
 
     /* Evaluate every wheel independently against the same visual twist
      * reference. */
-    for (std::size_t wheel = 0U; wheel < observedSlipRatios.size(); ++wheel)
+    for (std::size_t wheel = 0U; wheel < observedSlipRatios.size(); wheel++)
     {
         observedSlipRatios[wheel] = std::numeric_limits<double>::quiet_NaN();
 
         /* Read this wheel's raw (un-slip-adjusted) circumferential
          * speed. */
-        const double rawWheelSpeedMps = rawWheelSpeedMps_in[wheel];
+        const double rawWheelSpeed_mPs = rawWheelSpeed_mPs_in[wheel];
 
         /*!
          * Near-zero wheel speeds make the slip ratio (which divides by
          * wheel speed) numerically unstable and physically meaningless,
          * so such wheels are excluded from this update entirely.
          */
-        if (std::abs(rawWheelSpeedMps) < minimumWheelSpeedMps)
+        if (std::abs(rawWheelSpeed_mPs) < minimumWheelSpeed_mPs)
         {
             /* Leave this wheel's observation as NaN. */
             continue;
         }
 
         /* Precompute this wheel's steering trigonometry once. */
-        const double cosine = std::cos(steerAngleRad_in[wheel]);
+        const double cosine = std::cos(steerAngle_rad_in[wheel]);
 
         /* Precompute this wheel's steering trigonometry once. */
-        const double sine = std::sin(steerAngleRad_in[wheel]);
+        const double sine = std::sin(steerAngle_rad_in[wheel]);
 
         /*!
          * Project the cached visual-odometry body twist onto this
@@ -105,11 +105,11 @@ void WheelOdometryNode::publishSlipObservation(
          * body-frame position. All quantities are in the body frame, m/s
          * and rad/s.
          */
-        const double expectedRollingSpeedMps =
+        const double expectedRollingSpeed_mPs =
             cosine * (latestVisualTwistBody.x() -
-                      wheelYM[wheel] * latestVisualTwistBody.z()) +
+                      wheelY_m[wheel] * latestVisualTwistBody.z()) +
             sine * (latestVisualTwistBody.y() +
-                    wheelXM[wheel] * latestVisualTwistBody.z());
+                    wheelX_m[wheel] * latestVisualTwistBody.z());
 
         /*!
          * A sign disagreement between the observed and expected rolling
@@ -118,7 +118,7 @@ void WheelOdometryNode::publishSlipObservation(
          * dynamics), so that wheel's observation is discarded this cycle
          * rather than folded into a misleading ratio.
          */
-        if (rawWheelSpeedMps * expectedRollingSpeedMps < 0.0)
+        if (rawWheelSpeed_mPs * expectedRollingSpeed_mPs < 0.0)
         {
             /* Leave this wheel's observation as NaN. */
             continue;
@@ -127,7 +127,7 @@ void WheelOdometryNode::publishSlipObservation(
         /* Compare expected against actual rolling speed to get this
          * wheel's raw (unbounded) slip observation. */
         const double observedSlipRatioUnbounded =
-            1.0 - expectedRollingSpeedMps / rawWheelSpeedMps;
+            1.0 - expectedRollingSpeed_mPs / rawWheelSpeed_mPs;
 
         /*!
          * Positive slip means wheel spin: circumferential wheel speed exceeds
@@ -173,7 +173,7 @@ void WheelOdometryNode::publishSlipObservation(
     slipObservationPublisher->publish(observation);
 
     /* Record this reference's time so a stale one is not reused. */
-    lastSlipUpdateStampS = latestVisualStampS;
+    lastSlipUpdateStamp_s = latestVisualStamp_s;
 }
 
 } /* namespace localisation::wheel_odometry */

@@ -1,13 +1,13 @@
 /*!
- * @file            BodyTwistSolution.h
+ * @file            BodyTwistSolutionStruct.h
  *
  * @brief           Declares the result of one six-wheel kinematic solve.
  *
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_H
-#define LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_STRUCT_H
+#define LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_STRUCT_H
 
 /* External Library Includes */
 #include <Eigen/Dense>
@@ -60,4 +60,4 @@ struct BodyTwistSolution
 
 } /* namespace localisation::wheel_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_BODY_TWIST_SOLUTION_STRUCT_H */
