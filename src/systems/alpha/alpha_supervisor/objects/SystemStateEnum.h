@@ -1,13 +1,13 @@
 /*!
- * @file            SystemState.h
+ * @file            SystemStateEnum.h
  *
  * @brief           Declares Alpha's start-up and command-readiness states.
  *
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_ENUM_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_ENUM_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -40,4 +40,4 @@ enum class SystemState : std::uint8_t
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_H */
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SYSTEM_STATE_ENUM_H */

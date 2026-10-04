@@ -1,5 +1,5 @@
 /*!
- * @file            ComponentReadiness.h
+ * @file            ComponentReadinessStruct.h
  *
  * @brief           Declares the supervisor's latest view of one required
  *                  component's self-reported readiness.
@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_STRUCT_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_STRUCT_H
 
 /* C++ Standard Library Includes */
 #include <string>
@@ -69,5 +69,5 @@ struct ComponentReadiness
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_COMPONENT_READINESS_STRUCT_H \
         */

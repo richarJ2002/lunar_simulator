@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "alpha_supervisor/objects/AlphaStartupSupervisorNode.h"
+#include "alpha_supervisor/objects/AlphaStartupSupervisorNodeClass.h"
 
 namespace systems::alpha::alpha_supervisor
 {

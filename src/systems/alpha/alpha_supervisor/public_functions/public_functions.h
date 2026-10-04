@@ -16,9 +16,9 @@
 #include <vector>
 
 /* Object Includes */
-#include "alpha_supervisor/objects/ComponentReadiness.h"
-#include "alpha_supervisor/objects/SupervisorDecision.h"
-#include "alpha_supervisor/objects/SystemState.h"
+#include "alpha_supervisor/objects/ComponentReadinessStruct.h"
+#include "alpha_supervisor/objects/SupervisorDecisionStruct.h"
+#include "alpha_supervisor/objects/SystemStateEnum.h"
 
 namespace systems::alpha::alpha_supervisor
 {

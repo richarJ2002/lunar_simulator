@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "alpha_supervisor/public_functions.h"
+#include "alpha_supervisor/public_functions/public_functions.h"
 
 namespace systems::alpha::alpha_supervisor
 {

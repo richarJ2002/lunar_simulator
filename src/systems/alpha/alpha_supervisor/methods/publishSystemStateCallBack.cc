@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "alpha_supervisor/objects/AlphaStartupSupervisorNode.h"
+#include "alpha_supervisor/objects/AlphaStartupSupervisorNodeClass.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>

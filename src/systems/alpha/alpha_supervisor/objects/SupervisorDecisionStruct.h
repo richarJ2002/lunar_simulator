@@ -1,20 +1,20 @@
 /*!
- * @file            SupervisorDecision.h
+ * @file            SupervisorDecisionStruct.h
  *
  * @brief           Declares the result of one supervisor state evaluation.
  *
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_STRUCT_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_STRUCT_H
 
 /* C++ Standard Library Includes */
 #include <cstddef>
 #include <string>
 
 /* Object Includes */
-#include "alpha_supervisor/objects/SystemState.h"
+#include "alpha_supervisor/objects/SystemStateEnum.h"
 
 namespace systems::alpha::alpha_supervisor
 {
@@ -72,5 +72,5 @@ struct SupervisorDecision
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_SUPERVISOR_DECISION_STRUCT_H \
         */

@@ -1,5 +1,5 @@
 /*!
- * @file            AlphaStartupSupervisorNode.h
+ * @file            AlphaStartupSupervisorNodeClass.h
  *
  * @brief           Declares the node that decides when Alpha may accept
  *                  motion commands.
@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_H
+#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
+#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <chrono>
@@ -22,13 +22,13 @@
 #include <rclcpp/rclcpp.hpp>
 
 /* Other Project Module Includes */
-#include "alpha_supervisor/public_functions.h"
+#include "alpha_supervisor/public_functions/public_functions.h"
 #include "console/console.h"
 
 /* Object Includes */
-#include "alpha_supervisor/objects/ComponentReadiness.h"
-#include "alpha_supervisor/objects/SupervisorDecision.h"
-#include "alpha_supervisor/objects/SystemState.h"
+#include "alpha_supervisor/objects/ComponentReadinessStruct.h"
+#include "alpha_supervisor/objects/SupervisorDecisionStruct.h"
+#include "alpha_supervisor/objects/SystemStateEnum.h"
 
 namespace systems::alpha::alpha_supervisor
 {
@@ -122,8 +122,8 @@ class AlphaStartupSupervisorNode final : public rclcpp::Node
                 diagnosticsTopic,
                 rclcpp::QoS(50),
                 [this](diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr
-                           p_message)
-                { handleDiagnosticsCallBack(*p_message); });
+                           p_message_in)
+                { handleDiagnosticsCallBack(*p_message_in); });
 
         /* Evaluate four times per simulated second so a regression is
          * published well inside the gate's heartbeat limit. */
@@ -287,5 +287,5 @@ class AlphaStartupSupervisorNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_H \
+#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H \
         */

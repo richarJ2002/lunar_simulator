@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "alpha_supervisor/public_functions.h"
+#include "alpha_supervisor/public_functions/public_functions.h"
 
 namespace systems::alpha::alpha_supervisor
 {
@@ -31,7 +31,7 @@ SupervisorDecision
             now_s - component.reportTime_s <= componentTimeout_s;
         if (isFresh && component.isReady)
         {
-            ++decision.readyCount;
+            decision.readyCount++;
             continue;
         }
         if (decision.blockingComponent.empty())
