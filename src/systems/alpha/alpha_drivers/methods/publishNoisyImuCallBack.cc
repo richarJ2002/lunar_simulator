@@ -7,12 +7,13 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace systems::alpha::alpha_drivers
 {
 
-void AlphaDriverNode::publishNoisyImuCallBack(const sensor_msgs::msg::Imu &message_in)
+void AlphaDriverNode::publishNoisyImuCallBack(
+    const sensor_msgs::msg::Imu &message_in)
 {
     /* Raw IMU freshness is half of this node's readiness. */
     latestRawImuReceipt_s = now().seconds();
@@ -29,41 +30,53 @@ void AlphaDriverNode::publishNoisyImuCallBack(const sensor_msgs::msg::Imu &messa
          * usually decomposed (slowly-varying bias plus fast-varying noise).
          */
 
-        /* Add the constant bias and a fresh noise sample to angular rate
-         * about the x axis. */
+        /*!
+         * Add the constant bias and a fresh noise sample to angular rate
+         * about the x axis.
+         */
         message.angular_velocity.x +=
-            imuAngularVelocityBias_radPerS[X_AXIS] +
-            sampleGaussian(imuAngularVelocityStddev_radPerS);
+            imuAngularVelocityBias_radPs[X_AXIS] +
+            sampleGaussian(imuAngularVelocityStddev_radPs);
 
-        /* Add the constant bias and a fresh noise sample to angular rate
-         * about the y axis. */
+        /*!
+         * Add the constant bias and a fresh noise sample to angular rate
+         * about the y axis.
+         */
         message.angular_velocity.y +=
-            imuAngularVelocityBias_radPerS[Y_AXIS] +
-            sampleGaussian(imuAngularVelocityStddev_radPerS);
+            imuAngularVelocityBias_radPs[Y_AXIS] +
+            sampleGaussian(imuAngularVelocityStddev_radPs);
 
-        /* Add the constant bias and a fresh noise sample to angular rate
-         * about the z axis. */
+        /*!
+         * Add the constant bias and a fresh noise sample to angular rate
+         * about the z axis.
+         */
         message.angular_velocity.z +=
-            imuAngularVelocityBias_radPerS[Z_AXIS] +
-            sampleGaussian(imuAngularVelocityStddev_radPerS);
+            imuAngularVelocityBias_radPs[Z_AXIS] +
+            sampleGaussian(imuAngularVelocityStddev_radPs);
 
-        /* Add the constant bias and a fresh noise sample to x-axis linear
-         * acceleration. */
+        /*!
+         * Add the constant bias and a fresh noise sample to x-axis linear
+         * acceleration.
+         */
         message.linear_acceleration.x +=
-            imuLinearAccelerationBias_mPerS2[X_AXIS] +
-            sampleGaussian(imuLinearAccelerationStddev_mPerS2);
+            imuLinearAccelerationBias_mPs2[X_AXIS] +
+            sampleGaussian(imuLinearAccelerationStddev_mPs2);
 
-        /* Add the constant bias and a fresh noise sample to y-axis linear
-         * acceleration. */
+        /*!
+         * Add the constant bias and a fresh noise sample to y-axis linear
+         * acceleration.
+         */
         message.linear_acceleration.y +=
-            imuLinearAccelerationBias_mPerS2[Y_AXIS] +
-            sampleGaussian(imuLinearAccelerationStddev_mPerS2);
+            imuLinearAccelerationBias_mPs2[Y_AXIS] +
+            sampleGaussian(imuLinearAccelerationStddev_mPs2);
 
-        /* Add the constant bias and a fresh noise sample to z-axis linear
-         * acceleration. */
+        /*!
+         * Add the constant bias and a fresh noise sample to z-axis linear
+         * acceleration.
+         */
         message.linear_acceleration.z +=
-            imuLinearAccelerationBias_mPerS2[Z_AXIS] +
-            sampleGaussian(imuLinearAccelerationStddev_mPerS2);
+            imuLinearAccelerationBias_mPs2[Z_AXIS] +
+            sampleGaussian(imuLinearAccelerationStddev_mPs2);
 
         /* Apply a small random rotation to the reported orientation. */
         perturbOrientation(message.orientation);
@@ -85,13 +98,13 @@ void AlphaDriverNode::publishNoisyImuCallBack(const sensor_msgs::msg::Imu &messa
                                 message.orientation_covariance);
 
         /* Add the angular-rate-noise variance onto the diagonal. */
-        addVarianceToCovariance(imuAngularVelocityStddev_radPerS *
-                                    imuAngularVelocityStddev_radPerS,
+        addVarianceToCovariance(imuAngularVelocityStddev_radPs *
+                                    imuAngularVelocityStddev_radPs,
                                 message.angular_velocity_covariance);
 
         /* Add the linear-acceleration-noise variance onto the diagonal. */
-        addVarianceToCovariance(imuLinearAccelerationStddev_mPerS2 *
-                                    imuLinearAccelerationStddev_mPerS2,
+        addVarianceToCovariance(imuLinearAccelerationStddev_mPs2 *
+                                    imuLinearAccelerationStddev_mPs2,
                                 message.linear_acceleration_covariance);
     }
 

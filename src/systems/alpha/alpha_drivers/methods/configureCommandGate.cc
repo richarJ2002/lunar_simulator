@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <stdexcept>
@@ -30,15 +30,15 @@ void AlphaDriverNode::configureCommandGate(const std::string &systemName_in)
 
     /* A READY state older than this no longer opens the gate, so a silent
      * supervisor stops the rover rather than leaving it free to drive. */
-    maximumStateHeartbeatAgeS =
+    maximumStateHeartbeatAge_s =
         declare_parameter<double>("maximum_state_heartbeat_age_s", 1.5);
 
     /* Raw sensor inputs older than this make the driver report itself not
      * ready. */
-    readinessMaximumInputAgeS =
+    readinessMaximumInputAge_s =
         declare_parameter<double>("readiness_maximum_input_age_s", 0.5);
-    if (!(maximumStateHeartbeatAgeS > 0.0) ||
-        !(readinessMaximumInputAgeS > 0.0))
+    if (!(maximumStateHeartbeatAge_s > 0.0) ||
+        !(readinessMaximumInputAge_s > 0.0))
     {
         throw std::invalid_argument("gate and readiness ages must be positive");
     }
@@ -52,8 +52,9 @@ void AlphaDriverNode::configureCommandGate(const std::string &systemName_in)
             systemStateTopic,
             rclcpp::QoS(1).reliable().transient_local(),
             [this](
-                diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr p_message)
-            { handleSystemStateCallBack(*p_message); },
+                diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr
+                    p_message_in)
+            { handleSystemStateCallBack(*p_message_in); },
             subscriptionOptions);
 
     p_diagnosticsPublisher =

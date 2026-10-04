@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -44,8 +44,8 @@ void AlphaDriverNode::configureImuInterface(const std::string &systemName_in)
     p_rawImuSubscription = create_subscription<sensor_msgs::msg::Imu>(
         rawImuTopic,
         rclcpp::SensorDataQoS(),
-        [this](const sensor_msgs::msg::Imu::ConstSharedPtr p_message)
-        { publishNoisyImuCallBack(*p_message); },
+        [this](const sensor_msgs::msg::Imu::ConstSharedPtr p_message_in)
+        { publishNoisyImuCallBack(*p_message_in); },
         subscriptionOptions);
 }
 

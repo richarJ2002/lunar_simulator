@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -15,26 +15,31 @@ namespace systems::alpha::alpha_drivers
 void AlphaDriverNode::publishNoisyJointStateCallBack(
     const sensor_msgs::msg::JointState &message_in)
 {
-    /* Raw joint-state freshness is the other half of this node's
-     * readiness; it counts every raw message, before rate limiting. */
+    /*!
+     * Raw joint-state freshness is the other half of this node's
+     * readiness; it counts every raw message, before rate limiting.
+     */
     latestRawJointStateReceipt_s = now().seconds();
 
     constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000;
-    const std::int64_t stamp_ns =
+    const std::int64_t     stamp_ns =
         static_cast<std::int64_t>(message_in.header.stamp.sec) *
             NANOSECONDS_PER_SECOND +
         static_cast<std::int64_t>(message_in.header.stamp.nanosec);
 
-    /* Gazebo 8.11 publishes joint states every physics iteration. Keep the
+    /*!
+     * Gazebo 8.11 publishes joint states every physics iteration. Keep the
      * hardware-facing stream at its configured sensor rate before adding
      * noise or triggering the downstream wheel solve. A backwards clock jump
-     * starts a new interval immediately. */
-    if (hasPreviousJointStateStamp &&
-        stamp_ns >= previousJointStateStamp_ns &&
+     * starts a new interval immediately.
+     */
+    if (hasPreviousJointStateStamp && stamp_ns >= previousJointStateStamp_ns &&
         stamp_ns - previousJointStateStamp_ns < jointStateMinimumPeriod_ns)
     {
         return;
     }
+
+    /* Remember this stamp for the next minimum-period check. */
     previousJointStateStamp_ns = stamp_ns;
     hasPreviousJointStateStamp = true;
 
@@ -53,10 +58,10 @@ void AlphaDriverNode::publishNoisyJointStateCallBack(
     }
 
     /* Perturb every drive-joint velocity the same way. */
-    for (double &velocity_radPerS : message.velocity)
+    for (double &velocity_radPs : message.velocity)
     {
         /* Add one independent noise sample to this drive velocity. */
-        velocity_radPerS += sampleGaussian(wheelVelocityStddev_radPerS);
+        velocity_radPs += sampleGaussian(wheelVelocityStddev_radPs);
     }
 
     /* Publish the perturbed measurement to the public topic. */

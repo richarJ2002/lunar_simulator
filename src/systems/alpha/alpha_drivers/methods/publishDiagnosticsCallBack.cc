@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -27,6 +27,8 @@ void AlphaDriverNode::publishDiagnosticsCallBack()
     const double imuAge_s   = now_s - latestRawImuReceipt_s;
     const double jointAge_s = now_s - latestRawJointStateReceipt_s;
     std::string  reason     = "inputs fresh";
+
+    /* Classify input freshness for the readiness reason. */
     if (latestRawImuReceipt_s < 0.0)
     {
         reason = "no raw IMU";
@@ -35,22 +37,26 @@ void AlphaDriverNode::publishDiagnosticsCallBack()
     {
         reason = "no raw joint states";
     }
-    else if (imuAge_s > readinessMaximumInputAgeS)
+    else if (imuAge_s > readinessMaximumInputAge_s)
     {
         reason = common::console::formatText("raw IMU %.1f s old", imuAge_s);
     }
-    else if (jointAge_s > readinessMaximumInputAgeS)
+    else if (jointAge_s > readinessMaximumInputAge_s)
     {
         reason =
             common::console::formatText("raw joints %.1f s old", jointAge_s);
     }
+
+    /* Ready means both raw streams are fresh. */
     const bool isReady = reason == "inputs fresh";
 
+    /* Evaluate the command gate for this diagnostics cycle. */
     const CommandGateDecision gate =
         evaluateCommandGate(latestSystemState,
                             now_s - latestSystemStateReceipt_s,
-                            maximumStateHeartbeatAgeS);
+                            maximumStateHeartbeatAge_s);
 
+    /* Assemble the readiness and gate report. */
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.name        = "alpha_driver_node";
     status.hardware_id = get_name();
@@ -68,6 +74,7 @@ void AlphaDriverNode::publishDiagnosticsCallBack()
     diagnostics::addCountValue("commands_blocked", blockedCommandCount, status);
     diagnostics::addCountValue("stop_commands", stopCommandCount, status);
 
+    /* Pack the report for the diagnostics topic. */
     diagnostic_msgs::msg::DiagnosticArray record;
     record.header.stamp = now();
     record.status.push_back(status);

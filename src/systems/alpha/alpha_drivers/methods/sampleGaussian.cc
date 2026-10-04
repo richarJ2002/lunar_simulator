@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -26,8 +26,10 @@ double AlphaDriverNode::sampleGaussian(double standardDeviation_in)
         return 0.0;
     }
 
-    /* Build a zero-mean distribution at this channel's configured
-     * standard deviation. */
+    /*!
+     * Build a zero-mean distribution at this channel's configured
+     * standard deviation.
+     */
     std::normal_distribution<double> distribution(0.0, standardDeviation_in);
 
     /* Draw and return one sample, advancing the shared engine's state. */

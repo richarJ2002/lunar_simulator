@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 /* Generic Libraries */
 #include <algorithm>
@@ -22,15 +22,19 @@ namespace systems::alpha::alpha_drivers
 void AlphaDriverNode::publishNoisyWheelCommandCallBack(
     const actuator_msgs::msg::Actuators &message_in)
 {
-    /* The gate drops every command while the system is not READY or its
-     * heartbeat is stale; a dropped command is never replayed. */
+    /*!
+     * The gate drops every command while the system is not READY or its
+     * heartbeat is stale; a dropped command is never replayed.
+     */
     const CommandGateDecision gate =
         evaluateCommandGate(latestSystemState,
                             now().seconds() - latestSystemStateReceipt_s,
-                            maximumStateHeartbeatAgeS);
+                            maximumStateHeartbeatAge_s);
+
+    /* Drop a gated command after counting and reporting it. */
     if (!gate.isOpen)
     {
-        ++blockedCommandCount;
+        blockedCommandCount++;
         LUNAR_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 3000,
@@ -38,7 +42,9 @@ void AlphaDriverNode::publishNoisyWheelCommandCallBack(
                                 gate.reason.c_str());
         return;
     }
-    ++forwardedCommandCount;
+
+    /* Count the command entering noise injection below. */
+    forwardedCommandCount++;
     latestForwardedSteering_rad = message_in.position;
 
     /* Start from a copy of the commanded, noise-free actuator targets. */
@@ -56,10 +62,10 @@ void AlphaDriverNode::publishNoisyWheelCommandCallBack(
     }
 
     /* Perturb every drive-velocity target the same way. */
-    for (double &velocity_radPerS : message.velocity)
+    for (double &velocity_radPs : message.velocity)
     {
         /* Add one independent noise sample to this drive target. */
-        velocity_radPerS += sampleGaussian(wheelCommandVelocityStddev_radPerS);
+        velocity_radPs += sampleGaussian(wheelCommandVelocityStddev_radPs);
 
         /*!
          * Clamp to Alpha's physical maximum drive-wheel speed -- this is
@@ -68,8 +74,9 @@ void AlphaDriverNode::publishNoisyWheelCommandCallBack(
          * the limit, or any commander that does not itself respect it (see
          * this class's own doc comment for the other two layers).
          */
-        velocity_radPerS = std::clamp(velocity_radPerS, -maximumWheelSpeedRadps,
-                                      maximumWheelSpeedRadps);
+        velocity_radPs = std::clamp(velocity_radPs,
+                                      -maximumWheelSpeed_radPs,
+                                      maximumWheelSpeed_radPs);
     }
 
     /* Publish the perturbed command onto the raw actuator bridge topic. */

@@ -8,7 +8,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 /* Other Project Module Includes */
 #include "console/console.h"
@@ -24,8 +24,10 @@ void AlphaDriverNode::configureWheelCommandInterface(
         "wheel_joint_states_topic",
         "/" + systemName_in + "/control/cmd/wheel_joint_states");
 
-    /* Output topic: the raw Gazebo actuator bridge, matching this system's
-     * config/alpha_ros_gz_bridge.yaml and alpha_model/model.sdf. */
+    /*!
+     * Output topic: the raw Gazebo actuator bridge, matching this system's
+     * config/alpha_ros_gz_bridge.yaml and alpha_model/model.sdf.
+     */
     const std::string rawWheelCommandTopic = declare_parameter<std::string>(
         "raw_wheel_joint_states_topic",
         "/" + systemName_in + "/drivers/cmd/wheel_joint_states");
@@ -45,14 +47,15 @@ void AlphaDriverNode::configureWheelCommandInterface(
     /* Assign that shared callback group to this subscription. */
     subscriptionOptions.callback_group = p_noiseCallbackGroup;
 
-    /* Every incoming public command triggers
-     * publishNoisyWheelCommandCallBack(). */
+    /*!
+     * Every incoming public command triggers publishNoisyWheelCommandCallBack()
+     */
     p_wheelCommandSubscription =
         create_subscription<actuator_msgs::msg::Actuators>(
             wheelCommandTopic,
             rclcpp::QoS(10),
-            [this](actuator_msgs::msg::Actuators::ConstSharedPtr p_message)
-            { publishNoisyWheelCommandCallBack(*p_message); },
+            [this](actuator_msgs::msg::Actuators::ConstSharedPtr p_message_in)
+            { publishNoisyWheelCommandCallBack(*p_message_in); },
             subscriptionOptions);
 
     /* Topic wiring is already captured by the run's parameter snapshot. */

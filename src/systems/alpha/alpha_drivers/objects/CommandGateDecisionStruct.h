@@ -1,13 +1,13 @@
 /*!
- * @file            CommandGateDecision.h
+ * @file            CommandGateDecisionStruct.h
  *
  * @brief           Declares the outcome of one command-gate evaluation.
  *
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_H
+#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_STRUCT_H
+#define LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_STRUCT_H
 
 /* C++ Standard Library Includes */
 #include <string>
@@ -43,4 +43,4 @@ struct CommandGateDecision
 
 } /* namespace systems::alpha::alpha_drivers */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_H */
+#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVERS_COMMAND_GATE_DECISION_STRUCT_H */

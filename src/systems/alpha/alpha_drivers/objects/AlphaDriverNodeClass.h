@@ -1,5 +1,5 @@
 /*!
- * @file            AlphaDriverNode.h
+ * @file            AlphaDriverNodeClass.h
  *
  * @brief           Declares the node that interfaces Alpha's stack with
  *                   Gazebo: raw sensor reads and raw actuator writes both
@@ -8,8 +8,8 @@
  * @date            17/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_H
+#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
+#define LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <array>
@@ -30,12 +30,12 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 
 /* Other Project Module Includes */
-#include "alpha_supervisor/public_functions.h"
+#include "alpha_supervisor/public_functions/public_functions.h"
 #include "console/console.h"
 
 /* Object Includes */
-#include "alpha_supervisor/objects/SystemState.h"
-#include "objects/CommandGateDecision.h"
+#include "alpha_supervisor/objects/SystemStateEnum.h"
+#include "objects/CommandGateDecisionStruct.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -87,7 +87,7 @@ class AlphaDriverNode final : public rclcpp::Node
         noiseEnabled = declare_parameter<bool>("noise_enabled", true);
 
         /* Angular-rate white-noise standard deviation, shared by x/y/z. */
-        imuAngularVelocityStddev_radPerS =
+        imuAngularVelocityStddev_radPs =
             declareNonnegativeParameter("imu_angular_velocity_stddev_radps",
                                         0.008);
 
@@ -95,7 +95,7 @@ class AlphaDriverNode final : public rclcpp::Node
          * Linear-acceleration white-noise standard deviation, shared by
          * x/y/z.
          */
-        imuLinearAccelerationStddev_mPerS2 =
+        imuLinearAccelerationStddev_mPs2 =
             declareNonnegativeParameter("imu_linear_acceleration_stddev_mps2",
                                         0.05);
 
@@ -108,30 +108,37 @@ class AlphaDriverNode final : public rclcpp::Node
             declareNonnegativeParameter("wheel_position_stddev_rad", 0.002);
 
         /* Drive-joint velocity white-noise standard deviation. */
-        wheelVelocityStddev_radPerS =
+        wheelVelocityStddev_radPs =
             declareNonnegativeParameter("wheel_velocity_stddev_radps", 0.015);
 
-        /* Bound public encoder traffic independently of Gazebo's physics
-         * iteration rate. */
-        const double jointStatePublishRateHz = declareNonnegativeParameter(
-            "joint_state_publish_rate_hz", 50.0);
-        if (!(jointStatePublishRateHz > 0.0) ||
-            jointStatePublishRateHz > 1.0e9)
+        /*!
+         * Bound public encoder traffic independently of Gazebo's physics
+         * iteration rate.
+         */
+        const double jointStatePublishRateHz =
+            declareNonnegativeParameter("joint_state_publish_rate_hz", 50.0);
+
+        /* Reject a non-positive or absurd publish rate. */
+        if (!(jointStatePublishRateHz > 0.0) || jointStatePublishRateHz > 1.0e9)
         {
             throw std::invalid_argument(
                 "joint_state_publish_rate_hz must be in (0, 1e9]");
         }
-        jointStateMinimumPeriod_ns = static_cast<std::int64_t>(
-            1.0e9 / jointStatePublishRateHz);
 
-        /* Steering-command position white-noise standard deviation, applied
-         * to the outgoing actuator command rather than a sensor reading. */
+        /* Convert the validated rate into an integer period. */
+        jointStateMinimumPeriod_ns =
+            static_cast<std::int64_t>(1.0e9 / jointStatePublishRateHz);
+
+        /*!
+         * Steering-command position white-noise standard deviation, applied
+         * to the outgoing actuator command rather than a sensor reading.
+         */
         wheelCommandPositionStddev_rad =
             declareNonnegativeParameter("wheel_command_position_stddev_rad",
                                         0.001);
 
         /* Drive-command velocity white-noise standard deviation. */
-        wheelCommandVelocityStddev_radPerS =
+        wheelCommandVelocityStddev_radPs =
             declareNonnegativeParameter("wheel_command_velocity_stddev_radps",
                                         0.01);
 
@@ -147,16 +154,16 @@ class AlphaDriverNode final : public rclcpp::Node
          * alpha_model/model.sdf's drive-joint velocity limits enforce it a
          * third time at the physics level.
          */
-        maximumWheelSpeedRadps =
+        maximumWheelSpeed_radPs =
             declareNonnegativeParameter("maximum_wheel_speed_radps", 0.14);
 
         /* Constant per-axis IMU angular-rate bias. */
-        imuAngularVelocityBias_radPerS = declareTripletParameter(
+        imuAngularVelocityBias_radPs = declareTripletParameter(
             "imu_angular_velocity_bias_radps",
             std::array<double, AXIS_COUNT>{0.002, -0.001, 0.0015});
 
         /* Constant per-axis IMU linear-acceleration bias. */
-        imuLinearAccelerationBias_mPerS2 = declareTripletParameter(
+        imuLinearAccelerationBias_mPs2 = declareTripletParameter(
             "imu_linear_acceleration_bias_mps2",
             std::array<double, AXIS_COUNT>{0.02, -0.015, 0.025});
 
@@ -193,10 +200,27 @@ class AlphaDriverNode final : public rclcpp::Node
      */
     ~AlphaDriverNode() override = default;
 
-    AlphaDriverNode(const AlphaDriverNode &otherNode_in)            = delete;
+    /*!
+     * @brief       Copying is forbidden: the node owns publishers,
+     *              subscriptions and timers that cannot be shared.
+     */
+    AlphaDriverNode(const AlphaDriverNode &otherNode_in) = delete;
+
+    /*!
+     * @brief       Copy assignment is forbidden; see above.
+     */
     AlphaDriverNode &operator=(const AlphaDriverNode &otherNode_in) = delete;
-    AlphaDriverNode(AlphaDriverNode &&otherNode_in)                 = delete;
-    AlphaDriverNode &operator=(AlphaDriverNode &&otherNode_in)      = delete;
+
+    /*!
+     * @brief       Moving is forbidden; ownership stays with the
+     *              constructing executor.
+     */
+    AlphaDriverNode(AlphaDriverNode &&otherNode_in) = delete;
+
+    /*!
+     * @brief       Move assignment is forbidden; see above.
+     */
+    AlphaDriverNode &operator=(AlphaDriverNode &&otherNode_in) = delete;
 
     /* ---------------------------------------------------------------------- *
      * PUBLIC METHODS
@@ -313,6 +337,12 @@ class AlphaDriverNode final : public rclcpp::Node
     /*!
      * @brief           Declares and validates a three-axis parameter.
      *
+     *                  A member function's own declared parameter/return types
+     *                  (unlike its body) are not a complete-class context, so
+     *                  they cannot forward-refer to AXIS_COUNT, which this
+     *                  class declares later under PRIVATE MEMBERS; the literal
+     *                  3U below is that same value spelled out instead.
+     *
      * @param[in]       name_in
      *                  Externally controlled ROS parameter name.
      *
@@ -323,12 +353,6 @@ class AlphaDriverNode final : public rclcpp::Node
      *
      * @throws          std::invalid_argument if the configured value does not
      *                  contain exactly three finite values.
-     */
-    /*!
-     * A member function's own declared parameter/return types (unlike its
-     * body) are not a complete-class context, so they cannot forward-refer
-     * to AXIS_COUNT, which this class declares later under PRIVATE MEMBERS;
-     * the literal 3U below is that same value spelled out instead.
      */
     std::array<double, 3U>
         declareTripletParameter(const std::string            &name_in,
@@ -439,127 +463,181 @@ class AlphaDriverNode final : public rclcpp::Node
 
     /*!
      * @brief       IMU angular-rate white-noise standard deviation in rad/s.
+     *
+     * @frame       N/A
+     * @units       radians per second
      */
-    double imuAngularVelocityStddev_radPerS{0.008};
+    double imuAngularVelocityStddev_radPs{0.008};
 
     /*!
      * @brief       IMU acceleration white-noise standard deviation in m/s^2.
+     *
+     * @frame       N/A
+     * @units       meters per second squared
      */
-    double imuLinearAccelerationStddev_mPerS2{0.05};
+    double imuLinearAccelerationStddev_mPs2{0.05};
 
     /*!
      * @brief       IMU orientation white-noise standard deviation in rad.
+     *
+     * @frame       N/A
+     * @units       radians
      */
     double imuOrientationStddev_rad{0.003};
 
     /*!
      * @brief       Wheel joint-position white-noise standard deviation in rad.
+     *
+     * @frame       N/A
+     * @units       radians
      */
     double wheelPositionStddev_rad{0.002};
 
     /*!
      * @brief       Wheel joint-velocity white-noise standard deviation in
      *              rad/s.
+     *
+     * @frame       N/A
+     * @units       radians per second
      */
-    double wheelVelocityStddev_radPerS{0.015};
+    double wheelVelocityStddev_radPs{0.015};
 
     /*!
-     * @brief           Minimum simulation-time interval between public
-     *                  joint states.
+     * @brief       Minimum simulation-time interval between public
+     *              joint states.
      *
-     * @frame           N/A
-     * @units           nanoseconds
+     * @frame       N/A
+     * @units       nanoseconds
      */
     std::int64_t jointStateMinimumPeriod_ns{20000000};
 
     /*!
-     * @brief           Timestamp of the most recently published joint state.
+     * @brief       Timestamp of the most recently published joint state.
      *
-     * @frame           N/A
-     * @units           nanoseconds
+     * @frame       N/A
+     * @units       nanoseconds
      */
     std::int64_t previousJointStateStamp_ns{0};
 
     /*!
-     * @brief           Whether a public joint-state timestamp has been
-     *                  recorded.
+     * @brief       Whether a public joint-state timestamp has been
+     *              recorded.
      *
-     * @frame           N/A
-     * @units           N/A
+     * @frame       N/A
+     * @units       N/A
      */
     bool hasPreviousJointStateStamp{false};
 
     /*!
      * @brief       Wheel steering-command white-noise standard deviation in
      *              rad, applied to the outgoing actuator command.
+     *
+     * @frame       N/A
+     * @units       radians
      */
     double wheelCommandPositionStddev_rad{0.001};
 
     /*!
      * @brief       Wheel drive-command white-noise standard deviation in
      *              rad/s, applied to the outgoing actuator command.
+     *
+     * @frame       N/A
+     * @units       radians per second
      */
-    double wheelCommandVelocityStddev_radPerS{0.01};
+    double wheelCommandVelocityStddev_radPs{0.01};
 
     /*!
      * @brief       Alpha's real-hardware maximum drive-wheel speed in
      *              rad/s; see its declare_parameter call for the three
      *              layers this is enforced at.
+     *
+     * @frame       N/A
+     * @units       radians per second
      */
-    double maximumWheelSpeedRadps{0.14};
+    double maximumWheelSpeed_radPs{0.14};
 
     /*!
      * @brief       Constant body-frame IMU angular-rate bias in rad/s.
+     *
+     * @frame       N/A
+     * @units       radians per second
      */
-    std::array<double, AXIS_COUNT> imuAngularVelocityBias_radPerS{};
+    std::array<double, AXIS_COUNT> imuAngularVelocityBias_radPs{};
 
     /*!
      * @brief       Constant body-frame IMU acceleration bias in m/s^2.
+     *
+     * @frame       N/A
+     * @units       meters per second squared
      */
-    std::array<double, AXIS_COUNT> imuLinearAccelerationBias_mPerS2{};
+    std::array<double, AXIS_COUNT> imuLinearAccelerationBias_mPs2{};
 
     /*!
      * @brief       Deterministic random source selected by the Alpha random
      *              seed.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     std::mt19937 randomEngine;
 
     /*!
      * @brief       Serial callback group shared by every interface below, so
      *              none of them can re-enter randomEngine concurrently.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::CallbackGroup::SharedPtr p_noiseCallbackGroup;
 
     /*!
      * @brief       Noisy public IMU publisher.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr p_imuPublisher;
 
     /*!
      * @brief       Raw simulator IMU subscription.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr p_rawImuSubscription;
 
     /*!
      * @brief       Noisy public joint-state publisher.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr
         p_jointStatePublisher;
 
     /*!
      * @brief       Raw simulator joint-state subscription.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr
         p_rawJointStateSubscription;
 
     /*!
      * @brief       Raw Gazebo actuator bridge publisher.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Publisher<actuator_msgs::msg::Actuators>::SharedPtr
         p_rawWheelCommandPublisher;
 
     /*!
      * @brief       Public wheel command subscription.
+     *
+     * @frame       N/A
+     * @units       N/A
      */
     rclcpp::Subscription<actuator_msgs::msg::Actuators>::SharedPtr
         p_wheelCommandSubscription;
@@ -606,7 +684,7 @@ class AlphaDriverNode final : public rclcpp::Node
      * @frame           N/A
      * @units           seconds
      */
-    double maximumStateHeartbeatAgeS{1.5};
+    double maximumStateHeartbeatAge_s{1.5};
 
     /*!
      * @brief           Oldest raw IMU or joint-state sample for which this
@@ -615,7 +693,7 @@ class AlphaDriverNode final : public rclcpp::Node
      * @frame           N/A
      * @units           seconds
      */
-    double readinessMaximumInputAgeS{0.5};
+    double readinessMaximumInputAge_s{0.5};
 
     /*!
      * @brief           Latest parsed system state; no value before the
@@ -699,4 +777,4 @@ class AlphaDriverNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_drivers */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_H */
+#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H */

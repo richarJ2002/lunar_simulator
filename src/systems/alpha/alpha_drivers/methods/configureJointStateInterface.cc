@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "objects/AlphaDriverNode.h"
+#include "objects/AlphaDriverNodeClass.h"
 
 namespace systems::alpha::alpha_drivers
 {
@@ -39,14 +39,14 @@ void AlphaDriverNode::configureJointStateInterface(
     /* Assign that shared callback group to this subscription. */
     subscriptionOptions.callback_group = p_noiseCallbackGroup;
 
-    /* Every raw joint-state sample triggers publishNoisyJointStateCallBack().
-     */
+    /* Every raw joint-state sample triggers publishNoisyJointStateCallBack() */
     p_rawJointStateSubscription =
         create_subscription<sensor_msgs::msg::JointState>(
             rawJointStateTopic,
             rclcpp::SensorDataQoS(),
-            [this](const sensor_msgs::msg::JointState::ConstSharedPtr p_message)
-            { publishNoisyJointStateCallBack(*p_message); },
+            [this](const sensor_msgs::msg::JointState::ConstSharedPtr
+                       p_message_in)
+            { publishNoisyJointStateCallBack(*p_message_in); },
             subscriptionOptions);
 }
 
