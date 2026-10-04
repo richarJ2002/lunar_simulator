@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -37,9 +37,9 @@ cv::Matx44d
     const cv::Matx33d baseFromOptical = baseFromMount * mountFromOptical;
 
     cv::Matx44d transform = cv::Matx44d::eye();
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             transform(row, column) = baseFromOptical(row, column);
         }

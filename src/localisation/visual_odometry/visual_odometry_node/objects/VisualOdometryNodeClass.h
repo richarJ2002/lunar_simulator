@@ -1,5 +1,5 @@
 /*!
- * @File:         VisualOdometryNode.h
+ * @File:         VisualOdometryNodeClass.h
  *
  * @Brief:        Declares the stereo visual-odometry ROS node.
  *
@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_H
-#define LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_H
+#ifndef LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
+#define LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -65,8 +65,8 @@ namespace localisation::visual_odometry
  * pose is accumulated into `worldFromOptical`, a rigid
  * transform from the optical frame at node start-up to the current optical
  * frame. Odometry withholds a pose update and keeps the previous accumulated
- * pose whenever too few reliable correspondences are available; it is
- * intended for a single-threaded executor.
+ * pose whenever too few reliable correspondences are available. Callbacks run
+ * in the node's mutually exclusive default callback group.
  */
 class VisualOdometryNode final : public rclcpp::Node
 {
@@ -77,13 +77,20 @@ class VisualOdometryNode final : public rclcpp::Node
      */
     enum class KeyframeAction : std::uint8_t
     {
-        /*! Keep the keyframe so the next solve spans all motion since it. */
+        /*!
+         * @brief       Keep the keyframe so the next solve spans all motion
+         *              since it.
+         */
         RETAIN_KEYFRAME = 0U,
 
-        /*! Replace the keyframe with the current frame. */
+        /*!
+         * @brief       Replace the keyframe with the current frame.
+         */
         ADVANCE_KEYFRAME = 1U,
 
-        /*! Declare the accumulated pose discontinuous. */
+        /*!
+         * @brief       Declare the accumulated pose discontinuous.
+         */
         MARK_POSE_UNAVAILABLE = 2U
     };
 
@@ -525,8 +532,9 @@ class VisualOdometryNode final : public rclcpp::Node
         /*!
          * Initialize both reusable feature-tracking engines once, here,
          * at construction time -- matching their own documented
-         * lifecycle (the one allocation each ever performs) and this
-         * node's single-threaded executor assumption. A misconfiguration
+         * lifecycle (the one allocation each ever performs) and this node's
+         * mutually exclusive default callback group, which serializes their
+         * later use. A misconfiguration
          * here (e.g. `image_width_px` not matching model.sdf, or an
          * optical-flow window too large for the configured pyramid
          * depth) is a startup-time defect, so it fails the node's
@@ -581,8 +589,8 @@ class VisualOdometryNode final : public rclcpp::Node
         p_resetSubscription = create_subscription<std_msgs::msg::Empty>(
             resetTopic,
             rclcpp::QoS(1).reliable(),
-            [this](const std_msgs::msg::Empty::ConstSharedPtr p_message)
-            { handleResetCallBack(*p_message); });
+            [this](const std_msgs::msg::Empty::ConstSharedPtr p_message_in)
+            { handleResetCallBack(*p_message_in); });
 
         /* Images kept per camera, both by the subscription and by the
          * pair matcher. One drops a frame whenever its partner is late or
@@ -839,14 +847,14 @@ class VisualOdometryNode final : public rclcpp::Node
      * visualization and stores the current frame as "previous" for the next
      * callback.
      *
-     * @param[in]       p_left_in
-     *                  Left LocCam image, synchronized with `p_right_in`.
-     * @param[in]       p_right_in
-     *                  Right LocCam image, synchronized with `p_left_in`.
+     * @param[in]       leftImage_in
+     *                  Left LocCam image, synchronized with `rightImage_in`.
+     * @param[in]       rightImage_in
+     *                  Right LocCam image, synchronized with `leftImage_in`.
      */
     void handleStereoCallBack(
-        const sensor_msgs::msg::Image::ConstSharedPtr &p_left_in,
-        const sensor_msgs::msg::Image::ConstSharedPtr &p_right_in);
+        const sensor_msgs::msg::Image::ConstSharedPtr &leftImage_in,
+        const sensor_msgs::msg::Image::ConstSharedPtr &rightImage_in);
 
     /*!
      * @brief           Clears retained visual history and begins a new epoch.
@@ -980,7 +988,7 @@ class VisualOdometryNode final : public rclcpp::Node
      *                  previous-to-current optical frame.
      * @param[in]       stamp_in
      *                  Timestamp of the current stereo frame.
-     * @param[in]       dtS_in
+     * @param[in]       dt_s_in
      *                  Elapsed time since the previous accepted frame, in
      *                  seconds.
      * @param[in]       correlatedPoints_in
@@ -994,7 +1002,7 @@ class VisualOdometryNode final : public rclcpp::Node
     void updatePose(const cv::Mat                       &rotationVector_in,
                     const cv::Mat                       &translationVector_in,
                     const builtin_interfaces::msg::Time &stamp_in,
-                    double                               dtS_in,
+                    double                               dt_s_in,
                     const std::vector<cv::Point3f>      &correlatedPoints_in,
                     const std::vector<int>              &inlierIndices_in,
                     const VisualPoseQuality             &quality_in);
@@ -1045,14 +1053,14 @@ class VisualOdometryNode final : public rclcpp::Node
      *
      * Pose is the accumulated `currentPose_in` expressed in `odomFrame`.
      * Twist is the finite-difference body-frame relative motion between
-     * `previousPose_in` and `currentPose_in` divided by `dtS_in`. Diagonal
+     * `previousPose_in` and `currentPose_in` divided by `dt_s_in`. Diagonal
      * pose covariance is the accumulated geometry-aware covariance supplied by
      * `updatePose`; diagnostic twist covariance is derived from the current
      * relative solve only.
      *
      * @param[in]       stamp_in
      *                  Timestamp applied to the published message header.
-     * @param[in]       dtS_in
+     * @param[in]       dt_s_in
      *                  Elapsed time between `previousPose_in` and
      *                  `currentPose_in`, in seconds.
      * @param[in]       poseCovariance_in
@@ -1066,7 +1074,7 @@ class VisualOdometryNode final : public rclcpp::Node
      *                  Current accumulated world-from-body transform.
      */
     void publishOdometry(const builtin_interfaces::msg::Time &stamp_in,
-                         double                               dtS_in,
+                         double                               dt_s_in,
                          const cv::Matx44d                   &previousPose_in,
                          const cv::Matx44d                   &currentPose_in,
                          const PoseCovariance                &poseCovariance_in,
@@ -1386,7 +1394,7 @@ class VisualOdometryNode final : public rclcpp::Node
      *                  rotation.
      *
      * @frame           startup-fixed
-     * @units           m^2 and rad^2
+     * @units           square meters and square radians
      */
     PoseCovariance accumulatedPoseCovariance{PoseCovariance::zeros()};
 
@@ -1493,7 +1501,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           N/A
      * @units           ROS seconds
      */
-    double previousStampS{0.0};
+    double previousStamp_s{0.0};
 
     /*!
      * @brief           Maximum number of corner features detected per frame.
@@ -1806,4 +1814,4 @@ class VisualOdometryNode final : public rclcpp::Node
 
 } /* namespace localisation::visual_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_H */
+#endif /* LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H */

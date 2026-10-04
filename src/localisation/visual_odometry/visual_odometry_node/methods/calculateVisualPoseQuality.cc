@@ -4,7 +4,7 @@
  * @brief           Implements geometry-aware PnP quality and covariance.
  */
 
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 #include <algorithm>
 #include <cmath>
@@ -97,7 +97,7 @@ VisualOdometryNode::VisualPoseQuality
                                 configuration_in.baselineM / depthM);
         if (depthM <= configuration_in.nearMidDepthM)
         {
-            ++nearMidCount;
+            nearMidCount++;
         }
 
         const int column = std::clamp(
@@ -158,7 +158,7 @@ VisualOdometryNode::VisualPoseQuality
     }
 
     double squaredErrorPx2 = 0.0;
-    for (std::size_t index = 0U; index < projectedPoints.size(); ++index)
+    for (std::size_t index = 0U; index < projectedPoints.size(); index++)
     {
         const cv::Point2f residual =
             inlierImagePoints[index] - projectedPoints[index];
@@ -221,10 +221,10 @@ VisualOdometryNode::VisualPoseQuality
                                         disparityScale * disparityScale;
 
     constexpr std::array<int, 6> PARAMETER_ORDER{3, 4, 5, 0, 1, 2};
-    for (int row = 0; row < 6; ++row)
+    for (int row = 0; row < 6; row++)
     {
         const double rowScale = row < 3 ? std::sqrt(translationInflation) : 1.0;
-        for (int column = 0; column < 6; ++column)
+        for (int column = 0; column < 6; column++)
         {
             const double columnScale =
                 column < 3 ? std::sqrt(translationInflation) : 1.0;
@@ -255,9 +255,9 @@ VisualOdometryNode::VisualPoseQuality
     const cv::Vec3d depthAxisCurrent(rotationMatrix.at<double>(0, 2),
                                      rotationMatrix.at<double>(1, 2),
                                      rotationMatrix.at<double>(2, 2));
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             quality.relativeCovariance(row, column) +=
                 stereoTranslationVariance * depthAxisCurrent[row] *
@@ -265,7 +265,7 @@ VisualOdometryNode::VisualPoseQuality
         }
     }
 
-    for (int index = 0; index < 6; ++index)
+    for (int index = 0; index < 6; index++)
     {
         const double minimumVariance =
             index < 3 ? configuration_in.minimumTranslationVarianceM2

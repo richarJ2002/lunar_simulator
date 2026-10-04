@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -68,7 +68,7 @@ void VisualOdometryNode::storePrevious(
 
     /* Retain this frame's timestamp, in seconds, for the next callback's
      * elapsed-time calculation. */
-    previousStampS = stampToSeconds(stamp_in);
+    previousStamp_s = stampToSeconds(stamp_in);
 }
 
 } /* namespace localisation::visual_odometry */

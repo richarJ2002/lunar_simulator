@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -25,12 +25,13 @@ namespace localisation::visual_odometry
 {
 
 /* This is a private method with a single, already-reviewed call site
- * (handleStereoCallBack.cc), which passes dtS_in/inlierCount_in from distinctly
- * named local variables, not positionally from ambiguous data. */
+ * (handleStereoCallBack.cc), which passes dt_s_in/inlierCount_in from
+ * distinctly named local variables, not positionally from ambiguous
+ * data. */
 void VisualOdometryNode::publishOdometry(
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     const builtin_interfaces::msg::Time &stamp_in,
-    double                               dtS_in,
+    double                               dt_s_in,
     const cv::Matx44d                   &previousPose_in,
     const cv::Matx44d                   &currentPose_in,
     const PoseCovariance                &poseCovariance_in,
@@ -65,7 +66,7 @@ void VisualOdometryNode::publishOdometry(
      * directly, since this estimator only ever produces discrete relative
      * poses from PnP. previousFromCurrent expresses the relative motion in
      * the BODY frame (matching ROS twist convention for child_frame_id),
-     * and dividing by dtS_in converts the per-step displacement into a
+     * and dividing by dt_s_in converts the per-step displacement into a
      * per-second rate.
      */
     const cv::Matx44d previousFromCurrent =
@@ -78,13 +79,13 @@ void VisualOdometryNode::publishOdometry(
                                     previousFromCurrent(2, 3));
 
     /* Convert the x displacement into a per-second linear rate. */
-    output.twist.twist.linear.x = translationBody[0] / dtS_in;
+    output.twist.twist.linear.x = translationBody[0] / dt_s_in;
 
     /* Convert the y displacement into a per-second linear rate. */
-    output.twist.twist.linear.y = translationBody[1] / dtS_in;
+    output.twist.twist.linear.y = translationBody[1] / dt_s_in;
 
     /* Convert the z displacement into a per-second linear rate. */
-    output.twist.twist.linear.z = translationBody[2] / dtS_in;
+    output.twist.twist.linear.z = translationBody[2] / dt_s_in;
 
     /* Relative rotation matrix, extracted for the Rodrigues conversion
      * below. */
@@ -92,9 +93,9 @@ void VisualOdometryNode::publishOdometry(
 
     /* Copy the relative rotation block out of the homogeneous
      * transform. */
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             relativeRotation.at<double>(row, column) =
                 previousFromCurrent(row, column);
@@ -108,7 +109,7 @@ void VisualOdometryNode::publishOdometry(
     /*!
      * Convert the relative rotation matrix to an axis-angle (Rodrigues)
      * vector: its direction is the rotation axis and its magnitude is the
-     * rotation angle in radians, so dividing by dtS_in directly yields an
+     * rotation angle in radians, so dividing by dt_s_in directly yields an
      * angular-rate vector, matching ROS twist.angular convention.
      */
     cv::Rodrigues(relativeRotation, relativeRotationVector);
@@ -116,28 +117,28 @@ void VisualOdometryNode::publishOdometry(
     /* Convert the x-axis rotation component into a per-second angular
      * rate. */
     output.twist.twist.angular.x =
-        relativeRotationVector.at<double>(0) / dtS_in;
+        relativeRotationVector.at<double>(0) / dt_s_in;
 
     /* Convert the y-axis rotation component into a per-second angular
      * rate. */
     output.twist.twist.angular.y =
-        relativeRotationVector.at<double>(1) / dtS_in;
+        relativeRotationVector.at<double>(1) / dt_s_in;
 
     /* Convert the z-axis rotation component into a per-second angular
      * rate. */
     output.twist.twist.angular.z =
-        relativeRotationVector.at<double>(2) / dtS_in;
+        relativeRotationVector.at<double>(2) / dt_s_in;
 
-    for (int row = 0; row < 6; ++row)
+    for (int row = 0; row < 6; row++)
     {
-        for (int column = 0; column < 6; ++column)
+        for (int column = 0; column < 6; column++)
         {
             const std::size_t covarianceIndex =
                 static_cast<std::size_t>(row * 6 + column);
             output.pose.covariance[covarianceIndex] =
                 poseCovariance_in(row, column);
             output.twist.covariance[covarianceIndex] =
-                relativeCovariance_in(row, column) / (dtS_in * dtS_in);
+                relativeCovariance_in(row, column) / (dt_s_in * dt_s_in);
         }
     }
 

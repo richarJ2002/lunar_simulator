@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -49,10 +49,10 @@ cv::Matx44d VisualOdometryNode::invertRigid(const cv::Matx44d &transform_in)
 
     /* Copy the rotation block and translation column out of the packed
      * 4x4 input; one loop performs both extractions together. */
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
         translation[row] = transform_in(row, 3);
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             rotation(row, column) = transform_in(row, column);
         }
@@ -66,10 +66,10 @@ cv::Matx44d VisualOdometryNode::invertRigid(const cv::Matx44d &transform_in)
 
     /* Write the inverted rotation and translation back into the packed
      * 4x4 result; one loop performs both writes together. */
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
         inverse(row, 3) = inverseTranslation[row];
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             inverse(row, column) = rotationTranspose(row, column);
         }

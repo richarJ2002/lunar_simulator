@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -30,9 +30,9 @@ namespace
 cv::Matx33d rotationBlock(const cv::Matx44d &transform_in)
 {
     cv::Matx33d rotation;
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             rotation(row, column) = transform_in(row, column);
         }
@@ -62,9 +62,9 @@ VisualOdometryNode::PoseCovariance adjoint(const cv::Matx44d &transform_in)
                                 transform_in(1, 3),
                                 transform_in(2, 3));
     const cv::Matx33d translationRotation = skew(translation) * rotation;
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             result(row, column)         = rotation(row, column);
             result(row, column + 3)     = translationRotation(row, column);
@@ -84,7 +84,7 @@ void VisualOdometryNode::updatePose(
     const cv::Mat                       &rotationVector_in,
     const cv::Mat                       &translationVector_in,
     const builtin_interfaces::msg::Time &stamp_in,
-    double                               dtS_in,
+    double                               dt_s_in,
     const std::vector<cv::Point3f>      &correlatedPoints_in,
     const std::vector<int>              &inlierIndices_in,
     const VisualPoseQuality             &quality_in)
@@ -107,13 +107,13 @@ void VisualOdometryNode::updatePose(
      * optical frame -> current optical frame) from the translation vector
      * and expanded rotation matrix above.
      */
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
         /* Copy this row's translation component from PnP's output. */
         currentFromPrevious(row, 3) = translationVector_in.at<double>(row);
 
         /* Copy this row's rotation components from the expanded matrix. */
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             currentFromPrevious(row, column) =
                 rotationMatrix.at<double>(row, column);
@@ -151,9 +151,9 @@ void VisualOdometryNode::updatePose(
     const cv::Matx33d attitudeToPosition =
         -previousWorldRotation * skew(relativeTranslationBody);
     PoseCovariance relativeToFixed = PoseCovariance::zeros();
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < 3; row++)
     {
-        for (int column = 0; column < 3; ++column)
+        for (int column = 0; column < 3; column++)
         {
             priorJacobian(row, column + 3) = attitudeToPosition(row, column);
             relativeToFixed(row, column)   = previousWorldRotation(row, column);
@@ -185,7 +185,7 @@ void VisualOdometryNode::updatePose(
 
     /* Publish the finite-differenced pose/twist for this step. */
     publishOdometry(stamp_in,
-                    dtS_in,
+                    dt_s_in,
                     previousWorldFromBody,
                     worldFromBody,
                     accumulatedPoseCovariance,

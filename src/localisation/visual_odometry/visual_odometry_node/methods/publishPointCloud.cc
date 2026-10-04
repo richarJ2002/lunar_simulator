@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 #include <sensor_msgs/point_cloud2_iterator.hpp>
@@ -117,13 +117,10 @@ VisualOdometryNode::publishPointCloud(
         /* Write this point's z coordinate. */
         *zIterator = point.z;
 
-        /* Advance to the next point's x slot. */
+        /* Advance to the next point's slots. Prefix increment: these
+         * sensor_msgs iterators declare no postfix operator++. */
         ++xIterator;
-
-        /* Advance to the next point's y slot. */
         ++yIterator;
-
-        /* Advance to the next point's z slot. */
         ++zIterator;
     }
 

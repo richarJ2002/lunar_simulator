@@ -9,7 +9,7 @@
  */
 
 /* Matching Declaration Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -174,7 +174,7 @@ void VisualOdometryNode::publishPipelineDiagnosticsCallBack()
     previousReportedPairCount     = receivedPairCount;
     previousReportedAcceptedCount = acceptedPoseCount;
     previousReportTime            = reportTime;
-    ++diagnosticsRecordCount;
+    diagnosticsRecordCount++;
 
     /* The console carries only a short health line, every fifth record,
      * with rates over the whole console interval so they are steadier than

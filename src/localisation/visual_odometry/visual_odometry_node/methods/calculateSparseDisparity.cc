@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* C++ Standard Library Includes */
 #include <algorithm>
@@ -66,7 +66,7 @@ RowMatch findRowMinimum(const cv::Mat &cost_in)
     }
     const float *p_cost     = cost_in.ptr<float>(0);
     int          bestColumn = 0;
-    for (int column = 1; column < columnCount; ++column)
+    for (int column = 1; column < columnCount; column++)
     {
         if (p_cost[column] < p_cost[bestColumn])
         {
@@ -82,7 +82,7 @@ RowMatch findRowMinimum(const cv::Mat &cost_in)
 
     /* Repetitive or flat texture matches almost equally well elsewhere. */
     float secondBest = std::numeric_limits<float>::infinity();
-    for (int column = 0; column < columnCount; ++column)
+    for (int column = 0; column < columnCount; column++)
     {
         if (std::abs(column - bestColumn) > 1)
         {
@@ -132,7 +132,7 @@ void VisualOdometryNode::calculateSparseDisparity(
     cv::Mat patch;
     cv::Mat strip;
     cv::Mat cost;
-    for (std::size_t index = 0U; index < cornerCount; ++index)
+    for (std::size_t index = 0U; index < cornerCount; index++)
     {
         const float column = corners_in[index].x;
         const float row    = corners_in[index].y;

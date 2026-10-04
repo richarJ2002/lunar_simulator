@@ -11,7 +11,7 @@
 /* None */
 
 /* Object Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -58,7 +58,7 @@ VisualOdometryNode::publishFeatureImage(
     {
         /* Visit every previous-frame feature that has tracking data. */
         for (std::size_t index = 0U; index < previousFeatures_in.size();
-             ++index)
+             index++)
         {
             /* Skip a feature whose track was lost this frame. */
             if (trackingStatus_in[index] == 0U)

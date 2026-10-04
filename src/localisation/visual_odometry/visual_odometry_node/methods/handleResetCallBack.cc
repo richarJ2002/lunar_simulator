@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Other Project Module Includes */
 #include "console/console.h"
@@ -22,7 +22,7 @@ void VisualOdometryNode::handleResetCallBack(
     previousLeft.release();
     previousRight.release();
     previousKeyframeCornerCount = 0U;
-    previousStampS            = 0.0;
+    previousStamp_s            = 0.0;
     worldFromOptical          = bodyFromOptical;
     accumulatedPoseCovariance = PoseCovariance::zeros();
     isVisualPoseAvailable     = true;
