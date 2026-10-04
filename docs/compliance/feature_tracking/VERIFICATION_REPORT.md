@@ -53,10 +53,11 @@ console_direct+` / direct gtest binary runs, on the `RelWithDebInfo` build:
 | `test_optical_flow_tracker` | 10 | PASSED |
 | **Total** | **35** | **35/35 PASSED** |
 
-Full binary paths (this repository nests test binaries under
-`build/lunar_simulator/test/`, not directly under `build/lunar_simulator/`
-— `CLAUDE.md`'s own build-commands section has been corrected to reflect
-this):
+Test sources live in the mirrored `test/` tree (e.g.
+`test/localisation/visual_odometry/feature_tracking/test_corner_detector.cpp`).
+Their binaries land flat under `build/lunar_simulator/test/`, not directly
+under `build/lunar_simulator/` — `CLAUDE.md`'s own build-commands section
+has been corrected to reflect this):
 
 ```
 ./build/lunar_simulator/test/test_kalman_math

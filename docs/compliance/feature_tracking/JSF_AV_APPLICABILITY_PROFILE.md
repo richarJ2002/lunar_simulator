@@ -20,17 +20,17 @@ and this file's own Activation Declaration (§9).
 - Effective date: 2026-09-17 (date this profile document and the code it
   governs were completed in this repository).
 - Applicable directories/targets: exactly
-  `src/localisation/visual_odometry/src/feature_tracking/**`, i.e. the
+  `src/localisation/visual_odometry/feature_tracking/**`, i.e. the
   `ShiTomasiCornerDetector` and `PyramidalLucasKanadeTracker` classes, their
   headers under `objects/`, their implementations under `methods/`, and the
   shared `FeatureTrackingLimits.h`/`FeatureTrackingStatus.h`/`Point2D.h`/
   `ImageView.h` headers. Built as the `alpha_feature_tracking` CMake STATIC
   library target.
 - Excluded generated, third-party or test code:
-  - `VisualOdometryNode.h` and every `src/localisation/visual_odometry/src/
-    methods/VisualOdometryNode/*.cc` file (ROS/OpenCV integration layer;
+  - `VisualOdometryNode.h` and every `src/localisation/visual_odometry/
+    visual_odometry_node/methods/*.cc` file (ROS/OpenCV integration layer;
     stays under the general robotics profile — see `AGENTS.md`).
-  - `test/test_corner_detector.cpp` and `test/test_optical_flow_tracker.cpp`
+  - `test/localisation/visual_odometry/feature_tracking/test_corner_detector.cpp` and `test/localisation/visual_odometry/feature_tracking/test_optical_flow_tracker.cpp`
     (test code; uses gtest macros, `std::vector`, and ordinary exceptions
     from gtest's own assertion machinery, none of which is JSF-profile
     code under test).
@@ -281,7 +281,7 @@ compliance decisions on the project's behalf"), this section is left
 **explicitly pending human sign-off** rather than marked active by the
 agent that wrote it.
 
-- Proposed scope: `src/localisation/visual_odometry/src/feature_tracking/**`
+- Proposed scope: `src/localisation/visual_odometry/feature_tracking/**`
   (see §1).
 - Proposed rule revision: JSF AV Doc 2RDU00001 Rev C (see §1), with the
   C++17 mapping and deviations in §7/`DEVIATION_LOG.md`.
