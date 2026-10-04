@@ -1,5 +1,5 @@
 /*!
- * @File:         AckermannControllerNode.h
+ * @File:         AckermannControllerNodeClass.h
  *
  * @Brief:        Declares the node converting a body-frame velocity command
  *                into six independent wheel steering angles and speeds.
@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_H
-#define LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_H
+#ifndef LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
+#define LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -70,7 +70,7 @@ namespace control::ackermann_controller
  * by the same positive factor is unchanged) and only reducing its overall
  * rate -- see handleVelocityCommandCallBack().
  *
- * The node is intended for a single-threaded executor.
+ * The node's callbacks run in its mutually exclusive default callback group.
  */
 class AckermannControllerNode final : public rclcpp::Node
 {
@@ -106,11 +106,11 @@ class AckermannControllerNode final : public rclcpp::Node
 
         /* Common wheel radius used to convert contact-point speed to
          * angular drive rate. */
-        wheelRadiusM = declare_parameter<double>("wheel_radius_m", 0.1425);
+        wheelRadius_m = declare_parameter<double>("wheel_radius_m", 0.1425);
 
         /* Reject a configuration that could never produce a physically
          * meaningful wheel speed. */
-        if (wheelRadiusM <= 0.0)
+        if (wheelRadius_m <= 0.0)
         {
             /* Fail fast at construction rather than divide by a
              * non-positive radius later. */
@@ -124,10 +124,10 @@ class AckermannControllerNode final : public rclcpp::Node
          * this is enforced at; this is the first, applied in
          * handleVelocityCommandCallBack().
          */
-        maximumWheelSpeedRadps =
+        maximumWheelSpeed_radPs =
             declare_parameter<double>("maximum_wheel_speed_radps", 0.14);
 
-        if (maximumWheelSpeedRadps <= 0.0)
+        if (maximumWheelSpeed_radPs <= 0.0)
         {
             /* Fail fast at construction rather than silently scale every
              * command down to zero later. */
@@ -137,11 +137,11 @@ class AckermannControllerNode final : public rclcpp::Node
 
         /* Load each wheel's fixed body-frame x position. */
         loadSixValues("wheel_x_m", {0.64, 0.64, 0.0, 0.0, -0.72, -0.72},
-                      wheelXM);
+                      wheelX_m);
 
         /* Load each wheel's fixed body-frame y position. */
         loadSixValues("wheel_y_m", {0.60, -0.60, 0.60, -0.60, 0.60, -0.60},
-                      wheelYM);
+                      wheelY_m);
 
         /* Load each wheel's fixed drive-direction sign convention. */
         loadSixValues("drive_direction_multipliers",
@@ -158,8 +158,8 @@ class AckermannControllerNode final : public rclcpp::Node
         p_velocityCommandSubscription =
             create_subscription<geometry_msgs::msg::Twist>(
                 velocityTopic, rclcpp::QoS(10),
-                [this](geometry_msgs::msg::Twist::ConstSharedPtr p_message)
-                { handleVelocityCommandCallBack(*p_message); });
+                [this](geometry_msgs::msg::Twist::ConstSharedPtr p_message_in)
+                { handleVelocityCommandCallBack(*p_message_in); });
 
         /* Topic wiring is already captured by the run's parameter
          * snapshot, so it is debug detail rather than operator output. */
@@ -169,7 +169,9 @@ class AckermannControllerNode final : public rclcpp::Node
                         wheelJointStatesTopic.c_str());
     }
 
-    /*! @brief Releases the node's ROS interfaces. */
+    /*!
+     * @brief           Releases the node's ROS interfaces.
+     */
     ~AckermannControllerNode() override = default;
 
     AckermannControllerNode(const AckermannControllerNode &otherNode_in) =
@@ -190,7 +192,7 @@ class AckermannControllerNode final : public rclcpp::Node
      *                   steering angles and speeds and publishes them.
      *
      * When the fastest wheel this twist would require exceeds
-     * maximumWheelSpeedRadps, every wheel's speed is scaled down by the
+     * maximumWheelSpeed_radPs, every wheel's speed is scaled down by the
      * same factor before publishing (see this class's own doc comment).
      *
      * @param[in]       message_in
@@ -225,47 +227,47 @@ class AckermannControllerNode final : public rclcpp::Node
      *                   without slipping toward its required contact-point
      *                   velocity.
      *
-     * @param[in]       vxMps_in
+     * @param[in]       vx_mPs_in
      *                   Commanded body-frame forward velocity in m/s.
-     * @param[in]       vyMps_in
+     * @param[in]       vy_mPs_in
      *                   Commanded body-frame lateral velocity in m/s.
-     * @param[in]       yawRateRadps_in
+     * @param[in]       yawRate_radPs_in
      *                   Commanded body-frame yaw rate in rad/s.
-     * @param[in]       wheelXM_in
+     * @param[in]       wheelX_m_in
      *                   Wheel's fixed body-frame x position in metres.
-     * @param[in]       wheelYM_in
+     * @param[in]       wheelY_m_in
      *                   Wheel's fixed body-frame y position in metres.
      *
      * @return          Steering angle in radians, in (-pi, pi].
      */
-    static double computeSteeringAngle(double vxMps_in, double vyMps_in,
-                                       double yawRateRadps_in,
-                                       double wheelXM_in, double wheelYM_in);
+    static double computeSteeringAngle(double vx_mPs_in, double vy_mPs_in,
+                                       double yawRate_radPs_in,
+                                       double wheelX_m_in, double wheelY_m_in);
 
     /*!
      * @brief           Computes the angular drive rate one wheel needs to
      *                   roll without slipping at its required contact-point
      *                   speed.
      *
-     * @param[in]       vxMps_in
+     * @param[in]       vx_mPs_in
      *                   Commanded body-frame forward velocity in m/s.
-     * @param[in]       vyMps_in
+     * @param[in]       vy_mPs_in
      *                   Commanded body-frame lateral velocity in m/s.
-     * @param[in]       yawRateRadps_in
+     * @param[in]       yawRate_radPs_in
      *                   Commanded body-frame yaw rate in rad/s.
-     * @param[in]       wheelXM_in
+     * @param[in]       wheelX_m_in
      *                   Wheel's fixed body-frame x position in metres.
-     * @param[in]       wheelYM_in
+     * @param[in]       wheelY_m_in
      *                   Wheel's fixed body-frame y position in metres.
-     * @param[in]       wheelRadiusM_in
+     * @param[in]       wheelRadius_m_in
      *                   Wheel radius in metres.
      *
      * @return          Non-negative angular drive rate in rad/s.
      */
-    static double computeWheelSpeedRadps(double vxMps_in, double vyMps_in,
-                                         double yawRateRadps_in,
-                                         double wheelXM_in, double wheelYM_in,
-                                         double wheelRadiusM_in);
+    static double computeWheelSpeed_radPs(double vx_mPs_in, double vy_mPs_in,
+                                         double yawRate_radPs_in,
+                                         double wheelX_m_in, double wheelY_m_in,
+                                         double wheelRadius_m_in);
 
     /* ---------------------------------------------------------------------- *
      * PRIVATE MEMBERS
@@ -286,12 +288,12 @@ class AckermannControllerNode final : public rclcpp::Node
     /*!
      * @brief       Per-wheel body-frame x position in metres.
      */
-    std::array<double, 6> wheelXM{};
+    std::array<double, 6> wheelX_m{};
 
     /*!
      * @brief       Per-wheel body-frame y position in metres.
      */
-    std::array<double, 6> wheelYM{};
+    std::array<double, 6> wheelY_m{};
 
     /*!
      * @brief       Per-wheel drive-direction sign convention, dimensionless.
@@ -301,16 +303,16 @@ class AckermannControllerNode final : public rclcpp::Node
     /*!
      * @brief       Common wheel radius in metres.
      */
-    double wheelRadiusM{0.1425};
+    double wheelRadius_m{0.1425};
 
     /*!
      * @brief       Alpha's real-hardware maximum drive-wheel speed in
      *              rad/s; see its declare_parameter call for the three
      *              layers this is enforced at.
      */
-    double maximumWheelSpeedRadps{0.14};
+    double maximumWheelSpeed_radPs{0.14};
 };
 
 } /* namespace control::ackermann_controller */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_H */
+#endif /* LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H */

@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AckermannControllerNode.h"
+#include "objects/AckermannControllerNodeClass.h"
 
 /* Generic Libraries */
 #include <algorithm>
@@ -25,37 +25,37 @@ namespace control::ackermann_controller
 void AckermannControllerNode::handleVelocityCommandCallBack(
     const geometry_msgs::msg::Twist &message_in)
 {
-    const double vxMps        = message_in.linear.x;
-    const double vyMps        = message_in.linear.y;
-    const double yawRateRadps = message_in.angular.z;
+    const double vx_mPs        = message_in.linear.x;
+    const double vy_mPs        = message_in.linear.y;
+    const double yawRate_radPs = message_in.angular.z;
 
     /*!
      * Each wheel's steering angle and unscaled (pre-limit) required speed,
      * computed once and reused below whether or not scaling ends up applying.
      */
-    std::array<double, 6> steeringAngleRad{};
-    std::array<double, 6> unscaledSpeedRadps{};
-    double                maxUnscaledSpeedRadps = 0.0;
+    std::array<double, 6> steeringAngle_rad{};
+    std::array<double, 6> unscaledSpeed_radPs{};
+    double                maxUnscaledSpeed_radPs = 0.0;
 
-    for (std::size_t wheelIndex = 0; wheelIndex < wheelXM.size(); ++wheelIndex)
+    for (std::size_t wheelIndex = 0; wheelIndex < wheelX_m.size(); wheelIndex++)
     {
-        steeringAngleRad[wheelIndex] =
-            computeSteeringAngle(vxMps,
-                                 vyMps,
-                                 yawRateRadps,
-                                 wheelXM[wheelIndex],
-                                 wheelYM[wheelIndex]);
+        steeringAngle_rad[wheelIndex] =
+            computeSteeringAngle(vx_mPs,
+                                 vy_mPs,
+                                 yawRate_radPs,
+                                 wheelX_m[wheelIndex],
+                                 wheelY_m[wheelIndex]);
 
-        unscaledSpeedRadps[wheelIndex] =
-            computeWheelSpeedRadps(vxMps,
-                                   vyMps,
-                                   yawRateRadps,
-                                   wheelXM[wheelIndex],
-                                   wheelYM[wheelIndex],
-                                   wheelRadiusM);
+        unscaledSpeed_radPs[wheelIndex] =
+            computeWheelSpeed_radPs(vx_mPs,
+                                   vy_mPs,
+                                   yawRate_radPs,
+                                   wheelX_m[wheelIndex],
+                                   wheelY_m[wheelIndex],
+                                   wheelRadius_m);
 
-        maxUnscaledSpeedRadps =
-            std::max(maxUnscaledSpeedRadps, unscaledSpeedRadps[wheelIndex]);
+        maxUnscaledSpeed_radPs =
+            std::max(maxUnscaledSpeed_radPs, unscaledSpeed_radPs[wheelIndex]);
     }
 
     /*!
@@ -69,25 +69,25 @@ void AckermannControllerNode::handleVelocityCommandCallBack(
      * command.
      */
     const double speedScale =
-        (maxUnscaledSpeedRadps > maximumWheelSpeedRadps)
-            ? maximumWheelSpeedRadps / maxUnscaledSpeedRadps
+        (maxUnscaledSpeed_radPs > maximumWheelSpeed_radPs)
+            ? maximumWheelSpeed_radPs / maxUnscaledSpeed_radPs
             : 1.0;
 
     actuator_msgs::msg::Actuators command;
     command.header.stamp = now();
-    command.position.resize(wheelXM.size());
-    command.velocity.resize(wheelXM.size());
+    command.position.resize(wheelX_m.size());
+    command.velocity.resize(wheelX_m.size());
 
-    for (std::size_t wheelIndex = 0; wheelIndex < wheelXM.size(); ++wheelIndex)
+    for (std::size_t wheelIndex = 0; wheelIndex < wheelX_m.size(); wheelIndex++)
     {
-        command.position[wheelIndex] = steeringAngleRad[wheelIndex];
+        command.position[wheelIndex] = steeringAngle_rad[wheelIndex];
 
         /*!
          * The sign convention flips the always-non-negative rolling speed
          * into each wheel's own raw actuator sign convention, mirroring
          * wheel_odometry's inverse use of the same per-wheel multiplier.
          */
-        command.velocity[wheelIndex] = unscaledSpeedRadps[wheelIndex] *
+        command.velocity[wheelIndex] = unscaledSpeed_radPs[wheelIndex] *
                                        speedScale *
                                        driveDirectionMultipliers[wheelIndex];
     }

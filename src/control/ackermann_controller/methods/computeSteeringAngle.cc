@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AckermannControllerNode.h"
+#include "objects/AckermannControllerNodeClass.h"
 
 /* Data include */
 /* None */
@@ -23,11 +23,11 @@
 namespace control::ackermann_controller
 {
 
-double AckermannControllerNode::computeSteeringAngle(double vxMps_in,
-                                                     double vyMps_in,
-                                                     double yawRateRadps_in,
-                                                     double wheelXM_in,
-                                                     double wheelYM_in)
+double AckermannControllerNode::computeSteeringAngle(double vx_mPs_in,
+                                                     double vy_mPs_in,
+                                                     double yawRate_radPs_in,
+                                                     double wheelX_m_in,
+                                                     double wheelY_m_in)
 {
     /*!
      * Rigid-body composition: the wheel's required contact-point velocity
@@ -36,8 +36,8 @@ double AckermannControllerNode::computeSteeringAngle(double vxMps_in,
      * is well-defined (returns 0), so a fully stopped command steers to
      * zero rather than being undefined.
      */
-    return std::atan2(vyMps_in + (yawRateRadps_in * wheelXM_in),
-                      vxMps_in - (yawRateRadps_in * wheelYM_in));
+    return std::atan2(vy_mPs_in + (yawRate_radPs_in * wheelX_m_in),
+                      vx_mPs_in - (yawRate_radPs_in * wheelY_m_in));
 }
 
 } /* namespace control::ackermann_controller */

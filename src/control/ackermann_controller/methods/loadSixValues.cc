@@ -11,7 +11,7 @@
 #include "console/console.h"
 
 /* Object Include */
-#include "objects/AckermannControllerNode.h"
+#include "objects/AckermannControllerNodeClass.h"
 
 /* Data include */
 /* None */
