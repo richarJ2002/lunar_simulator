@@ -1,0 +1,64 @@
+site_name: lunar_simulator
+site_url: https://richarJ2002.github.io/lunar_simulator/
+docs_dir: docs
+use_directory_urls: true
+strict: true
+
+theme:
+  name: material
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Modules:
+      - Overview: modules/index.md
+      - Localisation:
+          - Overview: modules/localisation/index.md
+          - Ground truth: modules/localisation/ground-truth.md
+          - Inertial odometry: modules/localisation/inertial-odometry.md
+          - Visual odometry: modules/localisation/visual-odometry.md
+          - Wheel odometry: modules/localisation/wheel-odometry.md
+          - Kalman engine: modules/localisation/kalman-engine.md
+      - Control:
+          - Overview: modules/control/index.md
+          - Ackermann controller: modules/control/ackermann-controller.md
+          - Estimate filter: modules/control/estimate-filter.md
+      - Common: modules/common/index.md
+  - Systems:
+      - Overview: systems/index.md
+      - Alpha:
+          - Overview: systems/alpha/index.md
+          - Node: systems/alpha/node.md
+          - Drivers: systems/alpha/drivers.md
+          - Localisation filter: systems/alpha/localisation-filter.md
+          - Supervisor: systems/alpha/supervisor.md
+          - Model: systems/alpha/model.md
+  - Environments:
+      - Overview: environments/index.md
+      - Lunar surface: environments/lunar-surface.md
+      - Mars: environments/mars.md
+  - Launch & bridge: launch-bridge.md
+  - Post-processing: post-processing.md
+  - Compliance:
+      - Overview: compliance/index.md
+      - Applicability profile: compliance/feature_tracking/JSF_AV_APPLICABILITY_PROFILE.md
+      - Deviation log: compliance/feature_tracking/DEVIATION_LOG.md
+      - Criticality rationale: compliance/feature_tracking/CRITICALITY_RATIONALE.md
+      - Traceability matrix: compliance/feature_tracking/TRACEABILITY_MATRIX.md
+      - Verification report: compliance/feature_tracking/VERIFICATION_REPORT.md
+  - TODO: todo.md
+  - Contributing docs: contributing-docs.md
