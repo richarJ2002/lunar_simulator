@@ -10,6 +10,6 @@
 #define LUNAR_SIMULATOR_COMMON_DIAGNOSTICS_DIAGNOSTICS_H
 
 /* Other Project Module Includes */
-#include "diagnostics/public_functions.h"
+#include "diagnostics/public_functions/public_functions.h"
 
 #endif /* LUNAR_SIMULATOR_COMMON_DIAGNOSTICS_DIAGNOSTICS_H */

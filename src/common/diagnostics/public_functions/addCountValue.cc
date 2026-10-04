@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "diagnostics/public_functions.h"
+#include "diagnostics/public_functions/public_functions.h"
 
 /* External Library Includes */
 #include <diagnostic_msgs/msg/key_value.hpp>
