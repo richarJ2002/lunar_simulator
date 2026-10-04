@@ -33,3 +33,17 @@ AGENTS.md
 # Claude Code artifacts
 CLAUDE.md
 .claude/
+
+# Graphify artifacts
+graphify-out/
+
+# Coding agent artifacts
+.opencode/
+.cursor/
+.codex/
+.gemini/
+GEMINI.md
+CLAUDE.local.md
+.aider*
+.continue/
+.windsurf/
