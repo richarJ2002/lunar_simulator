@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "estimate_filter/objects/EstimateLowPassFilter.h"
+#include "estimate_filter/objects/EstimateLowPassFilterClass.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -41,13 +41,13 @@ FilterUpdateResult
         !sample_in.orientation_bodyToFixed.coeffs().allFinite() ||
         !(sample_in.orientation_bodyToFixed.norm() > 0.0) ||
         !sample_in.linearVelocity_body_mPerS.allFinite() ||
-        !sample_in.angularVelocity_body_radPerS.allFinite())
+        !sample_in.angularVelocity_body_radPs.allFinite())
     {
         return FilterUpdateResult::FILTER_UPDATE_RESULT_SKIPPED;
     }
 
     const double dt_s = sample_in.stamp_s - output.stamp_s;
-    if (!hasState || shouldReset_in || dt_s > configuration.maximumGapS)
+    if (!hasState || shouldReset_in || dt_s > configuration.maximumGap_s)
     {
         reset(sample_in);
         return FilterUpdateResult::FILTER_UPDATE_RESULT_RESET;
@@ -65,15 +65,15 @@ FilterUpdateResult
     firstStageLinearVelocity_body_mPerS +=
         velocityGain * (sample_in.linearVelocity_body_mPerS -
                         firstStageLinearVelocity_body_mPerS);
-    firstStageAngularVelocity_body_radPerS +=
-        velocityGain * (sample_in.angularVelocity_body_radPerS -
-                        firstStageAngularVelocity_body_radPerS);
+    firstStageAngularVelocity_body_radPs +=
+        velocityGain * (sample_in.angularVelocity_body_radPs -
+                        firstStageAngularVelocity_body_radPs);
     output.linearVelocity_body_mPerS +=
         velocityGain * (firstStageLinearVelocity_body_mPerS -
                         output.linearVelocity_body_mPerS);
-    output.angularVelocity_body_radPerS +=
-        velocityGain * (firstStageAngularVelocity_body_radPerS -
-                        output.angularVelocity_body_radPerS);
+    output.angularVelocity_body_radPs +=
+        velocityGain * (firstStageAngularVelocity_body_radPs -
+                        output.angularVelocity_body_radPs);
 
     /* Position: predict with the filtered velocity expressed in the fixed
      * frame, then pull toward the input position. */

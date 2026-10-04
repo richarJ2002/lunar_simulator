@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "estimate_filter/objects/EstimateLowPassFilterNode.h"
+#include "estimate_filter/objects/EstimateLowPassFilterNodeClass.h"
 
 namespace control::estimate_filter
 {
@@ -21,7 +21,8 @@ LowPassConfiguration EstimateLowPassFilterNode::declareConfiguration()
         declare_parameter<double>("position_cutoff_hz", 0.5);
     configuration.attitudeCutoffHz =
         declare_parameter<double>("attitude_cutoff_hz", 1.0);
-    configuration.maximumGapS = declare_parameter<double>("maximum_gap_s", 0.5);
+    configuration.maximumGap_s =
+        declare_parameter<double>("maximum_gap_s", 0.5);
     if (!isConfigurationValid(configuration))
     {
         throw std::invalid_argument(

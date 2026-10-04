@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "estimate_filter/objects/EstimateLowPassFilter.h"
+#include "estimate_filter/objects/EstimateLowPassFilterClass.h"
 
 namespace control::estimate_filter
 {

@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "estimate_filter/public_functions.h"
+#include "estimate_filter/public_functions/public_functions.h"
 
 /* C++ Standard Library Includes */
 #include <cmath>
@@ -23,7 +23,7 @@ bool isConfigurationValid(const LowPassConfiguration &configuration_in)
     for (const double value : {configuration_in.velocityCutoffHz,
                                configuration_in.positionCutoffHz,
                                configuration_in.attitudeCutoffHz,
-                               configuration_in.maximumGapS})
+                               configuration_in.maximumGap_s})
     {
         if (!std::isfinite(value) || !(value > 0.0))
         {

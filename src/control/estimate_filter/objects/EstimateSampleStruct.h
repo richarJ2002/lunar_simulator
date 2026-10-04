@@ -1,5 +1,5 @@
 /*!
- * @file            EstimateSample.h
+ * @file            EstimateSampleStruct.h
  *
  * @brief           Declares one pose-and-twist estimate as the low-pass
  *                  filter consumes and produces it.
@@ -7,8 +7,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_H
+#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_STRUCT_H
+#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_STRUCT_H
 
 /* External Library Includes */
 #include <Eigen/Dense>
@@ -62,9 +62,9 @@ struct EstimateSample
      * @frame           body
      * @units           radians per second
      */
-    Eigen::Vector3d angularVelocity_body_radPerS{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d angularVelocity_body_radPs{Eigen::Vector3d::Zero()};
 };
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_H */
+#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_SAMPLE_STRUCT_H */

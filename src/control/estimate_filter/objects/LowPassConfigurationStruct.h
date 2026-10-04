@@ -1,13 +1,13 @@
 /*!
- * @file            LowPassConfiguration.h
+ * @file            LowPassConfigurationStruct.h
  *
  * @brief           Declares the estimate low-pass filter's tuning.
  *
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_H
+#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_STRUCT_H
+#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_STRUCT_H
 
 namespace control::estimate_filter
 {
@@ -56,9 +56,9 @@ struct LowPassConfiguration
      * @frame           N/A
      * @units           seconds
      */
-    double maximumGapS{0.5};
+    double maximumGap_s{0.5};
 };
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_H */
+#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_LOW_PASS_CONFIGURATION_STRUCT_H */

@@ -1,5 +1,5 @@
 /*!
- * @file            EstimateLowPassFilterNode.h
+ * @file            EstimateLowPassFilterNodeClass.h
  *
  * @brief           Declares the node that publishes a low-pass-filtered
  *                  copy of the fused estimate for controllers.
@@ -7,8 +7,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_H
+#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
+#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <stdexcept>
@@ -20,11 +20,11 @@
 
 /* Other Project Module Includes */
 #include "console/console.h"
-#include "estimate_filter/public_functions.h"
+#include "estimate_filter/public_functions/public_functions.h"
 
 /* Object Includes */
-#include "estimate_filter/objects/EstimateLowPassFilter.h"
-#include "estimate_filter/objects/LowPassConfiguration.h"
+#include "estimate_filter/objects/EstimateLowPassFilterClass.h"
+#include "estimate_filter/objects/LowPassConfigurationStruct.h"
 
 namespace control::estimate_filter
 {
@@ -73,8 +73,8 @@ class EstimateLowPassFilterNode final : public rclcpp::Node
         p_inputSubscription = create_subscription<nav_msgs::msg::Odometry>(
             inputTopic,
             rclcpp::QoS(10),
-            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message)
-            { handleOdometryCallBack(*p_message); });
+            [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message_in)
+            { handleOdometryCallBack(*p_message_in); });
 
         LUNAR_LOG_DEBUG(get_logger(),
                         "Estimate LPF: %s -> %s",
@@ -87,12 +87,29 @@ class EstimateLowPassFilterNode final : public rclcpp::Node
      */
     ~EstimateLowPassFilterNode() override = default;
 
+    /*!
+     * @brief           Copying is forbidden: the node owns
+     *                      subscriptions and publishers that cannot be shared.
+     */
     EstimateLowPassFilterNode(const EstimateLowPassFilterNode &otherNode_in) =
         delete;
+
+    /*!
+     * @brief           Copy assignment is forbidden; see above.
+     */
     EstimateLowPassFilterNode &
         operator=(const EstimateLowPassFilterNode &otherNode_in) = delete;
+
+    /*!
+     * @brief           Moving is forbidden; ownership stays with the
+     *                      constructing executor.
+     */
     EstimateLowPassFilterNode(EstimateLowPassFilterNode &&otherNode_in) =
         delete;
+
+    /*!
+     * @brief           Move assignment is forbidden; see above.
+     */
     EstimateLowPassFilterNode &
         operator=(EstimateLowPassFilterNode &&otherNode_in) = delete;
 
@@ -175,5 +192,5 @@ class EstimateLowPassFilterNode final : public rclcpp::Node
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_H \
+#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H \
         */

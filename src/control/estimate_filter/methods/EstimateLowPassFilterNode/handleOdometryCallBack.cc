@@ -7,7 +7,7 @@
  */
 
 /* Matching Declaration Include */
-#include "estimate_filter/objects/EstimateLowPassFilterNode.h"
+#include "estimate_filter/objects/EstimateLowPassFilterNodeClass.h"
 
 namespace control::estimate_filter
 {
@@ -30,7 +30,7 @@ void EstimateLowPassFilterNode::handleOdometryCallBack(
         Eigen::Vector3d(message_in.twist.twist.linear.x,
                         message_in.twist.twist.linear.y,
                         message_in.twist.twist.linear.z);
-    sample.angularVelocity_body_radPerS =
+    sample.angularVelocity_body_radPs =
         Eigen::Vector3d(message_in.twist.twist.angular.x,
                         message_in.twist.twist.angular.y,
                         message_in.twist.twist.angular.z);
@@ -62,9 +62,9 @@ void EstimateLowPassFilterNode::handleOdometryCallBack(
     output.twist.twist.linear.x      = filtered.linearVelocity_body_mPerS.x();
     output.twist.twist.linear.y      = filtered.linearVelocity_body_mPerS.y();
     output.twist.twist.linear.z      = filtered.linearVelocity_body_mPerS.z();
-    output.twist.twist.angular.x = filtered.angularVelocity_body_radPerS.x();
-    output.twist.twist.angular.y = filtered.angularVelocity_body_radPerS.y();
-    output.twist.twist.angular.z = filtered.angularVelocity_body_radPerS.z();
+    output.twist.twist.angular.x = filtered.angularVelocity_body_radPs.x();
+    output.twist.twist.angular.y = filtered.angularVelocity_body_radPs.y();
+    output.twist.twist.angular.z = filtered.angularVelocity_body_radPs.z();
     p_outputPublisher->publish(output);
 }
 

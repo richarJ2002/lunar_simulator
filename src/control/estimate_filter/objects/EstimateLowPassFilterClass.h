@@ -1,5 +1,5 @@
 /*!
- * @file            EstimateLowPassFilter.h
+ * @file            EstimateLowPassFilterClass.h
  *
  * @brief           Declares the ROS-free low-pass filter that smooths the
  *                  fused estimate for controllers.
@@ -7,13 +7,13 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_H
+#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_CLASS_H
+#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_CLASS_H
 
 /* Object Includes */
-#include "estimate_filter/objects/EstimateSample.h"
-#include "estimate_filter/objects/FilterUpdateResult.h"
-#include "estimate_filter/objects/LowPassConfiguration.h"
+#include "estimate_filter/objects/EstimateSampleStruct.h"
+#include "estimate_filter/objects/FilterUpdateResultEnum.h"
+#include "estimate_filter/objects/LowPassConfigurationStruct.h"
 
 namespace control::estimate_filter
 {
@@ -35,7 +35,7 @@ namespace control::estimate_filter
  *   Euler angles, so yaw crossing +/-pi needs no wrapping.
  *
  * A sample whose stamp does not advance, or that is not finite, is
- * skipped. A gap longer than maximumGapS, or a requested reset (a frame
+ * skipped. A gap longer than maximumGap_s, or a requested reset (a frame
  * change), restarts the filter from the sample. The filter only smooths:
  * it cannot remove the estimate's slow drift. Not thread-safe; one owner.
  */
@@ -140,11 +140,11 @@ class EstimateLowPassFilter
      * @frame           body
      * @units           radians per second
      */
-    Eigen::Vector3d firstStageAngularVelocity_body_radPerS{
+    Eigen::Vector3d firstStageAngularVelocity_body_radPs{
         Eigen::Vector3d::Zero()};
 };
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_H   \
+#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_CLASS_H   \
         */

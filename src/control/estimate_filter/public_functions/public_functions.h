@@ -10,7 +10,7 @@
 #define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H
 
 /* Object Includes */
-#include "estimate_filter/objects/LowPassConfiguration.h"
+#include "estimate_filter/objects/LowPassConfigurationStruct.h"
 
 namespace control::estimate_filter
 {
