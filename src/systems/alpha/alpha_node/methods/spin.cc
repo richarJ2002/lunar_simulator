@@ -12,7 +12,7 @@
 /* None */
 
 /* Object Include */
-#include "objects/AlphaNode.h"
+#include "objects/AlphaNodeClass.h"
 
 /* Data include */
 /* None */

@@ -1,5 +1,5 @@
 /*!
- * @File:         AlphaNode.h
+ * @File:         AlphaNodeClass.h
  *
  * @Brief:        Declares the class that composes and spins every node in
  *                Alpha's stack in one process.
@@ -8,22 +8,22 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_H
+#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H
+#define LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H
 
 /* Function Includes */
 /* None */
 
 /* Object Include */
-#include "alpha_supervisor/objects/AlphaStartupSupervisorNode.h"
-#include "estimate_filter/objects/EstimateLowPassFilterNode.h"
-#include "objects/AckermannControllerNode.h"
-#include "objects/AlphaDriverNode.h"
-#include "objects/AlphaKalmanFilterNode.h"
-#include "objects/GroundTruthNode.h"
-#include "objects/InertialOdometryNode.h"
-#include "objects/WheelOdometryNode.h"
-#include "visual_odometry_node/objects/VisualOdometryNode.h"
+#include "alpha_supervisor/objects/AlphaStartupSupervisorNodeClass.h"
+#include "estimate_filter/objects/EstimateLowPassFilterNodeClass.h"
+#include "objects/AckermannControllerNodeClass.h"
+#include "objects/AlphaDriverNodeClass.h"
+#include "objects/AlphaKalmanFilterNodeClass.h"
+#include "objects/GroundTruthNodeClass.h"
+#include "objects/InertialOdometryNodeClass.h"
+#include "objects/WheelOdometryNodeClass.h"
+#include "visual_odometry_node/objects/VisualOdometryNodeClass.h"
 
 /* Data include */
 /* None */
@@ -211,4 +211,4 @@ class AlphaNode final
 
 } /* namespace systems::alpha::alpha_node */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_H */
+#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H */
