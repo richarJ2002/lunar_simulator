@@ -1,37 +1,43 @@
 # Architecture
 
-> Code is truth — this page describes; the source and YAML on `main` win on conflict.
+> Code is truth — this page describes the pattern; the source and YAML on `main` win on conflict. Implemented systems live under [Systems](systems/index.md).
 
-Skeleton only: full per-module pages and diagrams arrive in later work
-packages. Entry point is `src/systems/alpha/alpha_node/main.cpp`.
+## Systems are the top level
 
-## AlphaNode composition
-
-Placeholder. The physical system (Alpha today) composes modules into one
-`AlphaNode` process: the driver, four localisation
-producers, the Alpha ESKF, the Ackermann controller, the estimate low-pass
-filter, and the start-up supervisor:
+A physical system interfaces modules together into a working rover. It owns
+the composing entry point and executor, the system-specific model, driver,
+and supervisor, plus its parameters, launch, bridge config, model, and
+environment binding. Modules never name a system or environment; the system
+chooses which modules to compose.
 
 ```mermaid
 graph TD
-    driver[driver] --> eskf[Alpha ESKF]
-    prod[4 localisation producers] --> eskf
-    eskf --> ack[Ackermann controller]
-    eskf --> filt[estimate low-pass filter]
-    sup[start-up supervisor] --> driver
+    mod[Modules] --> sys[System: compose + interface]
+    env[Environment] --> sys
+    sys --> run[One composed process]
 ```
+
+## Examples
+
+- Alpha today composes localisation producers plus the Kalman engine,
+  Ackermann control, and common helpers, with its own driver, ESKF model,
+  and supervisor, into one process on `lunar_surface`. See
+  [Systems/Alpha](systems/alpha/index.md) for its architecture.
+- A future system would reuse the same modules with its own model, driver,
+  parameters, and launch on the same or a new environment, without changing
+  module code. See [Systems](systems/index.md) for the checklist.
 
 ## Executor
 
-Placeholder. One `MultiThreadedExecutor`; each composed node keeps its
+One executor owned by the system; each composed node keeps its
 mutually-exclusive default callback group.
 
 ## Frames
 
-Placeholder. Local estimators use `<system>/startup_fixed`, anchored under
-`map` by ground truth alone.
+Local estimators use `<system>/startup_fixed`, anchored under `map` by
+ground truth alone.
 
 ## Dataflow
 
-Placeholder. Producers feed the ESKF; the filtered estimate topic is never
-fed back into the ESKF.
+Producers feed the system ESKF; the filtered display estimate is never fed
+back into the ESKF.
