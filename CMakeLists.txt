@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lunar_simulator LANGUAGES CXX)
+project(space_robotics_simulator LANGUAGES CXX)
 
 # Default to an optimized build when the invoker (a bare `colcon build`,
 # per this repository's own documented build command) does not request a
@@ -32,16 +32,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Full warning baseline from CPP_CODING_STANDARD.md Section 15.3. -Wall,
-# -Wextra, -Wpedantic and -Wshadow are clean across all project-owned code.
-# -Wconversion additionally reports a `long int` -> `int` narrowing at every
-# `declare_parameter<int>(...)` call site (path_maximum_poses, num_disparities,
-# block_size, maximum_features, minimum_correspondences): the narrowing occurs
-# inside rclcpp::Node::declare_parameter's own template body, which converts
-# ROS 2's underlying int64_t parameter storage to the requested `int`, not in
-# any project-owned expression. Per Section 15.3 ("Do not apply project
-# warning-as-error flags to third-party headers"), this residual warning class
-# is accepted rather than silenced with a cast; -Werror is intentionally not
-# enabled here for that reason.
+# -Wextra, -Wpedantic, -Wconversion and -Wshadow are clean across all
+# project-owned code. Integer ROS parameters are declared as std::int64_t,
+# matching ROS 2's underlying int64_t parameter storage, so no narrowing
+# occurs inside rclcpp::Node::declare_parameter's template body; values are
+# narrowed with an explicit static_cast only after range validation at
+# int-API boundaries (OpenCV StereoBM, feature-tracking engines, sparse
+# matcher). -Werror is intentionally not enabled here per Section 15.3
+# ("Do not apply project warning-as-error flags to third-party headers").
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
@@ -95,9 +93,11 @@ install(
 
 install(
     DIRECTORY 
-        worlds 
+        environment 
     DESTINATION share/${PROJECT_NAME} 
     PATTERN "*.bak" EXCLUDE
+    PATTERN "*.blend" EXCLUDE
+    PATTERN "*.blend1" EXCLUDE
 )
 
 install(

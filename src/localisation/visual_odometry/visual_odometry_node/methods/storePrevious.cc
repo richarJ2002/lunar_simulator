@@ -45,8 +45,9 @@ void VisualOdometryNode::storePrevious(
                                  right_in,
                                  corners_in,
                                  cornerCount_in,
-                                 sparseStereoMaximumDisparityPx,
-                                 sparseStereoHalfWindowPx,
+                                 static_cast<int>(
+                                     sparseStereoMaximumDisparityPx),
+                                 static_cast<int>(sparseStereoHalfWindowPx),
                                  sparseStereoMaximumLeftRightDifferencePx,
                                  previousKeyframeDisparityPx);
         latestDisparityDuration_ms =

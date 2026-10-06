@@ -64,7 +64,7 @@ class DiagnosticTimeBasis(Enum):
     """
 
     # Seconds since the node log file's own first parsed record, from the
-    # log line's wall-clock stamp (runs captured before WP-01 Phase 1). No
+    # log line's wall-clock stamp (console-record runs). No
     # wall-clock<->simulated-time anchor exists, so this axis cannot be
     # aligned with bag-elapsed plots.
     LOG_RELATIVE = auto()
@@ -443,11 +443,11 @@ class ImageFrameSeries:
 class VisualDiagnosticRecord:
     """!
     @brief  One periodic visual-odometry pipeline diagnostic record:
-            either a parsed "visual_diag" log line (runs before WP-01
-            Phase 1, every five wall seconds) or one "visual_odometry"
-            status on the recorded /alpha/diagnostics topic (every
-            simulated second). Records are periodic snapshots, not
-            per-frame measurements.
+            either a parsed "visual_diag" log line (console-record runs,
+            every five wall seconds) or one "visual_odometry" status on
+            the recorded /<system>/diagnostics topic (every simulated
+            second). Records are periodic snapshots, not per-frame
+            measurements.
     """
 
     # Record time in seconds on the owning DiagnosticLog's time_basis:
@@ -519,8 +519,8 @@ class AgeRejectionBreakdown:
     """!
     @brief  The six reasons alpha_kalman_filter's handleMeasurementCallBack
             rejects a visual or wheel measurement on timing grounds. Their
-            sum equals the record's `age_rejected` total. Only runs
-            captured after WP-01 Phase 0 carry this breakdown.
+            sum equals the record's `age_rejected` total. Only newer runs
+            carry this breakdown.
     """
 
     # Rejected before the IMU-seeded initial state existed.
@@ -542,9 +542,10 @@ class LocalisationDiagnosticRecord:
     """!
     @brief  One periodic estimator diagnostic record for one source
             ("imu", "visual" or "wheel"): either a parsed
-            "localisation_diag" log line (runs before WP-01 Phase 1) or the
-            recorded "continuous_ekf/<source>" /alpha/diagnostics status
-            joined with that tick's filter-wide "continuous_ekf" status.
+            "localisation_diag" log line (console-record runs) or the
+            recorded "continuous_ekf/<source>" /<system>/diagnostics
+            status joined with that tick's filter-wide "continuous_ekf"
+            status.
             The covariance/quaternion/bias fields are one filter-wide
             snapshot repeated for every source -- callers shall not
             attribute them to the individual source.
@@ -710,9 +711,9 @@ class BagIngestResult:
     visual_reset: Optional[VisualResetSeries]
     point_cloud: Optional[VisualPointCloudSeries]
     images: dict[str, ImageFrameSeries]
-    # Recorded DiagnosticArray topics (/alpha/diagnostics and
-    # /alpha/system/state), keyed by topic; empty for runs captured before
-    # WP-01 Phase 1.
+    # Recorded DiagnosticArray topics (/<system>/diagnostics and
+    # /<system>/system/state), keyed by topic; empty for runs without
+    # bag diagnostics.
     diagnostic_arrays: dict[str, DiagnosticStatusSeries] = field(default_factory=dict)
 
 

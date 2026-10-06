@@ -1,13 +1,10 @@
+# Topic names are not pinned here: each defaults under /<system>/... from
+# the system_name parameter (/alpha/... when system_name is "alpha"), so
+# these tunings apply unchanged under any system's own namespace.
 visual_odometry:
   ros__parameters:
-    left_image_topic: /alpha/drivers/loccam/left
-    right_image_topic: /alpha/drivers/loccam/right
-    odometry_topic: /alpha/localisation/visual/odometry
     odom_frame: alpha/startup_fixed
     base_frame: alpha/base_link
-    point_cloud_topic: /alpha/localisation/visual/point_cloud
-    feature_image_topic: /alpha/localisation/visual/features
-    reset_topic: /alpha/localisation/visual/reset
     fx_px: 800.0
     fy_px: 800.0
     cx_px: 512.0
@@ -21,7 +18,7 @@ visual_odometry:
     maximum_features: 640
     minimum_correspondences: 20
     maximum_depth_m: 25.0
-    # Stereo depth (WP-01 Phase 5.3): "block" reads the dense StereoBM map
+    # Stereo depth: "block" reads the dense StereoBM map
     # (num_disparities, block_size), rebuilt for the keyframe pair every
     # frame, at the nearest pixel; "sparse" matches each keyframe corner
     # once along its row to sub-pixel precision, with a left-right check.
@@ -40,7 +37,7 @@ visual_odometry:
     # received 15 % more pairs than 1 with the same input age (ab54).
     image_queue_depth: 2
     maximum_keyframe_interval_s: 0.75
-    # Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps the
+    # Parallax keyframes: an accepted estimate keeps the
     # keyframe, and publishes nothing, until the tracked corners' median
     # image motion reaches keyframe_minimum_parallax_px, fewer than
     # keyframe_minimum_survival_ratio of them are still tracked, or it has

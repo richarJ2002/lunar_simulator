@@ -2,7 +2,7 @@
  * @file            test_console_wrap.cpp
  *
  * @brief           Tests the 40-character console wrapping, formatting and
- *                  per-call-site throttling behind the LUNAR_LOG_* macros.
+ *                  per-call-site throttling behind the SRS_LOG_* macros.
  */
 
 #include <gtest/gtest.h>

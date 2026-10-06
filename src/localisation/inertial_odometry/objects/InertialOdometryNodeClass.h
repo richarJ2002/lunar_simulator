@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
-#define LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
+#ifndef SRS_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
+#define SRS_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -149,12 +149,12 @@ class InertialOdometryNode final : public rclcpp::Node
                          [this]() { publishDiagnosticsCallBack(); });
 
         /* The operator must keep the rover still until calibration ends. */
-        LUNAR_LOG_INFO(get_logger(),
+        SRS_LOG_INFO(get_logger(),
                        "IMU calibrating: %d samples, keep still",
                        calibrationSampleTarget);
 
         /* Topic wiring and tuning are in the run's parameter snapshot. */
-        LUNAR_LOG_DEBUG(
+        SRS_LOG_DEBUG(
             get_logger(),
             "IMU odometry: %s -> %s (LPF %.1f Hz, gravity %.2f m/s^2)",
             imuTopic.c_str(),
@@ -425,4 +425,4 @@ class InertialOdometryNode final : public rclcpp::Node
 
 } /* namespace localisation::inertial_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H */
+#endif /* SRS_LOCALISATION_INERTIAL_ODOMETRY_NODE_CLASS_H */

@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
-#define LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
+#ifndef SRS_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
+#define SRS_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -107,10 +107,10 @@ class VisualOdometryNode final : public rclcpp::Node
      */
     struct VisualQualityConfiguration
     {
-        int    imageWidthPx{1024};
-        int    imageHeightPx{1024};
-        int    occupancyGridRows{4};
-        int    occupancyGridColumns{4};
+        std::int64_t imageWidthPx{1024};
+        std::int64_t imageHeightPx{1024};
+        std::int64_t occupancyGridRows{4};
+        std::int64_t occupancyGridColumns{4};
         double fxPx{800.0};
         double baselineM{0.15};
         double nearMidDepthM{12.0};
@@ -285,7 +285,7 @@ class VisualOdometryNode final : public rclcpp::Node
                 "visual age and keyframe interval limits must be positive");
         }
 
-        /* Parallax keyframes (WP-01 Phase 5.2): an accepted estimate keeps
+        /* Parallax keyframes: an accepted estimate keeps
          * the keyframe until its features have moved far enough, too few
          * survive, or it has been kept for the retention limit. The
          * retention limit stays within the bridging limit so a kept
@@ -322,28 +322,30 @@ class VisualOdometryNode final : public rclcpp::Node
             static_cast<std::uint64_t>(configuredReadinessPoses);
 
         /* Maximum number of corner features detected per frame. */
-        maximumFeatures = declare_parameter<int>("maximum_features", 640);
+        maximumFeatures =
+            declare_parameter<std::int64_t>("maximum_features", 640);
 
         /* Minimum stereo/temporal correspondences required to attempt
          * PnP. */
         minimumCorrespondences =
-            declare_parameter<int>("minimum_correspondences", 20);
+            declare_parameter<std::int64_t>("minimum_correspondences", 20);
 
         /* Fixed LocCam resolution both feature-tracking engines below are
          * sized for; must match model.sdf's configured LocCam sensor
          * resolution. */
-        const int imageWidthPx = declare_parameter<int>("image_width_px", 1024);
-        const int imageHeightPx =
-            declare_parameter<int>("image_height_px", 1024);
+        const std::int64_t imageWidthPx =
+            declare_parameter<std::int64_t>("image_width_px", 1024);
+        const std::int64_t imageHeightPx =
+            declare_parameter<std::int64_t>("image_height_px", 1024);
 
         visualQualityConfiguration.imageWidthPx  = imageWidthPx;
         visualQualityConfiguration.imageHeightPx = imageHeightPx;
         visualQualityConfiguration.occupancyGridRows =
-            declare_parameter<int>("feature_grid_rows", 4);
+            declare_parameter<std::int64_t>("feature_grid_rows", 4);
         visualQualityConfiguration.occupancyGridColumns =
-            declare_parameter<int>("feature_grid_columns", 4);
+            declare_parameter<std::int64_t>("feature_grid_columns", 4);
         maximumFeaturesPerCell =
-            declare_parameter<int>("maximum_features_per_cell", 40);
+            declare_parameter<std::int64_t>("maximum_features_per_cell", 40);
         visualQualityConfiguration.nearMidDepthM =
             declare_parameter<double>("near_mid_depth_m", 12.0);
         visualQualityConfiguration.minimumCoverageRatio =
@@ -404,17 +406,22 @@ class VisualOdometryNode final : public rclcpp::Node
             declare_parameter<double>("feature_minimum_distance_px", 8.0));
 
         /* Coarsest pyramid level used by optical-flow tracking. */
-        const int opticalFlowMaximumPyramidLevel =
-            declare_parameter<int>("optical_flow_maximum_pyramid_level", 3);
+        const std::int64_t opticalFlowMaximumPyramidLevel =
+            declare_parameter<std::int64_t>(
+                "optical_flow_maximum_pyramid_level",
+                3);
 
         /* Side length, in pixels, of the optical-flow tracking window. */
-        const int opticalFlowWindowSizePx =
-            declare_parameter<int>("optical_flow_window_size_px", 21);
+        const std::int64_t opticalFlowWindowSizePx =
+            declare_parameter<std::int64_t>("optical_flow_window_size_px",
+                                            21);
 
         /* Upper bound on Gauss-Newton refinement iterations per feature
          * per pyramid level. */
-        const int opticalFlowMaximumIterations =
-            declare_parameter<int>("optical_flow_maximum_iterations", 30);
+        const std::int64_t opticalFlowMaximumIterations =
+            declare_parameter<std::int64_t>(
+                "optical_flow_maximum_iterations",
+                30);
 
         /* Convergence threshold on the per-iteration displacement update,
          * in pixels. */
@@ -429,21 +436,23 @@ class VisualOdometryNode final : public rclcpp::Node
                 1.0e-4));
 
         /* Read the raw disparity-range parameter before rounding it below. */
-        int numberOfDisparities =
-            declare_parameter<int>("num_disparities", 128);
+        std::int64_t numberOfDisparities =
+            declare_parameter<std::int64_t>("num_disparities", 128);
 
         /* StereoBM requires the disparity range to be a positive multiple
          * of 16; round the configured value up to satisfy that. */
-        numberOfDisparities =
-            std::max(16, ((numberOfDisparities + 15) / 16) * 16);
+        numberOfDisparities = std::max<std::int64_t>(
+            16,
+            ((numberOfDisparities + 15) / 16) * 16);
 
         /* Read the raw block-matching window size before rounding it
          * below. */
-        int blockSize = declare_parameter<int>("block_size", 15);
+        std::int64_t blockSize =
+            declare_parameter<std::int64_t>("block_size", 15);
 
         /* StereoBM requires an odd block size of at least 5; round the
          * configured value up to satisfy that. */
-        blockSize = std::max(5, blockSize | 1);
+        blockSize = std::max<std::int64_t>(5, blockSize | 1);
 
         /* Camera mount x offset from the body origin, in metres. */
         const double cameraXM = declare_parameter<double>("camera_x_m", 0.932);
@@ -473,7 +482,9 @@ class VisualOdometryNode final : public rclcpp::Node
 
         /* Construct the block-matching stereo disparity estimator with the
          * validated disparity range and block size. */
-        p_stereoMatcher = cv::StereoBM::create(numberOfDisparities, blockSize);
+        p_stereoMatcher = cv::StereoBM::create(
+            static_cast<int>(numberOfDisparities),
+            static_cast<int>(blockSize));
 
         /* Reject low-texture regions that would otherwise match
          * unreliably. */
@@ -490,7 +501,7 @@ class VisualOdometryNode final : public rclcpp::Node
         /* Maximum disparity variation allowed within one speckle group. */
         p_stereoMatcher->setSpeckleRange(2);
 
-        /* Stereo depth source (WP-01 Phase 5.3): "block" reads the dense
+        /* Stereo depth source: "block" reads the dense
          * StereoBM map, recomputed on the keyframe pair every frame, at
          * the nearest pixel; "sparse" matches each keyframe corner once,
          * when the keyframe is stored, along its row to sub-pixel
@@ -506,7 +517,9 @@ class VisualOdometryNode final : public rclcpp::Node
         isSparseStereo                 = stereoMatching == "sparse";
         sparseStereoMaximumDisparityPx = numberOfDisparities;
         sparseStereoHalfWindowPx =
-            declare_parameter<int>("sparse_stereo_half_window_px", 5);
+            declare_parameter<std::int64_t>(
+                "sparse_stereo_half_window_px",
+                5);
         sparseStereoMaximumLeftRightDifferencePx = declare_parameter<double>(
             "sparse_stereo_maximum_left_right_difference_px",
             1.0);
@@ -521,7 +534,7 @@ class VisualOdometryNode final : public rclcpp::Node
          * near ground instead of sky and distant terrain. Zero searches
          * the whole image. */
         detectionMinimumRowPx =
-            declare_parameter<int>("detection_minimum_row_px", 0);
+            declare_parameter<std::int64_t>("detection_minimum_row_px", 0);
         if (detectionMinimumRowPx < 0 ||
             detectionMinimumRowPx > imageHeightPx - 64)
         {
@@ -543,11 +556,12 @@ class VisualOdometryNode final : public rclcpp::Node
          * applicable coding profile.
          */
         const feature_tracking::FeatureTrackingStatus cornerDetectorStatus =
-            cornerDetector.initialize(imageWidthPx,
-                                      imageHeightPx - detectionMinimumRowPx,
-                                      static_cast<std::size_t>(maximumFeatures),
-                                      featureQualityLevel,
-                                      featureMinimumDistancePx);
+            cornerDetector.initialize(
+                static_cast<int>(imageWidthPx),
+                static_cast<int>(imageHeightPx - detectionMinimumRowPx),
+                static_cast<std::size_t>(maximumFeatures),
+                featureQualityLevel,
+                featureMinimumDistancePx);
         if (cornerDetectorStatus != feature_tracking::FeatureTrackingStatus::
                                         FEATURE_TRACKING_STATUS_SUCCESS)
         {
@@ -557,11 +571,11 @@ class VisualOdometryNode final : public rclcpp::Node
 
         const feature_tracking::FeatureTrackingStatus opticalFlowStatus =
             opticalFlowTracker.initialize(
-                imageWidthPx,
-                imageHeightPx,
-                opticalFlowMaximumPyramidLevel,
-                opticalFlowWindowSizePx,
-                opticalFlowMaximumIterations,
+                static_cast<int>(imageWidthPx),
+                static_cast<int>(imageHeightPx),
+                static_cast<int>(opticalFlowMaximumPyramidLevel),
+                static_cast<int>(opticalFlowWindowSizePx),
+                static_cast<int>(opticalFlowMaximumIterations),
                 opticalFlowEpsilonPx,
                 opticalFlowMinimumEigenvalueThreshold);
         if (opticalFlowStatus != feature_tracking::FeatureTrackingStatus::
@@ -645,7 +659,7 @@ class VisualOdometryNode final : public rclcpp::Node
 
         /* Topic wiring is already captured by the run's parameter snapshot,
          * so it is debug detail rather than operator output. */
-        LUNAR_LOG_DEBUG(get_logger(),
+        SRS_LOG_DEBUG(get_logger(),
                         "Stereo visual odometry: [%s, %s] -> [%s, %s, %s]",
                         leftTopic.c_str(),
                         rightTopic.c_str(),
@@ -672,7 +686,7 @@ class VisualOdometryNode final : public rclcpp::Node
         if (cornerDetectorStatus != feature_tracking::FeatureTrackingStatus::
                                         FEATURE_TRACKING_STATUS_SUCCESS)
         {
-            LUNAR_LOG_ERROR(get_logger(), "Corner detector termination failed");
+            SRS_LOG_ERROR(get_logger(), "Corner detector termination failed");
         }
 
         const feature_tracking::FeatureTrackingStatus opticalFlowStatus =
@@ -680,7 +694,7 @@ class VisualOdometryNode final : public rclcpp::Node
         if (opticalFlowStatus != feature_tracking::FeatureTrackingStatus::
                                      FEATURE_TRACKING_STATUS_SUCCESS)
         {
-            LUNAR_LOG_ERROR(get_logger(), "LK tracker termination failed");
+            SRS_LOG_ERROR(get_logger(), "LK tracker termination failed");
         }
     }
 
@@ -1343,7 +1357,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           Image
      * @units           pixels
      */
-    int sparseStereoMaximumDisparityPx{128};
+    std::int64_t sparseStereoMaximumDisparityPx{128};
 
     /*!
      * @brief           Half-width of the sparse matcher's square patch.
@@ -1351,7 +1365,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           Image
      * @units           pixels
      */
-    int sparseStereoHalfWindowPx{5};
+    std::int64_t sparseStereoHalfWindowPx{5};
 
     /*!
      * @brief           Largest left-to-right versus right-to-left disparity
@@ -1369,7 +1383,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           Image
      * @units           pixels
      */
-    int detectionMinimumRowPx{0};
+    std::int64_t detectionMinimumRowPx{0};
 
     /*!
      * @brief           Fixed rigid transform from the camera optical frame
@@ -1509,7 +1523,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           N/A
      * @units           count
      */
-    int maximumFeatures{640};
+    std::int64_t maximumFeatures{640};
 
     /*!
      * @brief           Minimum stereo/temporal correspondences required to
@@ -1518,7 +1532,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           N/A
      * @units           count
      */
-    int minimumCorrespondences{20};
+    std::int64_t minimumCorrespondences{20};
 
     /*!
      * @brief           Maximum reconstructed correspondences retained per
@@ -1527,7 +1541,7 @@ class VisualOdometryNode final : public rclcpp::Node
      * @frame           N/A
      * @units           count
      */
-    int maximumFeaturesPerCell{40};
+    std::int64_t maximumFeaturesPerCell{40};
 
     /*!
      * @brief           Whether the accumulated visual pose remains
@@ -1814,4 +1828,4 @@ class VisualOdometryNode final : public rclcpp::Node
 
 } /* namespace localisation::visual_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H */
+#endif /* SRS_LOCALISATION_VISUAL_ODOMETRY_NODE_CLASS_H */

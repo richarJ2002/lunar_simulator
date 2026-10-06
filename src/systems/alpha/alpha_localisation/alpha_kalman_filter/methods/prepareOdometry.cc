@@ -32,7 +32,7 @@ bool AlphaKalmanFilterNode::prepareOdometry(const nav_msgs::msg::Odometry &odome
     if (!isPoseValid(odometry_in.pose.pose))
     {
         /* Bound log spam if the estimator keeps producing bad poses. */
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 2000,
                                 "Ignoring an invalid Alpha pose");

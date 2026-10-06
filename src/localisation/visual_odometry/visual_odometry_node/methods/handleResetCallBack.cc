@@ -30,7 +30,7 @@ void VisualOdometryNode::handleResetCallBack(
     consecutiveFailureCount   = 0U;
     consecutiveAcceptedCount  = 0U;
     hasReadinessStreak        = false;
-    LUNAR_LOG_INFO(get_logger(), "Visual odometry epoch reset");
+    SRS_LOG_INFO(get_logger(), "Visual odometry epoch reset");
 }
 
 } /* namespace localisation::visual_odometry */

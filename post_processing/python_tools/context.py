@@ -27,7 +27,7 @@ from python_tools.bag.reader import (
     read_bag,
     validate_test_run_dir,
 )
-from python_tools.diagnostics.bag_diagnostics import DIAGNOSTICS_TOPIC, diagnostic_log_from_bag
+from python_tools.diagnostics.bag_diagnostics import diagnostics_topic_for, diagnostic_log_from_bag
 from python_tools.diagnostics.log_parser import find_latest_log, parse_log_file
 from python_tools.data.models import DiagnosticLog, ParameterSnapshot, ReportContext, RunMetadata
 
@@ -204,9 +204,12 @@ def build_report_context(
         end_time_ns=bag.end_time_ns,
     )
 
-    # Runs from WP-01 Phase 1 onward record diagnostics in the bag, in
-    # simulation time; older runs only have the node log's wall-clock lines.
-    recorded_diagnostics = bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+    # Runs record diagnostics in the bag, in simulation time; runs
+    # without bag diagnostics only have the node log's wall-clock
+    # lines. The run's own system selects the /<system>/diagnostics
+    # topic; a run without a manifest reads via the default system's
+    # topic.
+    recorded_diagnostics = bag.diagnostic_arrays.get(diagnostics_topic_for(run_metadata.system))
     if recorded_diagnostics is not None and recorded_diagnostics.samples:
         diagnostics = diagnostic_log_from_bag(recorded_diagnostics, bag_path)
     else:

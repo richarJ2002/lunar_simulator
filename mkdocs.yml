@@ -1,5 +1,6 @@
-site_name: lunar_simulator
-site_url: https://richarJ2002.github.io/lunar_simulator/
+site_name: Space Robotics Simulator (SRS)
+site_url: https://richarJ2002.github.io/space_robotics_simulator/
+repo_url: https://github.com/richarJ2002/space_robotics_simulator/
 docs_dir: docs
 use_directory_urls: true
 strict: true
@@ -53,8 +54,8 @@ nav:
           - Model: systems/alpha/model.md
   - Environments:
       - Overview: environments/index.md
-      - Lunar surface: environments/lunar-surface.md
-      - Mars: environments/mars.md
+      - Lunar crater field: environments/crater-field.md
+      - Martian plain stub: environments/plain-stub.md
   - Launch & bridge: launch-bridge.md
   - Post-processing: post-processing.md
   - Compliance:

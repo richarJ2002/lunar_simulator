@@ -279,7 +279,7 @@ void AlphaKalmanFilterNode::publishDiagnosticsCallBack()
     {
         return;
     }
-    LUNAR_LOG_INFO(get_logger(), "%s", healthLine.c_str());
+    SRS_LOG_INFO(get_logger(), "%s", healthLine.c_str());
     previousConsoleVisualFusedCount = visualDiagnostics.fusedCount;
     previousConsoleWheelFusedCount  = wheelDiagnostics.fusedCount;
     previousConsoleRejectedCount    = rejectedCount;

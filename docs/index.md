@@ -1,10 +1,10 @@
-# lunar_simulator
+# Space Robotics Simulator (SRS)
 
 > Code is truth — this site describes; the source and YAML on `main` win on conflict.
 
 ## Vision
 
-`lunar_simulator` is the workspace for developing rover autonomy stacks,
+`space_robotics_simulator` is the workspace for developing rover autonomy stacks,
 starting with basic algorithms and building toward mission-specific systems.
 ROS is used for quick development of qualified algorithms; lower-level
 software and middleware are kept reusable so proven work ports quickly, with
@@ -15,7 +15,7 @@ JSF-compliant R&D practice (proposed, not certified).
 
 A ROS 2 Jazzy + Gazebo Harmonic rover simulator. The repository root is the
 colcon workspace: `src/` (nodes and libraries), `parameters/` (runtime
-tuning), `launch/` (system launch), `worlds/` (environments), `config/`
+tuning), `launch/` (system launch), `environment/` (worlds), `config/`
 (bridge wiring), `post_processing/` (run reports).
 
 A physical system composes modules. Alpha is the current and only physical

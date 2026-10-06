@@ -4,11 +4,14 @@
         category each one carries, and whether it belongs to the always-on
         "core" recording profile or the optional "--record-images" profile.
         scripts/launch_simulator.sh keeps its own topic list in sync with
-        this one by literal string (see that script's CORE_RECORDING_TOPICS/
-        IMAGE_RECORDING_TOPICS comments) so that recording works even in an
+        this one by literal string (see that script's CORE_RECORD_SUFFIXES/
+        IMAGE_RECORD_SUFFIXES comments) so that recording works even in an
         environment where this Python package's dependencies are not
         installed; python_tools.bag.reader is what actually depends on this
         module to route deserialized messages to the right extractor.
+        Every registered topic except /clock lives under /<system>/: the
+        /alpha/... names below are the default system's registration, and
+        any other system's same-suffix topic resolves through them.
 """
 
 from __future__ import annotations
@@ -17,6 +20,15 @@ import argparse
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional, Sequence
+
+# Rover system whose /<system>/... topics the registered names below use.
+# "alpha" is the default-system example; old bags (captured before the
+# recording manifest named a system) keep reading through it.
+DEFAULT_SYSTEM = "alpha"
+
+# Manifest system value for runs captured before automatic recording
+# existed; always resolves to DEFAULT_SYSTEM.
+UNKNOWN_SYSTEM = "unknown"
 
 
 class MessageCategory(Enum):
@@ -70,9 +82,9 @@ class TopicSpec:
 
 
 # The always-recorded core telemetry topics, matching
-# scripts/launch_simulator.sh's CORE_RECORDING_TOPICS array exactly. Keep
-# both lists in sync by hand if either changes; see this module's docstring
-# for why they are not shared at runtime.
+# scripts/launch_simulator.sh's assembled core set exactly for the default
+# system. Keep both lists in sync by hand if either changes; see this
+# module's docstring for why they are not shared at runtime.
 CORE_TOPICS: tuple[TopicSpec, ...] = (
     TopicSpec("/clock", "rosgraph_msgs/msg/Clock", MessageCategory.CLOCK, True),
     TopicSpec(
@@ -202,7 +214,8 @@ CORE_TOPICS: tuple[TopicSpec, ...] = (
 )
 
 # The optional image topics, only present when a run was captured with
-# --record-images, matching launch_simulator.sh's IMAGE_RECORDING_TOPICS.
+# --record-images, matching launch_simulator.sh's assembled image set for
+# the default system.
 IMAGE_TOPICS: tuple[TopicSpec, ...] = (
     TopicSpec(
         "/alpha/drivers/loccam/left",
@@ -230,21 +243,118 @@ ALL_TOPICS_BY_NAME: dict[str, TopicSpec] = {
     spec.topic_name: spec for spec in (*CORE_TOPICS, *IMAGE_TOPICS)
 }
 
+# Suffix (the topic name without its /<system>/ prefix) to the registered
+# message type, category, and profile flag, for every namespaced topic.
+# /clock has no system prefix and so has no suffix entry.
+_SUFFIX_SPECS: dict[str, tuple[str, MessageCategory, bool]] = {}
+for _registered_spec in (*CORE_TOPICS, *IMAGE_TOPICS):
+    _parts = _registered_spec.topic_name.split("/", 2)
+    if len(_parts) == 3:
+        _SUFFIX_SPECS.setdefault(
+            _parts[2],
+            (
+                _registered_spec.message_type,
+                _registered_spec.category,
+                _registered_spec.core,
+            ),
+        )
+
+
+def normalize_system(system_name: Optional[str]) -> str:
+    """!
+    @brief   Resolves a run's system name to the topic namespace to read.
+
+    @param   system_name
+             The recording manifest's system value, or `None` when no
+             manifest was captured.
+
+    @return  `system_name` itself, or `DEFAULT_SYSTEM` when it is missing
+              or `UNKNOWN_SYSTEM` (an old run from before automatic
+              recording named a system).
+    """
+    if not system_name or system_name == UNKNOWN_SYSTEM:
+        return DEFAULT_SYSTEM
+    return system_name
+
+
+def topic_name_for(system_name: Optional[str], suffix: str) -> str:
+    """!
+    @brief   Builds one fully qualified topic name for a rover system.
+
+    @param   system_name
+             The recording manifest's system value, resolved through
+             `normalize_system` (old runs read via the default system).
+    @param   suffix
+             The topic name without its /<system>/ prefix, e.g.
+             "localisation/wheel/odometry".
+
+    @return  The fully qualified topic name, e.g.
+              "/alpha/localisation/wheel/odometry".
+    """
+    return f"/{normalize_system(system_name)}/{suffix}"
+
 
 def topic_spec_for(topic_name: str) -> Optional[TopicSpec]:
     """!
     @brief   Looks up the registered spec for a recorded topic name.
 
     @param   topic_name
-             Fully qualified topic name as stored in the bag.
+              Fully qualified topic name as stored in the bag.
 
     @return  The topic's `TopicSpec`, or `None` if this tool does not
-             recognize the topic (an unrelated or future topic present in
-             the bag shall be ignored, per the plan's "route only registered
-             topics" requirement, not treated as an error).
+              recognize the topic (an unrelated or future topic present in
+              the bag shall be ignored, per the plan's "route only registered
+              topics" requirement, not treated as an error). A topic under
+              any other system's namespace resolves through its suffix, so
+              a /beta/... bag routes exactly like the registered /alpha/...
+              one; only the suffix, never the system name, decides.
     """
     # A plain dict lookup is sufficient since topic names are unique.
-    return ALL_TOPICS_BY_NAME.get(topic_name)
+    spec = ALL_TOPICS_BY_NAME.get(topic_name)
+    if spec is not None:
+        return spec
+    parts = topic_name.split("/", 2)
+    if len(parts) != 3:
+        return None
+    known = _SUFFIX_SPECS.get(parts[2])
+    if known is None:
+        return None
+    message_type, category, core = known
+    return TopicSpec(topic_name, message_type, category, core)
+
+
+def topics_for_profile(profile: str, system_name: Optional[str] = None) -> list[TopicSpec]:
+    """!
+    @brief   Lists the registered topics for a recording profile and system.
+
+    @param   profile
+             "core", or "core+images" to include the optional image topics.
+    @param   system_name
+             The rover system, resolved through `normalize_system` (old
+             runs list via the default system).
+
+    @return  The profile's topic specs, in registration order.
+    """
+    specs = list(CORE_TOPICS)
+    if profile == "core+images":
+        specs.extend(IMAGE_TOPICS)
+    if normalize_system(system_name) == DEFAULT_SYSTEM:
+        return specs
+    renamed: list[TopicSpec] = []
+    for spec in specs:
+        parts = spec.topic_name.split("/", 2)
+        if len(parts) == 3:
+            renamed.append(
+                TopicSpec(
+                    topic_name_for(system_name, parts[2]),
+                    spec.message_type,
+                    spec.category,
+                    spec.core,
+                )
+            )
+        else:
+            renamed.append(spec)
+    return renamed
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -268,6 +378,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default="core",
         help="Recording profile to list topics for (default: core).",
     )
+    # Optional rover system selecting the /<system>/... topic namespace.
+    parser.add_argument(
+        "--system",
+        default=DEFAULT_SYSTEM,
+        help=f"Rover system to list topics for (default: {DEFAULT_SYSTEM}).",
+    )
     return parser
 
 
@@ -286,10 +402,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
 
-    # Select the core topics, plus the image topics when requested.
-    topics = list(CORE_TOPICS)
-    if args.profile == "core+images":
-        topics.extend(IMAGE_TOPICS)
+    # Select the core topics, plus the image topics when requested, under
+    # the requested system's namespace.
+    topics = topics_for_profile(args.profile, args.system)
 
     # Print one topic name per line, in registration order.
     for spec in topics:

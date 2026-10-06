@@ -1,7 +1,7 @@
 """!
-@brief  Converts the recorded /alpha/diagnostics DiagnosticArray statuses
-        (WP-01 Phase 1 onward) into the same VisualDiagnosticRecord and
-        LocalisationDiagnosticRecord types the legacy log parser produces,
+@brief  Converts the recorded /<system>/diagnostics DiagnosticArray statuses
+        into the same VisualDiagnosticRecord and
+        LocalisationDiagnosticRecord types the console-log parser produces,
         but timed in bag-elapsed simulation seconds so the report can plot
         them on the same axis as every other bag-derived series.
 
@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -28,14 +29,49 @@ from python_tools.data.models import (
 )
 from python_tools.diagnostics.log_parser import DIAGNOSTIC_TIME_AXIS_TITLE
 
-# Topic every project node publishes its DiagnosticArray on.
+# Topic every project node publishes its DiagnosticArray on, for the
+# default system; old bags (captured before the manifest named a system)
+# keep reading through it.
 DIAGNOSTICS_TOPIC = "/alpha/diagnostics"
 
 # Status published once per tick by visual_odometry.
 VISUAL_STATUS_NAME = "visual_odometry"
 
-# Topic the start-up supervisor publishes its latched state on.
+# Topic the start-up supervisor publishes its latched state on, for the
+# default system.
 SYSTEM_STATE_TOPIC = "/alpha/system/state"
+
+
+def diagnostics_topic_for(system_name: Optional[str]) -> str:
+    """!
+    @brief   Builds a rover system's diagnostics topic name.
+
+    @param   system_name
+             The recording manifest's system value; missing or unknown
+             (an old run) resolves to the default system's topic.
+
+    @return  The fully qualified diagnostics topic, e.g.
+              "/beta/diagnostics".
+    """
+    from python_tools.bag.topic_registry import topic_name_for
+
+    return topic_name_for(system_name, "diagnostics")
+
+
+def system_state_topic_for(system_name: Optional[str]) -> str:
+    """!
+    @brief   Builds a rover system's supervisor state topic name.
+
+    @param   system_name
+             The recording manifest's system value; missing or unknown
+             (an old run) resolves to the default system's topic.
+
+    @return  The fully qualified system state topic, e.g.
+              "/beta/system/state".
+    """
+    from python_tools.bag.topic_registry import topic_name_for
+
+    return topic_name_for(system_name, "system/state")
 
 # The supervisor's status name on SYSTEM_STATE_TOPIC.
 SYSTEM_STATE_STATUS_NAME = "system_state"
@@ -367,10 +403,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     bag_path = discover_bag_path(args.test_run, None)
     bag = read_bag(bag_path)
-    series = bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
-    # Runs before WP-01 Phase 1 have no recorded diagnostics topic.
+    # The run's own system selects the /<system>/diagnostics topic; a run
+    # without a manifest (old run) reads via the default system's topic.
+    system_name: Optional[str] = None
+    manifest_path = bag_path.parent / "manifest.json"
+    if manifest_path.is_file():
+        try:
+            system_name = json.loads(manifest_path.read_text(encoding="utf-8")).get("system")
+        except ValueError:
+            system_name = None
+    diagnostics_topic = diagnostics_topic_for(system_name)
+    series = bag.diagnostic_arrays.get(diagnostics_topic)
+    # Runs without bag diagnostics have no recorded diagnostics topic.
     if series is None:
-        print(f"{DIAGNOSTICS_TOPIC} was not recorded in {bag_path}")
+        print(f"{diagnostics_topic} was not recorded in {bag_path}")
         return 1
     log = diagnostic_log_from_bag(series, bag_path)
     print(f"visual records: {len(log.visual_records)}")
@@ -386,7 +432,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     @return  A configured, not-yet-invoked `ArgumentParser`.
     """
     parser = argparse.ArgumentParser(
-        description="Summarise a test run's recorded /alpha/diagnostics records."
+        description="Summarise a test run's recorded diagnostics records."
     )
     parser.add_argument("test_run", type=Path, help="Captured test run directory.")
     return parser

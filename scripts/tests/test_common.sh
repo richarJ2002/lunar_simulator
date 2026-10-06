@@ -20,8 +20,8 @@
 TC_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TC_ROOT="$(dirname "$(dirname "$TC_TESTS_DIR")")"
 TC_LAUNCH_SIMULATOR="$TC_ROOT/scripts/launch_simulator.sh"
-TC_WORLD_FILE="$TC_ROOT/worlds/lunar_surface.sdf"
-TC_LOG_DIR="$(mktemp -d --tmpdir lunar_simulator_test.XXXXXX)"
+TC_WORLD_FILE="$TC_ROOT/environment/lunar/crater_field/crater_field.sdf"
+TC_LOG_DIR="$(mktemp -d --tmpdir space_robotics_simulator_test.XXXXXX)"
 TC_LAUNCH_LOG="$TC_LOG_DIR/launch.log"
 
 # Use the same isolated default as both supported launch entry points. Tests
@@ -29,7 +29,7 @@ TC_LAUNCH_LOG="$TC_LOG_DIR/launch.log"
 # simulator while unrelated ROS sessions cannot contribute another /clock.
 ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-73}"
 export ROS_DOMAIN_ID
-GZ_PARTITION="${GZ_PARTITION:-lunar_simulator_${ROS_DOMAIN_ID}}"
+GZ_PARTITION="${GZ_PARTITION:-space_robotics_simulator_${ROS_DOMAIN_ID}}"
 export GZ_PARTITION
 
 # Populated by tc::start_simulator; empty until then.
@@ -67,7 +67,11 @@ set -u
 #
 tc::start_simulator() {
   local enable_rviz="${1:-0}"
-  local -a launch_args=(--headless)
+  # Pass the world file explicitly (the launcher resolves an absolute SDF
+  # path directly) so TC_WORLD_FILE stays the single source of truth for
+  # the world under test rather than an unused duplicate of the
+  # launcher's own crater_field default.
+  local -a launch_args=("$TC_WORLD_FILE" --headless)
   if [ "$enable_rviz" = "1" ]; then
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
       echo "[test] ERROR: --rviz requires a display (DISPLAY or WAYLAND_DISPLAY is unset)" >&2
@@ -270,6 +274,29 @@ sys.exit(1 if has_failed else 0)
 PYEOF
 }
 
+#! @brief Prints every descendant PID of $1 (children, grandchildren,
+#         ...) one per line, via a breadth-first walk of `pgrep -P`.
+#         tc::cleanup snapshots the launcher's tree with this while the
+#         launcher is still alive, so the fallback kill below can target
+#         only PIDs this run actually spawned.
+tc::descendant_pids() {
+  local root_pid="$1"
+  local -a frontier=("$root_pid")
+  local -a children=()
+  local current child
+  while [ "${#frontier[@]}" -gt 0 ]; do
+    current="${frontier[0]}"
+    frontier=("${frontier[@]:1}")
+    mapfile -t children < <(pgrep -P "$current" 2>/dev/null || true) || true
+    if [ "${#children[@]}" -gt 0 ]; then
+      for child in "${children[@]}"; do
+        printf '%s\n' "$child"
+        frontier+=("$child")
+      done
+    fi
+  done
+}
+
 #! @brief Stops the rover and tears down everything tc::start_simulator
 #         started. Registered as an EXIT trap by every test script so it
 #         still runs on a failed check or an interrupted run.
@@ -279,29 +306,45 @@ tc::cleanup() {
   echo "[test] cleaning up..."
   tc::stop_rover 2>/dev/null || true
 
-  # Ask scripts/launch_simulator.sh to run its own cleanup trap first.
+  # Snapshot the launcher's whole process tree first, while parent links
+  # are still intact, then ask scripts/launch_simulator.sh to run its own
+  # cleanup trap. Scoping the fallback to these PIDs (never a global
+  # `pkill -9 -f parameter_bridge` sweep) keeps a second test -- or a
+  # manual run -- on this machine safe: it shares ROS_DOMAIN_ID 73,
+  # GZ_PARTITION, and the world-file path, so a pattern sweep would kill
+  # that other run's bridge and simulator too.
+  local -a tc_leftover_pids=()
   if [ -n "$TC_SIMULATOR_PID" ] && kill -0 "$TC_SIMULATOR_PID" 2>/dev/null; then
+    mapfile -t tc_leftover_pids < <(tc::descendant_pids "$TC_SIMULATOR_PID") || true
     kill -TERM "$TC_SIMULATOR_PID" 2>/dev/null || true
     sleep 2
   fi
+  # If the launcher is already gone there is no way to prove which
+  # leftover processes belong to this run (orphans reparent away), so
+  # nothing is swept: that shutdown path belonged to the launcher's own
+  # EXIT trap (finalize_test_run/stop_recorder).
 
-  # Fall back to a direct, narrowly-scoped kill of anything left over --
+  # Fall back to a targeted kill of only the snapshotted PIDs that are
+  # still alive and still look like this harness's simulator processes --
   # scripts/launch_simulator.sh's own trap does not always fully clean up
   # every descendant process (observed repeatedly during development), so
-  # this harness cannot rely on it alone.
-  pkill -9 -f "gz sim -s -v4 $TC_WORLD_FILE" 2>/dev/null || true
-  pkill -9 -f "install/lunar_simulator/lib/lunar_simulator/alpha_node" 2>/dev/null || true
-  # Matches both the short-lived "ros2 run ros_gz_bridge parameter_bridge"
-  # wrapper and the long-lived compiled binary it execs
-  # (.../lib/ros_gz_bridge/parameter_bridge, a path with no space) -- a
-  # pattern requiring the space matched only the former and left the
-  # latter running (confirmed during development).
-  pkill -9 -f "parameter_bridge" 2>/dev/null || true
-  # rviz2 is launched as a Node inside launch/alpha_launch.py now (see
-  # src/systems/alpha/alpha.rviz's new home under src/systems/alpha/),
-  # not spawned directly by this harness, but gets the same belt-and-
-  # suspenders treatment as the two processes above.
-  pkill -9 -f "rviz2.*alpha.rviz" 2>/dev/null || true
+  # this harness cannot rely on it alone. Rechecking the command line
+  # guards against PID recycling between the snapshot and this loop. The
+  # bag recorder is deliberately excluded: the launcher owns it via
+  # stop_recorder() (PID-scoped SIGTERM, never SIGKILL), and this
+  # fallback must not SIGKILL a bag into an unfinalized state.
+  local leftover_pid leftover_cmd
+  if [ "${#tc_leftover_pids[@]}" -gt 0 ]; then
+    for leftover_pid in "${tc_leftover_pids[@]}"; do
+      kill -0 "$leftover_pid" 2>/dev/null || continue
+      leftover_cmd="$(ps -p "$leftover_pid" -o args= 2>/dev/null || true)"
+      case "$leftover_cmd" in
+        *"gz sim"*|*"parameter_bridge"*|*"alpha_node"*|*"rviz2"*)
+          kill -9 "$leftover_pid" 2>/dev/null || true
+          ;;
+      esac
+    done
+  fi
 
   rm -rf -- "$TC_LOG_DIR"
 

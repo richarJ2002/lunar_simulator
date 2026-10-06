@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -67,8 +68,9 @@ VisualOdometryNode::VisualPoseQuality
     depthsM.reserve(inlierIndices_in.size());
     disparitiesPx.reserve(inlierIndices_in.size());
 
-    const int cellCount = configuration_in.occupancyGridRows *
-                          configuration_in.occupancyGridColumns;
+    const std::int64_t cellCount =
+        configuration_in.occupancyGridRows *
+        configuration_in.occupancyGridColumns;
     std::vector<bool> occupiedCells(static_cast<std::size_t>(cellCount), false);
     std::size_t       nearMidCount = 0U;
     for (const int index : inlierIndices_in)
@@ -100,19 +102,19 @@ VisualOdometryNode::VisualPoseQuality
             nearMidCount++;
         }
 
-        const int column = std::clamp(
-            static_cast<int>(
+        const std::int64_t column = std::clamp(
+            static_cast<std::int64_t>(
                 point2d.x *
                 static_cast<float>(configuration_in.occupancyGridColumns) /
                 static_cast<float>(configuration_in.imageWidthPx)),
-            0,
+            static_cast<std::int64_t>(0),
             configuration_in.occupancyGridColumns - 1);
-        const int row = std::clamp(
-            static_cast<int>(
+        const std::int64_t row = std::clamp(
+            static_cast<std::int64_t>(
                 point2d.y *
                 static_cast<float>(configuration_in.occupancyGridRows) /
                 static_cast<float>(configuration_in.imageHeightPx)),
-            0,
+            static_cast<std::int64_t>(0),
             configuration_in.occupancyGridRows - 1);
         occupiedCells[static_cast<std::size_t>(
             row * configuration_in.occupancyGridColumns + column)] = true;

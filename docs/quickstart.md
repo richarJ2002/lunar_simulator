@@ -7,7 +7,7 @@
 
 | System | Environment | Launch command | Status |
 |--------|-------------|----------------|--------|
-| Alpha | `lunar_surface` | `./scripts/launch_simulator.sh lunar_surface alpha` | Supported |
+| Alpha | `crater_field` | `./scripts/launch_simulator.sh crater_field alpha` | Supported |
 | Alpha | Mars | TODO | Planned, not present |
 
 ## Prerequisites
@@ -16,7 +16,7 @@ Every terminal uses the same isolation values (defaults shown):
 
 ```bash
 export ROS_DOMAIN_ID=73
-export GZ_PARTITION=lunar_simulator_73
+export GZ_PARTITION=space_robotics_simulator_${ROS_DOMAIN_ID}
 ```
 
 ## Three commands
@@ -24,10 +24,10 @@ export GZ_PARTITION=lunar_simulator_73
 ```bash
 # 1. Build (from the repository root)
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-select lunar_simulator
+colcon build --packages-select space_robotics_simulator
 
-# 2. Launch (Alpha on lunar_surface; bare call is equivalent)
-./scripts/launch_simulator.sh lunar_surface alpha
+# 2. Launch (Alpha on crater_field; bare call is equivalent)
+./scripts/launch_simulator.sh crater_field alpha
 
 # 3. Wait for READY before commanding motion
 python3 scripts/wait_for_system_ready.py --timeout-s 120

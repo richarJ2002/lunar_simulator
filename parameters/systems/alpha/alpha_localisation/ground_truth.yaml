@@ -1,8 +1,8 @@
+# Topic names are not pinned here: each defaults under /<system>/... from
+# the system_name parameter (/alpha/... when system_name is "alpha"), so
+# these tunings apply unchanged under any system's own namespace.
 ground_truth:
   ros__parameters:
-    odometry_topic: /alpha/drivers/ground_truth/odometry
-    output_odometry_topic: /alpha/localisation/ground_truth/odometry
-    path_topic: /alpha/localisation/ground_truth/path
     map_frame: map
     startup_fixed_frame: alpha/startup_fixed
     ground_truth_base_frame: alpha/ground_truth_base_link

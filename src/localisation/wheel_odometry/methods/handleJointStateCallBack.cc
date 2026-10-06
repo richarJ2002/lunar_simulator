@@ -70,7 +70,7 @@ void WheelOdometryNode::handleJointStateCallBack(
              * transiently right after simulator startup while Gazebo is
              * still publishing the model's first joint states.
              */
-            LUNAR_LOG_WARN_THROTTLE(get_logger(),
+            SRS_LOG_WARN_THROTTLE(get_logger(),
                                     *get_clock(),
                                     3000,
                                     "Waiting for all 12 wheel joints");
@@ -197,7 +197,7 @@ void WheelOdometryNode::handleJointStateCallBack(
              * displacement from a single instantaneous twist sample, so
              * the gap is skipped entirely rather than integrated.
              */
-            LUNAR_LOG_WARN_THROTTLE(get_logger(),
+            SRS_LOG_WARN_THROTTLE(get_logger(),
                                     *get_clock(),
                                     2000,
                                     "Wheel gap %.2f s > %.2f s; skipped",

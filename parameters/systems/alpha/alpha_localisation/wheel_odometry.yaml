@@ -1,9 +1,8 @@
+# Topic names are not pinned here: each defaults under /<system>/... from
+# the system_name parameter (/alpha/... when system_name is "alpha"), so
+# these tunings apply unchanged under any system's own namespace.
 wheel_odometry:
   ros__parameters:
-    joint_state_topic: /alpha/joint_states
-    odometry_topic: /alpha/localisation/wheel/odometry
-    visual_odometry_topic: /alpha/localisation/visual/odometry
-    slip_ratio_topic: /alpha/localisation/wheel/slip_ratios
     odom_frame: alpha/startup_fixed
     base_frame: alpha/base_link
     wheel_radius_m: 0.1425

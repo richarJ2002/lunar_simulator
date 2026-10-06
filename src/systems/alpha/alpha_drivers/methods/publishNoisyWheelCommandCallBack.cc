@@ -35,7 +35,7 @@ void AlphaDriverNode::publishNoisyWheelCommandCallBack(
     if (!gate.isOpen)
     {
         blockedCommandCount++;
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 3000,
                                 "CMD blocked: %s",

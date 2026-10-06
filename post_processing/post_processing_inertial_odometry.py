@@ -17,20 +17,24 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
+from python_tools.bag.topic_registry import topic_name_for
 from python_tools.data import alignment, metrics
 from python_tools.data.models import ReportContext, ReportPage
 from python_tools.diagnostics.bag_diagnostics import (
-    DIAGNOSTICS_TOPIC,
+    diagnostics_topic_for,
     inertial_calibration_complete_elapsed_s,
 )
 from python_tools.diagnostics.log_parser import find_inertial_calibration_complete_time_s
 from python_tools.reporting import figures, html, style
 
-TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
-TOPIC_ESTIMATE = "/alpha/localisation/inertial/odometry"
-TOPIC_RAW_IMU = "/alpha/drivers/imu"
-TOPIC_NOISY_IMU = "/alpha/imu"
-TOPIC_FILTERED_IMU = "/alpha/localisation/inertial/filtered_imu"
+# Topic suffixes (without the /<system>/ prefix) this page reads; each is
+# resolved against the run's own system where the context is available, so
+# old runs read via the default system's names.
+SUFFIX_GROUND_TRUTH = "localisation/ground_truth/odometry"
+SUFFIX_ESTIMATE = "localisation/inertial/odometry"
+SUFFIX_RAW_IMU = "drivers/imu"
+SUFFIX_NOISY_IMU = "imu"
+SUFFIX_FILTERED_IMU = "localisation/inertial/filtered_imu"
 
 
 def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
@@ -45,13 +49,19 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
     warnings: list[str] = []
     sections: list[str] = []
     summary_stats: dict[str, str] = {}
+    system = context.run_metadata.system
+    topic_ground_truth = topic_name_for(system, SUFFIX_GROUND_TRUTH)
+    topic_estimate = topic_name_for(system, SUFFIX_ESTIMATE)
+    topic_raw_imu = topic_name_for(system, SUFFIX_RAW_IMU)
+    topic_noisy_imu = topic_name_for(system, SUFFIX_NOISY_IMU)
+    topic_filtered_imu = topic_name_for(system, SUFFIX_FILTERED_IMU)
 
     params = context.parameters.get("inertial_odometry")
     if params is not None:
         p = params.parameters
-        # Runs from WP-01 Phase 1 onward record calibration in simulation
-        # time; older runs only have the node log's wall-clock marker.
-        recorded = context.bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+        # Runs record calibration in simulation time; runs without bag
+        # diagnostics only have the node log's wall-clock marker.
+        recorded = context.bag.diagnostic_arrays.get(diagnostics_topic_for(system))
         if recorded is not None and recorded.samples:
             calibration_elapsed_s = inertial_calibration_complete_elapsed_s(
                 recorded, context.bag.start_time_ns
@@ -89,9 +99,9 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
     else:
         warnings.append("inertial_odometry parameter snapshot not found")
 
-    raw_imu = context.bag.imu.get(TOPIC_RAW_IMU)
-    noisy_imu = context.bag.imu.get(TOPIC_NOISY_IMU)
-    filtered_imu = context.bag.imu.get(TOPIC_FILTERED_IMU)
+    raw_imu = context.bag.imu.get(topic_raw_imu)
+    noisy_imu = context.bag.imu.get(topic_noisy_imu)
+    filtered_imu = context.bag.imu.get(topic_filtered_imu)
 
     # Raw and noisy specific force (gravity still present) are directly
     # comparable and shown together; the filtered, gravity-free stage is
@@ -126,7 +136,7 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
             f"{html.figure_to_fragment(figure, 'inertial-specific-force')}</section>"
         )
     else:
-        warnings.append(f"{TOPIC_RAW_IMU} and {TOPIC_NOISY_IMU} published no messages")
+        warnings.append(f"{topic_raw_imu} and {topic_noisy_imu} published no messages")
 
     if filtered_imu is not None:
         figure = figures.three_axis_time_series(
@@ -140,7 +150,7 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
             f"{html.figure_to_fragment(figure, 'inertial-filtered-accel')}</section>"
         )
     else:
-        warnings.append(f"{TOPIC_FILTERED_IMU} published no messages")
+        warnings.append(f"{topic_filtered_imu} published no messages")
 
     # Angular rate frame IDs agree across all three stages, so they can be
     # overlaid directly.
@@ -177,8 +187,8 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
         )
 
     # Pose/twist comparison against ground truth.
-    truth = context.bag.odometry.get(TOPIC_GROUND_TRUTH)
-    estimate = context.bag.odometry.get(TOPIC_ESTIMATE)
+    truth = context.bag.odometry.get(topic_ground_truth)
+    estimate = context.bag.odometry.get(topic_estimate)
     if truth is not None and estimate is not None:
         position, orientation, linear_velocity, angular_velocity, valid = (
             alignment.interpolate_ground_truth(
@@ -259,8 +269,8 @@ def generate_inertial_odometry_report(context: ReportContext) -> ReportPage:
             )
     else:
         warnings.append(
-            f"Cannot compare against ground truth: {TOPIC_GROUND_TRUTH} or "
-            f"{TOPIC_ESTIMATE} published no messages"
+            f"Cannot compare against ground truth: {topic_ground_truth} or "
+            f"{topic_estimate} published no messages"
         )
 
     body = "".join(sections) if sections else figures.empty_state_card_html(

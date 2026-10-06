@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
-#define LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
+#ifndef SRS_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
+#define SRS_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -20,7 +20,7 @@ namespace common::console
  * @brief           Decides whether a rate-limited message may be emitted.
  *
  * One instance exists per throttled call site (a function-local static
- * created by LUNAR_LOG_*_THROTTLE), matching the per-call-site state of
+ * created by SRS_LOG_*_THROTTLE), matching the per-call-site state of
  * RCLCPP_*_THROTTLE. The caller supplies the current time, so the gate
  * works with simulation or wall time and is deterministic under test. It
  * is not internally synchronised: like RCLCPP_*_THROTTLE it relies on a
@@ -82,4 +82,4 @@ class ThrottleGate
 
 } /* namespace common::console */
 
-#endif /* LUNAR_SIMULATOR_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H */
+#endif /* SRS_COMMON_CONSOLE_THROTTLE_GATE_CLASS_H */

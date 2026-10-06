@@ -122,7 +122,7 @@ void AlphaKalmanFilterNode::handleImuCallBack(
             return;
         }
         imuDiagnostics.fusedCount++;
-        LUNAR_LOG_INFO(get_logger(),
+        SRS_LOG_INFO(get_logger(),
                        "EKF IMU init complete (%zu samples)",
                        imuInitializationSampleCount);
         finishDiagnostics();

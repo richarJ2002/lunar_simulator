@@ -25,7 +25,7 @@ void AlphaKalmanFilterNode::logStepFailure(FilterStatus status_in)
      * Throttled to avoid flooding the log if the filter rejects steps
      * repeatedly (e.g. during a sustained numerical failure).
      */
-    LUNAR_LOG_WARN_THROTTLE(get_logger(),
+    SRS_LOG_WARN_THROTTLE(get_logger(),
                             *get_clock(),
                             2000,
                             "EKF step failed (status %u)",

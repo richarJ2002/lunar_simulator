@@ -10,7 +10,7 @@ for a project owner's own review, not a pass/fail compliance verdict.
 
 ## 1. Build
 
-- `colcon build --packages-select lunar_simulator` — green at the end of
+- `colcon build --packages-select space_robotics_simulator` — green at the end of
   every phase (scaffolding, `ShiTomasiCornerDetector`, `PyramidalLucasKanadeTracker`,
   `handleStereo.cc` integration, `.clang-tidy` triage), including the
   target-scoped `-Werror` on `alpha_feature_tracking` (DEV-FT-006).
@@ -43,7 +43,7 @@ for a project owner's own review, not a pass/fail compliance verdict.
 
 ## 2. Unit tests
 
-`colcon test --packages-select lunar_simulator --event-handlers
+`colcon test --packages-select space_robotics_simulator --event-handlers
 console_direct+` / direct gtest binary runs, on the `RelWithDebInfo` build:
 
 | Binary | Cases | Result |
@@ -55,14 +55,14 @@ console_direct+` / direct gtest binary runs, on the `RelWithDebInfo` build:
 
 Test sources live in the mirrored `test/` tree (e.g.
 `test/localisation/visual_odometry/feature_tracking/test_corner_detector.cpp`).
-Their binaries land flat under `build/lunar_simulator/test/`, not directly
-under `build/lunar_simulator/` — `CLAUDE.md`'s own build-commands section
+Their binaries land flat under `build/space_robotics_simulator/test/`, not directly
+under `build/space_robotics_simulator/` — `CLAUDE.md`'s own build-commands section
 has been corrected to reflect this):
 
 ```
-./build/lunar_simulator/test/test_kalman_math
-./build/lunar_simulator/test/test_corner_detector
-./build/lunar_simulator/test/test_optical_flow_tracker
+./build/space_robotics_simulator/test/test_kalman_math
+./build/space_robotics_simulator/test/test_corner_detector
+./build/space_robotics_simulator/test/test_optical_flow_tracker
 ```
 
 **A real bug was found and fixed by this test suite, not just confirmed

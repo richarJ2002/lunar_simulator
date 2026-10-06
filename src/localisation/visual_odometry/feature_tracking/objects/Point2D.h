@@ -7,8 +7,8 @@
  * @date            16/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_POINT_2D_H
-#define LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_POINT_2D_H
+#ifndef SRS_LOCALISATION_FEATURE_TRACKING_POINT_2D_H
+#define SRS_LOCALISATION_FEATURE_TRACKING_POINT_2D_H
 
 namespace localisation::visual_odometry::feature_tracking
 {
@@ -36,4 +36,4 @@ struct Point2D
 
 } /* namespace localisation::visual_odometry::feature_tracking */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_POINT_2D_H */
+#endif /* SRS_LOCALISATION_FEATURE_TRACKING_POINT_2D_H */

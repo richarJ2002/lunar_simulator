@@ -1,26 +1,42 @@
-ament_add_gtest(test_kalman_math systems/alpha/alpha_localisation/alpha_kalman_filter/test_kalman_math.cpp)
-target_compile_features(test_kalman_math PUBLIC cxx_std_17)
-target_link_libraries(test_kalman_math
-  alpha_kalman_filter
-  ekf_continuous_kalman_filter
-  Eigen3::Eigen)
+# Test suite for space_robotics_simulator.
+#
+# Contents (read top to bottom):
+#   1. Common - console wrapping + logging lint
+#   2. Control - estimate low-pass filter
+#   3. Localisation - ground truth, inertial, visual,
+#      feature tracking, wheel
+#   4. Systems/Alpha - kalman filter, supervisor, drivers
+#
+# Each section lists its GTests together so a developer can
+# see what behaviour each binary covers without scrolling.
 
-ament_add_gtest(test_imu_ring_buffer systems/alpha/alpha_localisation/alpha_kalman_filter/test_imu_ring_buffer.cpp)
-target_compile_features(test_imu_ring_buffer PUBLIC cxx_std_17)
-target_include_directories(test_imu_ring_buffer PRIVATE
-  ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
-target_link_libraries(test_imu_ring_buffer alpha_kalman_filter Eigen3::Eigen)
+# ------------------------------------------------------------
+# 1. Common
+# ------------------------------------------------------------
+ament_add_gtest(test_console_wrap common/console/test_console_wrap.cpp)
+target_compile_features(test_console_wrap PUBLIC cxx_std_17)
+target_link_libraries(test_console_wrap common_console)
 
-ament_add_gtest(test_measurement_history systems/alpha/alpha_localisation/alpha_kalman_filter/test_measurement_history.cpp)
-target_compile_features(test_measurement_history PUBLIC cxx_std_17)
-target_include_directories(test_measurement_history PRIVATE
-  ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
-target_link_libraries(test_measurement_history alpha_kalman_filter Eigen3::Eigen)
+# Console rule: project C++ logs only through the
+# 40-character SRS_LOG_* macros; a direct RCLCPP_* call
+# anywhere else fails this test.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME console_logging_lint
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/lint/check_console_logging.py
+    ${PROJECT_SOURCE_DIR}/src
+)
 
+# ------------------------------------------------------------
+# 2. Control
+# ------------------------------------------------------------
 ament_add_gtest(test_estimate_filter control/estimate_filter/test_estimate_filter.cpp)
 target_compile_features(test_estimate_filter PUBLIC cxx_std_17)
 target_link_libraries(test_estimate_filter estimate_filter Eigen3::Eigen)
 
+# ------------------------------------------------------------
+# 3. Localisation
+# ------------------------------------------------------------
 ament_add_gtest(test_startup_fixed_frame localisation/ground_truth/test_startup_fixed_frame.cpp)
 target_compile_features(test_startup_fixed_frame PUBLIC cxx_std_17)
 target_include_directories(test_startup_fixed_frame PRIVATE
@@ -49,18 +65,31 @@ ament_add_gtest(test_optical_flow_tracker localisation/visual_odometry/feature_t
 target_compile_features(test_optical_flow_tracker PUBLIC cxx_std_17)
 target_link_libraries(test_optical_flow_tracker alpha_feature_tracking)
 
-ament_add_gtest(test_console_wrap common/console/test_console_wrap.cpp)
-target_compile_features(test_console_wrap PUBLIC cxx_std_17)
-target_link_libraries(test_console_wrap common_console)
+ament_add_gtest(test_wheel_solve localisation/wheel_odometry/test_wheel_solve.cpp)
+target_compile_features(test_wheel_solve PUBLIC cxx_std_17)
+target_link_libraries(test_wheel_solve wheel_odometry)
 
-# WP-01 console rule: project C++ logs only through the 40-character
-# LUNAR_LOG_* macros; a direct RCLCPP_* call anywhere else fails this test.
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_test(NAME console_logging_lint
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lint/check_console_logging.py
-    ${PROJECT_SOURCE_DIR}/src
-)
+# ------------------------------------------------------------
+# 4. Systems/Alpha
+# ------------------------------------------------------------
+ament_add_gtest(test_kalman_math systems/alpha/alpha_localisation/alpha_kalman_filter/test_kalman_math.cpp)
+target_compile_features(test_kalman_math PUBLIC cxx_std_17)
+target_link_libraries(test_kalman_math
+  alpha_kalman_filter
+  ekf_continuous_kalman_filter
+  Eigen3::Eigen)
+
+ament_add_gtest(test_imu_ring_buffer systems/alpha/alpha_localisation/alpha_kalman_filter/test_imu_ring_buffer.cpp)
+target_compile_features(test_imu_ring_buffer PUBLIC cxx_std_17)
+target_include_directories(test_imu_ring_buffer PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
+target_link_libraries(test_imu_ring_buffer alpha_kalman_filter Eigen3::Eigen)
+
+ament_add_gtest(test_measurement_history systems/alpha/alpha_localisation/alpha_kalman_filter/test_measurement_history.cpp)
+target_compile_features(test_measurement_history PUBLIC cxx_std_17)
+target_include_directories(test_measurement_history PRIVATE
+  ${PROJECT_SOURCE_DIR}/src/systems/alpha/alpha_localisation/alpha_kalman_filter)
+target_link_libraries(test_measurement_history alpha_kalman_filter Eigen3::Eigen)
 
 ament_add_gtest(test_startup_supervisor systems/alpha/alpha_supervisor/test_startup_supervisor.cpp)
 target_compile_features(test_startup_supervisor PUBLIC cxx_std_17)
@@ -69,7 +98,3 @@ target_link_libraries(test_startup_supervisor alpha_supervisor)
 ament_add_gtest(test_command_gate systems/alpha/alpha_drivers/test_command_gate.cpp)
 target_compile_features(test_command_gate PUBLIC cxx_std_17)
 target_link_libraries(test_command_gate alpha_drivers)
-
-ament_add_gtest(test_wheel_solve localisation/wheel_odometry/test_wheel_solve.cpp)
-target_compile_features(test_wheel_solve PUBLIC cxx_std_17)
-target_link_libraries(test_wheel_solve wheel_odometry)

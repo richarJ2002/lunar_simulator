@@ -7,8 +7,8 @@
  * @date            16/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H
-#define LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H
+#ifndef SRS_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H
+#define SRS_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H
 
 /* C++ Standard Library Includes */
 #include <cstddef>
@@ -94,4 +94,4 @@ struct ImageView
 
 } /* namespace localisation::visual_odometry::feature_tracking */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H */
+#endif /* SRS_LOCALISATION_FEATURE_TRACKING_IMAGE_VIEW_H */

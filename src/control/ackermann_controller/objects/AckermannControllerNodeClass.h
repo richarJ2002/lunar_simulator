@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
-#define LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
+#ifndef SRS_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
+#define SRS_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -163,7 +163,7 @@ class AckermannControllerNode final : public rclcpp::Node
 
         /* Topic wiring is already captured by the run's parameter
          * snapshot, so it is debug detail rather than operator output. */
-        LUNAR_LOG_DEBUG(get_logger(),
+        SRS_LOG_DEBUG(get_logger(),
                         "Ackermann controller: %s -> %s",
                         velocityTopic.c_str(),
                         wheelJointStatesTopic.c_str());
@@ -315,4 +315,4 @@ class AckermannControllerNode final : public rclcpp::Node
 
 } /* namespace control::ackermann_controller */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H */
+#endif /* SRS_CONTROL_ACKERMANN_CONTROLLER_NODE_CLASS_H */

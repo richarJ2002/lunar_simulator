@@ -9,7 +9,7 @@ rover-specific model (`alpha_kalman_filter`) belongs to Systems/Alpha —
 this section covers the producers and the shared engine only.
 
 Where: `src/localisation/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/)).
 
 Migrated once from `src/localisation/README.md` (that table is the source
 of this section's topic wiring — linked here, not duplicated there):

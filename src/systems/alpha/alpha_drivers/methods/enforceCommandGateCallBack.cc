@@ -23,7 +23,7 @@ void AlphaDriverNode::enforceCommandGateCallBack()
     /* Announce a gate transition exactly once. */
     if (decision.isOpen && !wasGateOpen)
     {
-        LUNAR_LOG_INFO(get_logger(), "CMD gate open");
+        SRS_LOG_INFO(get_logger(), "CMD gate open");
     }
     else if (!decision.isOpen && wasGateOpen)
     {
@@ -56,7 +56,7 @@ void AlphaDriverNode::enforceCommandGateCallBack()
         stopCommandCount++;
 
         /* Warn with the gate-closure reason. */
-        LUNAR_LOG_WARN(get_logger(),
+        SRS_LOG_WARN(get_logger(),
                        "CMD gate closed: %s; rover stopped",
                        decision.reason.c_str());
     }

@@ -7,7 +7,7 @@ report site. Source tool and generated site share a name but live in
 different places — do not mix them up.
 
 Where: `post_processing/` source-tree tool (not a ROS executable)
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/post_processing/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/post_processing/)).
 Generated site: `test_runs/<run>/post_processing/` alongside that run's
 other artifacts (never committed; never embed bag output here).
 

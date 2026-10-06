@@ -8,11 +8,11 @@ console; periodic counters, timings, and readiness live on the recorded
 `/<system>/diagnostics` topic, not in log lines.
 
 Where: `src/common/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/)):
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/)):
 `console/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/console/)),
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/console/)),
 `diagnostics/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/diagnostics/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/diagnostics/)).
 
 ## Topics
 
@@ -28,12 +28,12 @@ change status names and keys on both sides together.
 
 | Unit | Path | GitHub |
 |---|---|---|
-| Logging macros (`LUNAR_LOG_*`, never `RCLCPP_*` directly) | `src/common/console/console.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/console/console.h) |
-| Severity gate | `src/common/console/objects/ConsoleSeverityEnum.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/console/objects/ConsoleSeverityEnum.h) |
-| Throttle gate | `src/common/console/objects/ThrottleGateClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/console/objects/ThrottleGateClass.h) |
-| Wrapped logging | `src/common/console/public_functions/logWrapped.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/console/public_functions/logWrapped.cc) |
-| Diagnostics entry point | `src/common/diagnostics/diagnostics.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/diagnostics/diagnostics.h) |
-| Diagnostics values | `src/common/diagnostics/public_functions/addRealValue.cc`, `addCountValue.cc`, `addFlagValue.cc`, `addTextValue.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/common/diagnostics/public_functions/addRealValue.cc) |
+| Logging macros (`SRS_LOG_*`, never `RCLCPP_*` directly) | `src/common/console/console.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/console/console.h) |
+| Severity gate | `src/common/console/objects/ConsoleSeverityEnum.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/console/objects/ConsoleSeverityEnum.h) |
+| Throttle gate | `src/common/console/objects/ThrottleGateClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/console/objects/ThrottleGateClass.h) |
+| Wrapped logging | `src/common/console/public_functions/logWrapped.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/console/public_functions/logWrapped.cc) |
+| Diagnostics entry point | `src/common/diagnostics/diagnostics.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/diagnostics/diagnostics.h) |
+| Diagnostics values | `src/common/diagnostics/public_functions/addRealValue.cc`, `addCountValue.cc`, `addFlagValue.cc`, `addTextValue.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/common/diagnostics/public_functions/addRealValue.cc) |
 
 No function signatures in v1 — see source.
 
@@ -45,7 +45,7 @@ diagnostics topic names are per-node parameters, not owned here.
 
 ```mermaid
 graph TD
-    node[any node] -->|LUNAR_LOG_*| console[console: short operator lines]
+    node[any node] -->|SRS_LOG_*| console[console: short operator lines]
     node -->|diagnostics helpers| diag["/diagnostics DiagnosticArray"]
     diag --> bag[recorded bag]
     bag --> pp[post-processing parses status names/keys]

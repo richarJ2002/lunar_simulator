@@ -3,8 +3,7 @@ estimate_low_pass_filter:
     # Smooths continuous_ekf's estimate for controllers. The output is
     # never fed back into the estimator. Stamps and frames match the input;
     # the covariance is the input's, i.e. of the unfiltered estimate.
-    input_odometry_topic: /alpha/localisation/kalman_filter/odometry
-    output_odometry_topic: /alpha/control/filtered_odometry
+    # Topics default under the owning system's namespace via system_name.
     # Body twist: two cascaded first-order stages (critically damped, no
     # step overshoot), each with this corner frequency.
     velocity_cutoff_hz: 1.0

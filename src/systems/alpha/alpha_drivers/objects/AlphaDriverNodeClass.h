@@ -8,8 +8,8 @@
  * @date            17/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
+#ifndef SRS_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
+#define SRS_ALPHA_ALPHA_DRIVER_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <array>
@@ -190,7 +190,7 @@ class AlphaDriverNode final : public rclcpp::Node
          * Record whether noise is active for operators inspecting the log;
          * the seed itself is fixed by the random_seed parameter.
          */
-        LUNAR_LOG_INFO(get_logger(),
+        SRS_LOG_INFO(get_logger(),
                        "Driver noise %s",
                        noiseEnabled ? "enabled" : "disabled");
     }
@@ -777,4 +777,4 @@ class AlphaDriverNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_drivers */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_DRIVER_NODE_CLASS_H */
+#endif /* SRS_ALPHA_ALPHA_DRIVER_NODE_CLASS_H */

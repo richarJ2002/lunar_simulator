@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>lunar_simulator</name>
+    <name>space_robotics_simulator</name>
     <version>0.0.0</version>
-    <description>Lunar rover simulator C++ ROS2 nodes</description>
+    <description>Space robotics simulator C++ ROS2 nodes</description>
     <maintainer email="jason2richards@gmail.com">richar-j</maintainer>
     <license>GPL-3.0</license>
 

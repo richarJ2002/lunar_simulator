@@ -2,7 +2,7 @@
 
 ## Up front
 
-`lunar_simulator` is a Gazebo rover simulator running on a developer's own
+`space_robotics_simulator` is a Gazebo rover simulator running on a developer's own
 machine. It does not fly, does not control real hardware, and no failure of
 this code can hurt a person, damage equipment, or lose a mission. ECSS-Q-ST-80C
 ("Software product assurance") is a standard for space-project software

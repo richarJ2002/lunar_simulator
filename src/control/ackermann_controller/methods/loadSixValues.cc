@@ -44,7 +44,7 @@ void AckermannControllerNode::loadSixValues(
          * to the known-good Alpha defaults so the node still starts and
          * produces plausible wheel commands.
          */
-        LUNAR_LOG_WARN(get_logger(),
+        SRS_LOG_WARN(get_logger(),
                        "%s needs 6 values; using defaults",
                        name_in.c_str());
 

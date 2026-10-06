@@ -7,7 +7,7 @@ transient, then constructs every node in the stack and spins them together
 in one process.
 
 Where: `src/systems/alpha/alpha_node/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_node/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_node/)).
 
 ## Topics
 
@@ -18,9 +18,9 @@ system subpages). Names only, no QoS claims — see source.
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `AlphaNode` | `src/systems/alpha/alpha_node/objects/AlphaNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_node/objects/AlphaNodeClass.h) |
-| Entry point | `src/systems/alpha/alpha_node/main.cpp` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_node/main.cpp) |
-| Spin | `src/systems/alpha/alpha_node/methods/spin.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_node/methods/spin.cc) |
+| `AlphaNode` | `src/systems/alpha/alpha_node/objects/AlphaNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_node/objects/AlphaNodeClass.h) |
+| Entry point | `src/systems/alpha/alpha_node/main.cpp` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_node/main.cpp) |
+| Spin | `src/systems/alpha/alpha_node/methods/spin.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_node/methods/spin.cc) |
 
 No function signatures in v1 — see source.
 

@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_MEASUREMENT_KIND_ENUM_H
-#define LUNAR_SIMULATOR_ALPHA_MEASUREMENT_KIND_ENUM_H
+#ifndef SRS_ALPHA_MEASUREMENT_KIND_ENUM_H
+#define SRS_ALPHA_MEASUREMENT_KIND_ENUM_H
 
 /* Function Includes */
 /* None */
@@ -51,4 +51,4 @@ enum class MeasurementKind : std::uint8_t
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_MEASUREMENT_KIND_ENUM_H */
+#endif /* SRS_ALPHA_MEASUREMENT_KIND_ENUM_H */

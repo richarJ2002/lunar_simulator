@@ -37,7 +37,7 @@ void WheelOdometryNode::handleWheelSlipEstimateCallBack(
          * continuous_ekf always publishes exactly slipRatios.size()
          * elements (see AlphaKalmanFilterNode::publishWheelSlip()).
          */
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 3000,
                                 "Slip estimate has %zu values, not %zu",

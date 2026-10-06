@@ -19,17 +19,21 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
+from python_tools.bag.topic_registry import topic_name_for
 from python_tools.data import alignment, metrics
 from python_tools.data.models import DiagnosticTimeBasis, ReportContext, ReportPage
 from python_tools.diagnostics.bag_diagnostics import diagnostic_time_axis_title
 from python_tools.reporting import figures, html, style
 
-TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
-TOPIC_ESTIMATE = "/alpha/localisation/visual/odometry"
-TOPIC_POINT_CLOUD = "/alpha/localisation/visual/point_cloud"
-TOPIC_LEFT_IMAGE = "/alpha/drivers/loccam/left"
-TOPIC_RIGHT_IMAGE = "/alpha/drivers/loccam/right"
-TOPIC_FEATURES_IMAGE = "/alpha/localisation/visual/features"
+# Topic suffixes (without the /<system>/ prefix) this page reads; each is
+# resolved against the run's own system where the context is available, so
+# old runs read via the default system's names.
+SUFFIX_GROUND_TRUTH = "localisation/ground_truth/odometry"
+SUFFIX_ESTIMATE = "localisation/visual/odometry"
+SUFFIX_POINT_CLOUD = "localisation/visual/point_cloud"
+SUFFIX_LEFT_IMAGE = "drivers/loccam/left"
+SUFFIX_RIGHT_IMAGE = "drivers/loccam/right"
+SUFFIX_FEATURES_IMAGE = "localisation/visual/features"
 
 
 def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
@@ -44,9 +48,16 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
     warnings: list[str] = []
     sections: list[str] = []
     summary_stats: dict[str, str] = {}
+    system = context.run_metadata.system
+    topic_ground_truth = topic_name_for(system, SUFFIX_GROUND_TRUTH)
+    topic_estimate = topic_name_for(system, SUFFIX_ESTIMATE)
+    topic_point_cloud = topic_name_for(system, SUFFIX_POINT_CLOUD)
+    topic_left_image = topic_name_for(system, SUFFIX_LEFT_IMAGE)
+    topic_right_image = topic_name_for(system, SUFFIX_RIGHT_IMAGE)
+    topic_features_image = topic_name_for(system, SUFFIX_FEATURES_IMAGE)
 
-    truth = context.bag.odometry.get(TOPIC_GROUND_TRUTH)
-    estimate = context.bag.odometry.get(TOPIC_ESTIMATE)
+    truth = context.bag.odometry.get(topic_ground_truth)
+    estimate = context.bag.odometry.get(topic_estimate)
     if truth is not None and estimate is not None:
         position, orientation, linear_velocity, angular_velocity, valid = (
             alignment.interpolate_ground_truth(
@@ -122,8 +133,8 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
             )
     else:
         warnings.append(
-            f"Cannot compare against ground truth: {TOPIC_GROUND_TRUTH} or "
-            f"{TOPIC_ESTIMATE} published no messages"
+            f"Cannot compare against ground truth: {topic_ground_truth} or "
+            f"{topic_estimate} published no messages"
         )
 
     point_cloud = context.bag.point_cloud
@@ -146,10 +157,10 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
                 f"{html.figure_to_fragment(cloud_figure, 'visual-point-cloud')}</section>"
             )
     else:
-        warnings.append(f"{TOPIC_POINT_CLOUD} published no messages")
+        warnings.append(f"{topic_point_cloud} published no messages")
 
-    # Periodic pipeline diagnostics: recorded in the bag from WP-01 Phase 1
-    # onward, parsed from the node log's visual_diag lines before that.
+    # Periodic pipeline diagnostics: recorded in the bag when present,
+    # parsed from the node log's visual_diag lines otherwise.
     records = context.diagnostics.visual_records
     diagnostic_axis_title = diagnostic_time_axis_title(context.diagnostics)
     if records:
@@ -237,9 +248,9 @@ def generate_visual_odometry_report(context: ReportContext) -> ReportPage:
     # Sampled images, only present when --record-images was used.
     any_images = False
     for label, topic in (
-        ("Left camera", TOPIC_LEFT_IMAGE),
-        ("Right camera", TOPIC_RIGHT_IMAGE),
-        ("Annotated features", TOPIC_FEATURES_IMAGE),
+        ("Left camera", topic_left_image),
+        ("Right camera", topic_right_image),
+        ("Annotated features", topic_features_image),
     ):
         image_series = context.bag.images.get(topic)
         if image_series is None or image_series.total_message_count == 0:

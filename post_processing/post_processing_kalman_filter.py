@@ -22,23 +22,27 @@ import plotly.graph_objects as go
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
+from python_tools.bag.topic_registry import topic_name_for
 from python_tools.data import alignment, metrics
 from python_tools.data.models import DiagnosticTimeBasis, OdometrySeries, ReportContext, ReportPage
 from python_tools.diagnostics.bag_diagnostics import (
-    DIAGNOSTICS_TOPIC,
     DRIVER_STATUS_NAME,
-    SYSTEM_STATE_TOPIC,
     diagnostic_time_axis_title,
+    diagnostics_topic_for,
     latest_status_values,
+    system_state_topic_for,
     system_state_transitions,
 )
 from python_tools.reporting import figures, html, style
 
-TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
-TOPIC_ESTIMATE = "/alpha/localisation/kalman_filter/odometry"
-TOPIC_VISUAL = "/alpha/localisation/visual/odometry"
-TOPIC_WHEEL = "/alpha/localisation/wheel/odometry"
-TOPIC_INERTIAL = "/alpha/localisation/inertial/odometry"
+# Topic suffixes (without the /<system>/ prefix) this page reads; each is
+# resolved against the run's own system where the context is available, so
+# old runs read via the default system's names.
+SUFFIX_GROUND_TRUTH = "localisation/ground_truth/odometry"
+SUFFIX_ESTIMATE = "localisation/kalman_filter/odometry"
+SUFFIX_VISUAL = "localisation/visual/odometry"
+SUFFIX_WHEEL = "localisation/wheel/odometry"
+SUFFIX_INERTIAL = "localisation/inertial/odometry"
 INERTIAL_TRAJECTORY_LABEL = "Inertial (diagnostic only -- ESKF consumes raw IMU, not this)"
 
 # Chi-square 99th-percentile thresholds by degrees of freedom, matching
@@ -86,7 +90,8 @@ def _smoothness_and_consistency_table(
 ) -> go.Figure:
     """!
     @brief   Builds the fused estimate's smoothness and consistency table
-             (the WP-01 baseline metrics) and records its headline values
+             (the baseline estimate metrics) and records its headline
+             values
              in the page summary.
 
     @param   estimate
@@ -179,7 +184,9 @@ def _startup_window_section(context: ReportContext, summary_stats: dict[str, str
     @return  The section HTML, or an empty string for a run without a
              recorded system state.
     """
-    state_series = context.bag.diagnostic_arrays.get(SYSTEM_STATE_TOPIC)
+    state_series = context.bag.diagnostic_arrays.get(
+        system_state_topic_for(context.run_metadata.system)
+    )
     # Runs before the supervisor existed have nothing to show.
     if state_series is None or not state_series.samples:
         return ""
@@ -191,7 +198,9 @@ def _startup_window_section(context: ReportContext, summary_stats: dict[str, str
         summary_stats["First READY"] = f"{ready_times[0]:.1f} s"
     table = figures.summary_table(["Elapsed (s)", "State", "Supervisor message"], rows)
     # Gate counters from the driver's latest recorded status.
-    diagnostics_series = context.bag.diagnostic_arrays.get(DIAGNOSTICS_TOPIC)
+    diagnostics_series = context.bag.diagnostic_arrays.get(
+        diagnostics_topic_for(context.run_metadata.system)
+    )
     gate_values = (
         latest_status_values(diagnostics_series, DRIVER_STATUS_NAME)
         if diagnostics_series is not None
@@ -227,6 +236,12 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
     warnings: list[str] = []
     sections: list[str] = []
     summary_stats: dict[str, str] = {}
+    system = context.run_metadata.system
+    topic_ground_truth = topic_name_for(system, SUFFIX_GROUND_TRUTH)
+    topic_estimate = topic_name_for(system, SUFFIX_ESTIMATE)
+    topic_visual = topic_name_for(system, SUFFIX_VISUAL)
+    topic_wheel = topic_name_for(system, SUFFIX_WHEEL)
+    topic_inertial = topic_name_for(system, SUFFIX_INERTIAL)
 
     params = context.parameters.get("continuous_ekf")
     if params is not None:
@@ -251,13 +266,13 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
     else:
         warnings.append("alpha_kalman_filter parameter snapshot not found")
 
-    # Start-up window and command gate (runs from WP-01 Phase 2 onward).
+    # Start-up window and command gate.
     startup_section = _startup_window_section(context, summary_stats)
     if startup_section:
         sections.append(startup_section)
 
-    truth = context.bag.odometry.get(TOPIC_GROUND_TRUTH)
-    estimate = context.bag.odometry.get(TOPIC_ESTIMATE)
+    truth = context.bag.odometry.get(topic_ground_truth)
+    estimate = context.bag.odometry.get(topic_estimate)
 
     # Overlay every source at its own native sample times -- each is
     # resampled onto the fused estimate's own X-Y trajectory plot, never
@@ -267,21 +282,21 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
         trajectory_series.append(("Ground truth", truth.position_m, style.COLOR_GROUND_TRUTH))
     if estimate is not None:
         trajectory_series.append(("Fused estimate", estimate.position_m, style.COLOR_PRIMARY_ESTIMATE))
-    visual = context.bag.odometry.get(TOPIC_VISUAL)
+    visual = context.bag.odometry.get(topic_visual)
     if visual is not None:
         trajectory_series.append(("Visual (measurement)", visual.position_m, style.COLOR_SECONDARY_ESTIMATE))
     else:
-        warnings.append(f"{TOPIC_VISUAL} published no messages: no visual measurement was available to fuse this run")
-    wheel = context.bag.odometry.get(TOPIC_WHEEL)
+        warnings.append(f"{topic_visual} published no messages: no visual measurement was available to fuse this run")
+    wheel = context.bag.odometry.get(topic_wheel)
     if wheel is not None:
         trajectory_series.append(("Wheel (measurement)", wheel.position_m, style.COLOR_TERTIARY_ESTIMATE))
     else:
-        warnings.append(f"{TOPIC_WHEEL} published no messages: no wheel measurement was available to fuse this run")
-    inertial = context.bag.odometry.get(TOPIC_INERTIAL)
+        warnings.append(f"{topic_wheel} published no messages: no wheel measurement was available to fuse this run")
+    inertial = context.bag.odometry.get(topic_inertial)
     if inertial is not None:
         trajectory_series.append((INERTIAL_TRAJECTORY_LABEL, inertial.position_m, style.COLOR_RAW_SOURCE))
     else:
-        warnings.append(f"{TOPIC_INERTIAL} published no messages (diagnostic-only comparison unavailable)")
+        warnings.append(f"{topic_inertial} published no messages (diagnostic-only comparison unavailable)")
     if trajectory_series:
         # The unaided inertial trace can drift kilometres while every other
         # source stays within metres, so it starts legend-only: it no longer
@@ -363,13 +378,13 @@ def generate_kalman_filter_report(context: ReportContext) -> ReportPage:
         )
     else:
         warnings.append(
-            f"Cannot compare against ground truth: {TOPIC_GROUND_TRUTH} or "
-            f"{TOPIC_ESTIMATE} published no messages"
+            f"Cannot compare against ground truth: {topic_ground_truth} or "
+            f"{topic_estimate} published no messages"
         )
 
     # Periodic estimator diagnostics, one section per source: recorded in
-    # the bag from WP-01 Phase 1 onward, parsed from the node log's
-    # localisation_diag lines before that.
+    # the bag when present, parsed from the node log's localisation_diag
+    # lines otherwise.
     records = context.diagnostics.localisation_records
     diagnostic_axis_title = diagnostic_time_axis_title(context.diagnostics)
     if records:

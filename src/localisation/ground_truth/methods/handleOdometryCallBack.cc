@@ -32,7 +32,7 @@ void GroundTruthNode::handleOdometryCallBack(
          * Drop the sample rather than publish a corrupt TF/path point; the
          * throttle bounds log spam if Gazebo keeps producing bad poses.
          */
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 2000,
                                 "Ignoring an invalid ground-truth pose");

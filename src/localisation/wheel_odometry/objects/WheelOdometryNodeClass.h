@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H
-#define LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H
+#ifndef SRS_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H
+#define SRS_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -354,7 +354,7 @@ class WheelOdometryNode final : public rclcpp::Node
 
         /* Topic wiring is already captured by the run's parameter
          * snapshot, so it is debug detail rather than operator output. */
-        LUNAR_LOG_DEBUG(
+        SRS_LOG_DEBUG(
             get_logger(),
             "Wheel odometry: %s -> %s; visual slip reference: %s -> %s",
             inputTopic.c_str(),
@@ -953,4 +953,4 @@ class WheelOdometryNode final : public rclcpp::Node
 
 } /* namespace localisation::wheel_odometry */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H */
+#endif /* SRS_LOCALISATION_WHEEL_ODOMETRY_NODE_CLASS_H */

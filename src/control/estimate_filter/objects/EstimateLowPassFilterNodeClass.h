@@ -7,8 +7,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
+#ifndef SRS_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
+#define SRS_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <stdexcept>
@@ -76,7 +76,7 @@ class EstimateLowPassFilterNode final : public rclcpp::Node
             [this](nav_msgs::msg::Odometry::ConstSharedPtr p_message_in)
             { handleOdometryCallBack(*p_message_in); });
 
-        LUNAR_LOG_DEBUG(get_logger(),
+        SRS_LOG_DEBUG(get_logger(),
                         "Estimate LPF: %s -> %s",
                         inputTopic.c_str(),
                         outputTopic.c_str());
@@ -192,5 +192,5 @@ class EstimateLowPassFilterNode final : public rclcpp::Node
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H \
+#endif /* SRS_CONTROL_ESTIMATE_FILTER_ESTIMATE_LOW_PASS_FILTER_NODE_CLASS_H \
         */

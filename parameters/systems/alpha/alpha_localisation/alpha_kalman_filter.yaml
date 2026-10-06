@@ -1,9 +1,8 @@
+# Topic names are not pinned here: each defaults under /<system>/... from
+# the system_name parameter (/alpha/... when system_name is "alpha"), so
+# these tunings apply unchanged under any system's own namespace.
 continuous_ekf:
   ros__parameters:
-    raw_imu_topic: /alpha/imu
-    visual_odometry_topic: /alpha/localisation/visual/odometry
-    wheel_odometry_topic: /alpha/localisation/wheel/odometry
-    output_topic: /alpha/localisation/kalman_filter/odometry
     odom_frame: alpha/startup_fixed
     map_frame: alpha/startup_fixed
     base_frame: alpha/base_link
@@ -37,7 +36,7 @@ continuous_ekf:
     # "increment" fuses visual odometry's per-interval body velocity and yaw
     # rate; "pose" fuses its accumulated pose as an absolute fix, which
     # locks the estimate onto VO's drift. Increment became the default after
-    # the WP-01 Phase 4 paired runs (final error 0.24 m against VO's 0.76 m;
+    # the paired comparison runs (final error 0.24 m against VO's 0.76 m;
     # pose mode 1.02 m against 1.11 m).
     visual_fusion_mode: increment
     # Increment-mode variance floors under the reported visual twist

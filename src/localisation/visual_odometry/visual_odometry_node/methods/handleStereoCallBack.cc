@@ -88,7 +88,7 @@ std::vector<cv::Point2f> toPoint2fVector(
  * the numbered Step comments below), already delegating each
  * self-contained concern (visualization, pose update, point-cloud
  * publish) to its own method; the count is additionally inflated by
- * LUNAR_LOG_*_THROTTLE macro expansion, not by genuinely nested human
+ * SRS_LOG_*_THROTTLE macro expansion, not by genuinely nested human
  * logic. VisualOdometryNode.h/handleStereoCallBack.cc are outside the JSF AV
  * profile scope (see docs/compliance/feature_tracking/
  * JSF_AV_APPLICABILITY_PROFILE.md), so no further exception process
@@ -182,7 +182,7 @@ void VisualOdometryNode::handleStereoCallBack(
     catch (const cv_bridge::Exception &error)
     {
         /* Log the failure (throttled) and give up on this frame only. */
-        LUNAR_LOG_ERROR_THROTTLE(get_logger(),
+        SRS_LOG_ERROR_THROTTLE(get_logger(),
                                  *get_clock(),
                                  2000,
                                  "LocCam conversion failed: %s",
@@ -219,7 +219,7 @@ void VisualOdometryNode::handleStereoCallBack(
     feature_tracking::ImageView detectionBand = imageViewFromMat(currentLeft);
     detectionBand.p_pixels += static_cast<std::size_t>(detectionMinimumRowPx) *
                               detectionBand.strideBytes;
-    detectionBand.height -= detectionMinimumRowPx;
+    detectionBand.height -= static_cast<int>(detectionMinimumRowPx);
     static_cast<void>(cornerDetector.detect(detectionBand,
                                             currentCorners,
                                             currentCornerCount));
@@ -482,8 +482,9 @@ void VisualOdometryNode::handleStereoCallBack(
     /* Step 4 output: each surviving point's tracked current-frame pixel
      * position, aligned with previousPoints3d. */
     std::vector<cv::Point2f> currentPoints2d;
-    const int gridCellCount = visualQualityConfiguration.occupancyGridRows *
-                              visualQualityConfiguration.occupancyGridColumns;
+    const std::int64_t gridCellCount =
+        visualQualityConfiguration.occupancyGridRows *
+        visualQualityConfiguration.occupancyGridColumns;
     std::vector<int> featureCountPerCell(
         static_cast<std::size_t>(gridCellCount),
         0);
@@ -551,21 +552,21 @@ void VisualOdometryNode::handleStereoCallBack(
         }
         latestStereoValidCount++;
 
-        const int gridColumn = std::clamp(
-            static_cast<int>(
+        const std::int64_t gridColumn = std::clamp(
+            static_cast<std::int64_t>(
                 previousFeatures[featureIndex].x *
                 static_cast<float>(
                     visualQualityConfiguration.occupancyGridColumns) /
                 static_cast<float>(visualQualityConfiguration.imageWidthPx)),
-            0,
+            static_cast<std::int64_t>(0),
             visualQualityConfiguration.occupancyGridColumns - 1);
-        const int gridRow = std::clamp(
-            static_cast<int>(
+        const std::int64_t gridRow = std::clamp(
+            static_cast<std::int64_t>(
                 previousFeatures[featureIndex].y *
                 static_cast<float>(
                     visualQualityConfiguration.occupancyGridRows) /
                 static_cast<float>(visualQualityConfiguration.imageHeightPx)),
-            0,
+            static_cast<std::int64_t>(0),
             visualQualityConfiguration.occupancyGridRows - 1);
         int &cellFeatureCount = featureCountPerCell[static_cast<std::size_t>(
             gridRow * visualQualityConfiguration.occupancyGridColumns +
@@ -747,7 +748,7 @@ void VisualOdometryNode::handleStereoCallBack(
                           worldFromOptical);
 
         /* Let an operator know odometry did not advance this cycle. */
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 3000,
                                 "VO: too few correspondences");
@@ -775,7 +776,7 @@ void VisualOdometryNode::handleStereoCallBack(
                       leftImage_in->header.stamp,
                       currentCorners,
                       currentCornerCount);
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 2000,
                                 "VO pose lost after %.2f s gap",

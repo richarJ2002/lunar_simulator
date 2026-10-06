@@ -9,7 +9,7 @@ consumes raw `/alpha/imu` so visual attitude corrections affect all
 subsequent gravity projection.
 
 Where: `src/localisation/inertial_odometry/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/inertial_odometry/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/inertial_odometry/)).
 
 ## Topics
 
@@ -27,17 +27,17 @@ Names verified from `InertialOdometryNodeClass.h` topic defaults
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `InertialOdometryNode` | `src/localisation/inertial_odometry/objects/InertialOdometryNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/inertial_odometry/objects/InertialOdometryNodeClass.h) |
-| IMU callback | `src/localisation/inertial_odometry/methods/handleImuCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/inertial_odometry/methods/handleImuCallBack.cc) |
-| Gravity removal | `src/localisation/inertial_odometry/methods/calculateGravityFreeAccelerationFixed.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/inertial_odometry/methods/calculateGravityFreeAccelerationFixed.cc) |
-| Odometry publish | `src/localisation/inertial_odometry/methods/publishOdometry.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/inertial_odometry/methods/publishOdometry.cc) |
+| `InertialOdometryNode` | `src/localisation/inertial_odometry/objects/InertialOdometryNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/inertial_odometry/objects/InertialOdometryNodeClass.h) |
+| IMU callback | `src/localisation/inertial_odometry/methods/handleImuCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/inertial_odometry/methods/handleImuCallBack.cc) |
+| Gravity removal | `src/localisation/inertial_odometry/methods/calculateGravityFreeAccelerationFixed.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/inertial_odometry/methods/calculateGravityFreeAccelerationFixed.cc) |
+| Odometry publish | `src/localisation/inertial_odometry/methods/publishOdometry.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/inertial_odometry/methods/publishOdometry.cc) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[inertial_odometry.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_localisation/inertial_odometry.yaml).
+[inertial_odometry.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_localisation/inertial_odometry.yaml).
 What each tunes: IMU/odometry/filtered-IMU topic names; odom and base frame
 names; low-pass cutoff (Hz); gravity-removal toggle; maximum IMU step (s);
 startup calibration sample count; angular-rate deadband (rad/s, floors gyro

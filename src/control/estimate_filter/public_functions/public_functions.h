@@ -6,8 +6,8 @@
  * @date            25/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H
-#define LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H
+#ifndef SRS_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H
+#define SRS_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H
 
 /* Object Includes */
 #include "estimate_filter/objects/LowPassConfigurationStruct.h"
@@ -28,4 +28,4 @@ bool isConfigurationValid(const LowPassConfiguration &configuration_in);
 
 } /* namespace control::estimate_filter */
 
-#endif /* LUNAR_SIMULATOR_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H */
+#endif /* SRS_CONTROL_ESTIMATE_FILTER_PUBLIC_FUNCTIONS_H */

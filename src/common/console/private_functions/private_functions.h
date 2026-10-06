@@ -6,8 +6,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H
-#define LUNAR_SIMULATOR_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H
+#ifndef SRS_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H
+#define SRS_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H
 
 /* C++ Standard Library Includes */
 #include <cstddef>
@@ -37,4 +37,4 @@ void wrapParagraph(const std::string        &paragraph_in,
 
 } /* namespace common::console */
 
-#endif /* LUNAR_SIMULATOR_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H */
+#endif /* SRS_COMMON_CONSOLE_PRIVATE_FUNCTIONS_H */

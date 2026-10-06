@@ -9,15 +9,15 @@ when too few reliable matches exist; the cloud and feature image publish for
 every synchronized stereo frame, including empty clouds.
 
 Where: `src/localisation/visual_odometry/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/)).
 The dependency-free tracker lives in `feature_tracking/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/))
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/))
 under the `jsf-av-cpp` overlay — see the compliance evidence on `main`
-([applicability profile](https://github.com/richarJ2002/lunar_simulator/blob/main/docs/compliance/feature_tracking/JSF_AV_APPLICABILITY_PROFILE.md),
-[deviation log](https://github.com/richarJ2002/lunar_simulator/blob/main/docs/compliance/feature_tracking/DEVIATION_LOG.md)).
+([applicability profile](https://github.com/richarJ2002/space_robotics_simulator/blob/main/docs/compliance/feature_tracking/JSF_AV_APPLICABILITY_PROFILE.md),
+[deviation log](https://github.com/richarJ2002/space_robotics_simulator/blob/main/docs/compliance/feature_tracking/DEVIATION_LOG.md)).
 Overlay rules (no exceptions, no heap after init, checked
 `FeatureTrackingStatus`) apply to that directory only, not to the ROS/OpenCV
-wrapper. Compliance wiring pages arrive in a later work package.
+wrapper. Compliance wiring pages arrive with the compliance update.
 
 ## Topics
 
@@ -38,18 +38,18 @@ Names verified from `VisualOdometryNodeClass.h` topic defaults
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `VisualOdometryNode` | `src/localisation/visual_odometry/visual_odometry_node/objects/VisualOdometryNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/visual_odometry_node/objects/VisualOdometryNodeClass.h) |
-| Stereo callback | `src/localisation/visual_odometry/visual_odometry_node/methods/handleStereoCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/visual_odometry_node/methods/handleStereoCallBack.cc) |
-| LK tracker | `src/localisation/visual_odometry/feature_tracking/objects/PyramidalLucasKanadeTracker.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/PyramidalLucasKanadeTracker.h) |
-| Corner detector | `src/localisation/visual_odometry/feature_tracking/objects/ShiTomasiCornerDetector.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/ShiTomasiCornerDetector.h) |
-| Tracking status | `src/localisation/visual_odometry/feature_tracking/objects/FeatureTrackingStatus.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/FeatureTrackingStatus.h) |
+| `VisualOdometryNode` | `src/localisation/visual_odometry/visual_odometry_node/objects/VisualOdometryNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/visual_odometry_node/objects/VisualOdometryNodeClass.h) |
+| Stereo callback | `src/localisation/visual_odometry/visual_odometry_node/methods/handleStereoCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/visual_odometry_node/methods/handleStereoCallBack.cc) |
+| LK tracker | `src/localisation/visual_odometry/feature_tracking/objects/PyramidalLucasKanadeTracker.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/PyramidalLucasKanadeTracker.h) |
+| Corner detector | `src/localisation/visual_odometry/feature_tracking/objects/ShiTomasiCornerDetector.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/ShiTomasiCornerDetector.h) |
+| Tracking status | `src/localisation/visual_odometry/feature_tracking/objects/FeatureTrackingStatus.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/visual_odometry/feature_tracking/objects/FeatureTrackingStatus.h) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[visual_odometry.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_localisation/visual_odometry.yaml).
+[visual_odometry.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_localisation/visual_odometry.yaml).
 What each tunes: image/odometry/cloud/feature-image/reset topic names; odom
 and base frame names; intrinsics (px) and stereo baseline (m) matching the
 Alpha SDF; camera-to-body position (m) and pitch (rad); disparity and feature

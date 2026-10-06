@@ -13,67 +13,16 @@ set -euo pipefail
 # HELPER FUNCTIONS
 # ---------------------------------------------------------------------------- #
 
-# Longest message text, in characters, printed on one terminal line after
-# the "[MSG] " style prefix (WP-01 console rule, shared with the C++ nodes'
-# LUNAR_LOG_* macros). Continuation lines are indented two spaces and the
-# indent counts toward the limit.
-readonly CONSOLE_TEXT_WIDTH=40
-
-#!
-# @brief          Prints text word-wrapped to CONSOLE_TEXT_WIDTH characters
-#                 per line, each line behind the same prefix. Words longer
-#                 than a line are split.
-#
-# @param  $1      Prefix printed before every line (e.g. "[MSG] ").
-# @param  $2      Text to wrap.
-print_wrapped() {
-  local prefix="$1"
-  local text="$2"
-  local capacity="$CONSOLE_TEXT_WIDTH"
-  local indent=""
-  local line=""
-  local word
-  local -a words=()
-
-  read -r -a words <<< "$text"
-  for word in "${words[@]}"; do
-    while [ -n "$word" ]; do
-      if [ -z "$line" ] && [ "${#word}" -gt "$capacity" ]; then
-        # Split a word that cannot fit on any line.
-        printf '%s%s%s\n' "$prefix" "$indent" "${word:0:capacity}"
-        word="${word:capacity}"
-        indent="  "
-        capacity=$((CONSOLE_TEXT_WIDTH - 2))
-      elif [ -z "$line" ]; then
-        line="$word"
-        word=""
-      elif [ $(( ${#line} + 1 + ${#word} )) -le "$capacity" ]; then
-        line="$line $word"
-        word=""
-      else
-        # Start a continuation line for the word that did not fit.
-        printf '%s%s%s\n' "$prefix" "$indent" "$line"
-        line=""
-        indent="  "
-        capacity=$((CONSOLE_TEXT_WIDTH - 2))
-      fi
-    done
-  done
-  if [ -n "$line" ] || [ "${#words[@]}" -eq 0 ]; then
-    printf '%s%s%s\n' "$prefix" "$indent" "$line"
-  fi
+msg () {
+  echo "[MSG] ${1}"
 }
 
-msg() {
-  print_wrapped "[MSG] " "${1}"
+wrn () {
+  echo "[WRN] ${1}"
 }
 
-wrn() {
-  print_wrapped "[WRN] " "${1}"
-}
-
-err() {
-  print_wrapped "[ERR] " "${1}" >&2
+err () {
+  echo "[ERR] ${1}" >&2
 }
 
 #!
@@ -91,12 +40,43 @@ rel_path() {
   fi
 }
 
+#!
+# @brief          Resolves and exports the run's rosbag directory under
+#                 the canonical SRS_ROSBAG_DIR name (WP-05 Step 6 rename
+#                 of LUNAR_SIMULATOR_ROSBAG_DIR). One-release shim: an
+#                 SRS_ROSBAG_DIR export wins; a legacy
+#                 LUNAR_SIMULATOR_ROSBAG_DIR export is honoured once with
+#                 a warning; otherwise the default under $RUN_ROS_DIR is
+#                 used. Both names are exported so children started during
+#                 the transition see the same path either way.
+resolve_rosbag_dir() {
+  if [ -z "${SRS_ROSBAG_DIR:-}" ]; then
+    if [ -n "${LUNAR_SIMULATOR_ROSBAG_DIR:-}" ]; then
+      wrn "LUNAR_SIMULATOR_ROSBAG_DIR is deprecated; use SRS_ROSBAG_DIR"
+      SRS_ROSBAG_DIR="$LUNAR_SIMULATOR_ROSBAG_DIR"
+    else
+      SRS_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+    fi
+  fi
+  export SRS_ROSBAG_DIR
+  export LUNAR_SIMULATOR_ROSBAG_DIR="$SRS_ROSBAG_DIR"
+}
+
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [world] [system] [--headless] [--rviz] [--record-images] [-h|--help]
+Usage: $(basename "$0") [environment] [system] [--headless] [--rviz] [--record-images] [-h|--help]
 
-  world             Gazebo world under worlds/ (default: lunar_surface; trailing .sdf stripped)
-  system            Rover system under src/systems/ (default: alpha)
+  environment       World SDF to simulate (default: crater_field).
+                    3-step resolve: absolute path (must exist), else
+                    CWD-relative path (if exists), else environment/-
+                    relative: a bare name picks the variant dir's SDF
+                    (e.g. crater_field ->
+                    environment/lunar/crater_field/crater_field.sdf),
+                    or a planet/variant[/file] path under environment/.
+  system            Rover system under src/systems/ (default: alpha).
+                    3-step resolve: absolute dir (must exist), else
+                    CWD-relative dir (if exists), else a bare name under
+                    src/systems/.
   --headless        Run Gazebo server without GUI
   --rviz            Open RViz with the system's .rviz config
   --record-images   Also record the LocCam stereo and annotated feature
@@ -109,12 +89,12 @@ Usage: $(basename "$0") [world] [system] [--headless] [--rviz] [--record-images]
 
 ROS_DOMAIN_ID defaults to 73 so unrelated ROS sessions cannot publish a
 second /clock into this simulator. GZ_PARTITION defaults to
-lunar_simulator_<ROS_DOMAIN_ID> so unrelated Gazebo sessions cannot feed the
+space_robotics_simulator_<ROS_DOMAIN_ID> so unrelated Gazebo sessions cannot feed the
 bridge. Export either value before launching to override it.
 
 Every run's core+optional telemetry lands in a rosbag under
 test_runs/<run>/ros/bags/localisation, alongside a manifest.json recording
-the world/system/domain/profile/topics/source revision this run used. See
+the environment/system/domain/partition/profile/topics/source revision this run used. See
 post_processing/post_processing.py --test-run test_runs/<run> to turn a
 captured run into an interactive HTML report.
 EOF
@@ -144,11 +124,12 @@ export ROS_DOMAIN_ID
 
 # Gazebo Transport discovery is independent of DDS discovery. Isolate it as
 # well so this bridge receives only this simulation's Gazebo /clock stream.
-GZ_PARTITION="${GZ_PARTITION:-lunar_simulator_${ROS_DOMAIN_ID}}"
+GZ_PARTITION="${GZ_PARTITION:-space_robotics_simulator_${ROS_DOMAIN_ID}}"
 export GZ_PARTITION
 
-# Gazebo world name (without .sdf extension). Default: lunar_surface.
-WORLD="lunar_surface"
+# Environment selector (bare variant name, environment/-relative path,
+# CWD-relative path, or absolute path). Default: crater_field.
+ENVIRONMENT="crater_field"
 
 # Rover system name. Must match a directory under src/systems/.
 # Default: alpha.
@@ -158,15 +139,16 @@ SYSTEM="alpha"
 SCRIPT_DIR=""
 ROOT=""
 
-WORLD_FILE=""          # Path to world SDF file
+WORLD_FILE=""          # Resolved world SDF file
+WORLD_NAME=""           # Gazebo world name read from WORLD_FILE's <world name>
 MODEL_DIR=""           # Directory containing model.sdf and model.config
 MODEL_FILE=""          # Path to model.sdf
 MODEL_CONFIG=""        # Path to model.config
 LAUNCH_FILE=""         # Path to launch/<system>_launch.py
-BRIDGE_CONFIG=""       # Path to config/<system>_ros_gz_bridge.yaml
+BRIDGE_CONFIG=""       # Path to config/<system>/ros_gz_bridge.yaml
 RVIZ_SOURCE=""         # Path to src/systems/<system>/<system>.rviz
-DRIVERS_YAML=""        # Path to parameters/systems/<system>/<system>_drivers/<system>_drivers.yaml
-QOS_OVERRIDES_FILE=""  # Path to config/alpha_rosbag_qos.yaml
+DRIVERS_YAML=""       # Path to parameters/systems/<system>/<system>_drivers/<system>_drivers.yaml
+QOS_OVERRIDES_FILE=""  # Path to config/alpha/rosbag_qos.yaml
 
 # Runtime values
 MODEL_NAME=""          # Model name extracted from model.config
@@ -210,9 +192,9 @@ RECORDER_SHUTDOWN_TIMEOUT_S="${RECORDER_SHUTDOWN_TIMEOUT_S:-15}"
 # ---------------------------------------------------------------------------- #
 
 parse_arguments() {
-  # Positional arguments: world, system
+  # Positional arguments: environment, system
   if [ $# -ge 1 ] && [[ "$1" != -* ]]; then
-    WORLD="$1"
+    ENVIRONMENT="$1"
     shift
   fi
   if [ $# -ge 1 ] && [[ "$1" != -* ]]; then
@@ -233,8 +215,11 @@ parse_arguments() {
     esac
   done
 
-  # Strip one trailing .sdf if present
-  WORLD="${WORLD%.sdf}"
+  if [ $# -gt 0 ]; then
+    err "Too many positional arguments: $*"
+    usage >&2
+    exit 1
+  fi
 }
 
 # ---------------------------------------------------------------------------- #
@@ -242,30 +227,168 @@ parse_arguments() {
 # ---------------------------------------------------------------------------- #
 
 validate_names() {
-  [[ "$WORLD" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid world '$WORLD'"; exit 1; }
-  [[ "$SYSTEM" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid system '$SYSTEM'"; exit 1; }
+  # Isolation values only; the environment/system positionals are checked
+  # by their own resolvers (regex for bare names, existence for paths).
   [[ "$ROS_DOMAIN_ID" =~ ^[0-9]+$ ]] || { err "Invalid ROS_DOMAIN_ID '$ROS_DOMAIN_ID'"; exit 1; }
   [ "$ROS_DOMAIN_ID" -le 232 ] || { err "ROS_DOMAIN_ID must be in [0, 232]"; exit 1; }
   [[ "$GZ_PARTITION" =~ ^[A-Za-z0-9_-]+$ ]] || { err "Invalid GZ_PARTITION '$GZ_PARTITION'"; exit 1; }
+}
+
+#!
+# @brief          Sets WORLD_FILE to the single world SDF inside a variant
+#                 directory: <dir>/<variant>.sdf when present, else the
+#                 lone *.sdf. Anything else is ambiguous, so it fails.
+#
+# @param  $1      Variant directory.
+pick_variant_sdf() {
+  local dir="$1"
+  local base
+  base="$(basename "$dir")"
+  if [ -f "$dir/$base.sdf" ]; then
+    WORLD_FILE="$dir/$base.sdf"
+    return 0
+  fi
+  local matches=()
+  local candidate
+  for candidate in "$dir"/*.sdf; do
+    [ -f "$candidate" ] && matches+=("$candidate")
+  done
+  if [ "${#matches[@]}" -eq 1 ]; then
+    WORLD_FILE="${matches[0]}"
+    return 0
+  fi
+  err "No single world SDF in $(rel_path "$dir")"
+  exit 1
+}
+
+#!
+# @brief          Sets WORLD_FILE from an already-located path: a file is
+#                 used directly, a directory resolves to its variant SDF.
+#
+# @param  $1      Existing file or directory path.
+set_world_file_from_path() {
+  local path="$1"
+  if [ -f "$path" ]; then
+    WORLD_FILE="$path"
+  elif [ -d "$path" ]; then
+    pick_variant_sdf "$path"
+  else
+    err "Environment not found: $path"
+    exit 1
+  fi
+}
+
+#!
+# @brief          3-step resolve for the environment positional into
+#                 WORLD_FILE: (a) absolute path (must exist, else fail);
+#                 (b) CWD-relative path (when it exists); (c)
+#                 environment/-relative: a planet/variant[/file] path, or a
+#                 bare name (^[a-z0-9_]+$) matching a variant directory
+#                 whose SDF is picked via pick_variant_sdf(). A trailing
+#                 .sdf on an otherwise-bare name is stripped so the old
+#                 `launch_simulator.sh lunar_surface.sdf` form keeps working.
+resolve_environment() {
+  local input="$1"
+  if [[ "$input" = /* ]]; then
+    [ -e "$input" ] || { err "Environment not found: $input"; exit 1; }
+    set_world_file_from_path "$input"
+    return 0
+  fi
+  if [ -e "$input" ]; then
+    set_world_file_from_path "$(realpath -m "$input")"
+    return 0
+  fi
+  if [[ "$input" == */* ]]; then
+    [ -e "$ROOT/environment/$input" ] || { err "Environment not found: $input"; exit 1; }
+    set_world_file_from_path "$ROOT/environment/$input"
+    return 0
+  fi
+  local query="${input%.sdf}"
+  [[ "$query" =~ ^[a-z0-9_]+$ ]] || { err "Invalid environment '$input'"; exit 1; }
+  local variant
+  for variant in "$ROOT"/environment/*/"$query"; do
+    if [ -d "$variant" ]; then
+      pick_variant_sdf "$variant"
+      return 0
+    fi
+  done
+  local sdf
+  for sdf in "$ROOT"/environment/*/"$query.sdf"; do
+    if [ -f "$sdf" ]; then
+      WORLD_FILE="$sdf"
+      return 0
+    fi
+  done
+  err "Unknown environment '$input'"
+  exit 1
+}
+
+#!
+# @brief          3-step resolve for the system positional into SYSTEM (the
+#                 directory basename every derived path is built from):
+#                 (a) absolute directory (must exist, else fail); (b)
+#                 CWD-relative directory (when it exists); (c) a bare name
+#                 (^[a-z0-9_]+$) or src/systems/-relative path resolving
+#                 under src/systems/.
+resolve_system() {
+  local input="$1"
+  if [[ "$input" = /* ]]; then
+    [ -d "$input" ] || { err "System not found: $input"; exit 1; }
+    SYSTEM="$(basename "$input")"
+    return 0
+  fi
+  if [ -d "$input" ]; then
+    SYSTEM="$(basename "$input")"
+    return 0
+  fi
+  if [[ "$input" == */* ]]; then
+    [ -d "$ROOT/src/systems/$input" ] || { err "System not found: $input"; exit 1; }
+    SYSTEM="$(basename "$input")"
+    return 0
+  fi
+  [[ "$input" =~ ^[a-z0-9_]+$ ]] || { err "Invalid system '$input'"; exit 1; }
+  [ -d "$ROOT/src/systems/$input" ] || { err "Unknown system '$input'"; exit 1; }
+  SYSTEM="$input"
+}
+
+#!
+# @brief          Reads the Gazebo world name from the resolved SDF's
+#                 <world name="...">. Service calls use this, never the
+#                 file name, so renaming a file without its <world name>
+#                 cannot silently address the wrong /world/* services.
+derive_world_name() {
+  WORLD_NAME="$(python3 -c "
+import xml.etree.ElementTree as ET, sys
+tree = ET.parse(sys.argv[1])
+world = tree.getroot().find('world')
+print(((world.get('name') if world is not None else '') or '').strip())
+" "$WORLD_FILE")"
+  [ -n "$WORLD_NAME" ] || { err "No <world name> in $(rel_path "$WORLD_FILE")"; exit 1; }
 }
 
 resolve_paths() {
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   ROOT="$(dirname "$SCRIPT_DIR")"
 
-  WORLD_FILE="$ROOT/worlds/${WORLD}.sdf"
+  resolve_environment "$ENVIRONMENT"
+  resolve_system "$SYSTEM"
+  derive_world_name
   MODEL_DIR="$ROOT/src/systems/${SYSTEM}/${SYSTEM}_model"
   MODEL_FILE="$MODEL_DIR/model.sdf"
   MODEL_CONFIG="$MODEL_DIR/model.config"
   LAUNCH_FILE="$ROOT/launch/${SYSTEM}_launch.py"
-  BRIDGE_CONFIG="$ROOT/config/${SYSTEM}_ros_gz_bridge.yaml"
+  BRIDGE_CONFIG="$ROOT/config/${SYSTEM}/ros_gz_bridge.yaml"
   RVIZ_SOURCE="$ROOT/src/systems/${SYSTEM}/${SYSTEM}.rviz"
   DRIVERS_YAML="$ROOT/parameters/systems/${SYSTEM}/${SYSTEM}_drivers/${SYSTEM}_drivers.yaml"
-  # Not templated by ${SYSTEM}: the rosbag recording profile below is
-  # already Alpha-specific (hardcoded /alpha/... topics), matching this
-  # project's existing convention that a new system needs its own recording
-  # profile the same way it needs its own bridge config and launch file.
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  # Per-system rosbag QoS overrides when the system ships its own file;
+  # otherwise the Alpha default. start_recorder() rewrites that default's
+  # /alpha/... keys for a non-alpha SYSTEM, the same way a new system
+  # needs its own bridge config and launch file.
+  if [ -f "$ROOT/config/${SYSTEM}/rosbag_qos.yaml" ]; then
+    QOS_OVERRIDES_FILE="$ROOT/config/${SYSTEM}/rosbag_qos.yaml"
+  else
+    QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
+  fi
 }
 
 validate_source_files() {
@@ -322,7 +445,7 @@ create_test_run() {
   export TEST_RUN_DIR
   export COLCON_LOG_PATH="$RUN_ROS_DIR/build_logs"
   export ROS_LOG_DIR="$RUN_ROS_DIR/logs"
-  export LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+  resolve_rosbag_dir
 }
 
 #!
@@ -407,7 +530,8 @@ rename_test_run() {
   export TEST_RUN_DIR
   export COLCON_LOG_PATH="$RUN_ROS_DIR/build_logs"
   export ROS_LOG_DIR="$RUN_ROS_DIR/logs"
-  export LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+  SRS_ROSBAG_DIR="$RUN_ROS_DIR/bags"
+  resolve_rosbag_dir
   # The recorder (already stopped by finalize_test_run) wrote manifest.json
   # naming the bag under the timestamp-only directory; carry that path along
   # so the manifest never points at a directory that no longer exists.
@@ -427,7 +551,7 @@ rename_test_run() {
 # @param  $1      The run directory before the rename.
 # @param  $2      The run directory after the rename.
 relocate_recording_manifest() {
-  local manifest_path="$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
+  local manifest_path="$SRS_ROSBAG_DIR/manifest.json"
   [ -f "$manifest_path" ] || return 0
   python3 - "$manifest_path" "$1" "$2" <<'PYEOF'
 import json
@@ -599,7 +723,8 @@ patch_camera_noise() {
 
 start_gazebo() {
   msg "Starting Gazebo (logs/gazebo.txt)"
-  export GZ_SIM_RESOURCE_PATH="$ROOT/worlds:$MODEL_DIR"
+  GZ_SIM_RESOURCE_PATH="$(dirname "$WORLD_FILE"):$ROOT/environment/lunar/crater_field:$ROOT/environment/martian/plain_stub:$MODEL_DIR"
+  export GZ_SIM_RESOURCE_PATH
 
   # Full -v4 output goes to the run's log, not the operator's terminal;
   # readiness is detected through `gz service -l`, never by reading it.
@@ -613,10 +738,10 @@ start_gazebo() {
 }
 
 wait_for_world() {
-  msg "Waiting for world '$WORLD'"
+  msg "Waiting for world '$WORLD_NAME'"
   local ready=0
   for _ in {1..30}; do
-    if gz service -l 2>/dev/null | grep -q "/world/$WORLD/create"; then
+    if gz service -l 2>/dev/null | grep -q "/world/$WORLD_NAME/create"; then
       ready=1
       break
     fi
@@ -627,7 +752,7 @@ wait_for_world() {
 
 pause_simulation() {
   msg "Pausing simulation"
-  gz service -s "/world/$WORLD/control" \
+  gz service -s "/world/$WORLD_NAME/control" \
     --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
     -r "pause: true" | grep -q "data: true"
 }
@@ -635,7 +760,7 @@ pause_simulation() {
 spawn_model() {
   msg "Spawning '$MODEL_NAME'"
   # The reply is checked rather than printed, like pause_simulation's.
-  if ! gz service -s "/world/$WORLD/create" \
+  if ! gz service -s "/world/$WORLD_NAME/create" \
       --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 5000 \
       -r "sdf_filename: \"$GENERATED_MODEL_FILE\", name: \"$MODEL_NAME\", allow_renaming: false, pose: {position: {x: 0.0, y: 0.0, z: 0.02}}" \
       | grep -q "data: true"; then
@@ -659,7 +784,7 @@ wait_for_spawn() {
 
 unpause_simulation() {
   msg "Starting simulation"
-  gz service -s "/world/$WORLD/control" \
+  gz service -s "/world/$WORLD_NAME/control" \
     --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 3000 \
     -r "pause: false" >/dev/null
 }
@@ -671,57 +796,67 @@ unpause_simulation() {
 # Core telemetry, always recorded: ground truth, every subsystem's raw
 # sensor input and odometry output, commands, the slip topics, and the
 # shared diagnostics topic that carries every node's periodic machine
-# records in simulation time (WP-01 moved them off the console). Excludes
+# records in simulation time (moved off the console). Excludes
 # retained `Path` topics (nav_msgs/Path duplicates odometry history and
 # makes later bag messages progressively larger for no post-processing
 # benefit -- report trajectories are drawn from the odometry topics
 # instead).
-CORE_RECORD_TOPICS=(
-  /clock
-  /alpha/diagnostics
-  /alpha/system/state
-  /alpha/drivers/ground_truth/odometry
-  /alpha/localisation/ground_truth/odometry
-  /alpha/drivers/imu
-  /alpha/imu
-  /alpha/localisation/inertial/filtered_imu
-  /alpha/localisation/inertial/odometry
-  /alpha/drivers/joint_states
-  /alpha/joint_states
-  /alpha/control/cmd/velocity
-  /alpha/control/cmd/wheel_joint_states
-  /alpha/drivers/cmd/wheel_joint_states
-  /alpha/localisation/wheel/odometry
-  /alpha/localisation/wheel/slip_ratios
-  /alpha/localisation/wheel/slip_observation
-  /alpha/localisation/visual/odometry
-  /alpha/localisation/visual/point_cloud
-  /alpha/localisation/visual/reset
-  /alpha/localisation/kalman_filter/odometry
-  /alpha/localisation/kalman_filter/wheel_slip_ratio
-  /alpha/control/filtered_odometry
+# Topic suffixes recorded under /${SYSTEM}/ (`/clock` is global and keeps
+# no prefix). assemble_record_topics() prefixes them with the live SYSTEM
+# value, so /alpha stays the default-system example without hardcoding it
+# in every entry.
+CORE_RECORD_SUFFIXES=(
+  diagnostics
+  system/state
+  drivers/ground_truth/odometry
+  localisation/ground_truth/odometry
+  drivers/imu
+  imu
+  localisation/inertial/filtered_imu
+  localisation/inertial/odometry
+  drivers/joint_states
+  joint_states
+  control/cmd/velocity
+  control/cmd/wheel_joint_states
+  drivers/cmd/wheel_joint_states
+  localisation/wheel/odometry
+  localisation/wheel/slip_ratios
+  localisation/wheel/slip_observation
+  localisation/visual/odometry
+  localisation/visual/point_cloud
+  localisation/visual/reset
+  localisation/kalman_filter/odometry
+  localisation/kalman_filter/wheel_slip_ratio
+  control/filtered_odometry
 )
 
 # Added on top of the core set only when --record-images is given.
-IMAGE_RECORD_TOPICS=(
-  /alpha/drivers/loccam/left
-  /alpha/drivers/loccam/right
-  /alpha/localisation/visual/features
+IMAGE_RECORD_SUFFIXES=(
+  drivers/loccam/left
+  drivers/loccam/right
+  localisation/visual/features
 )
 
 #!
 # @brief          Populates RECORD_TOPICS from the core set plus, when
-#                 --record-images was given, the image set.
+#                 --record-images was given, the image set, each under
+#                 /${SYSTEM}/ (/clock stays global).
 assemble_record_topics() {
-  RECORD_TOPICS=("${CORE_RECORD_TOPICS[@]}")
+  RECORD_TOPICS=(/clock)
+  local suffix
+  for suffix in "${CORE_RECORD_SUFFIXES[@]}"; do
+    RECORD_TOPICS+=("/${SYSTEM}/${suffix}")
+  done
   if [ "$RECORD_IMAGES" = "1" ]; then
-    RECORD_TOPICS+=("${IMAGE_RECORD_TOPICS[@]}")
+    for suffix in "${IMAGE_RECORD_SUFFIXES[@]}"; do
+      RECORD_TOPICS+=("/${SYSTEM}/${suffix}")
+    done
   fi
 }
 
 #!
 # @brief          Writes ros/bags/manifest.json describing this run's
-#                 recording: world/system/domain/partition, the exact
+#                 recording: environment/system/domain/partition, the exact
 #                 command line, the recording profile and topic list, the
 #                 storage identifier, and source revision/dirty-worktree
 #                 when this checkout is a git repository. Deliberately does
@@ -752,7 +887,7 @@ write_recording_manifest() {
   # and args are shell-safe individually, but building one JSON-correct
   # argv/heredoc split in bash is more error-prone than letting Python do
   # its own whitespace-split and JSON escaping.
-  MANIFEST_WORLD="$WORLD" \
+  MANIFEST_WORLD="$ENVIRONMENT" \
   MANIFEST_SYSTEM="$SYSTEM" \
   MANIFEST_ROS_DOMAIN_ID="$ROS_DOMAIN_ID" \
   MANIFEST_GZ_PARTITION="$GZ_PARTITION" \
@@ -764,7 +899,7 @@ write_recording_manifest() {
   MANIFEST_GIT_AVAILABLE="$git_available" \
   MANIFEST_GIT_REVISION="$git_revision" \
   MANIFEST_GIT_DIRTY="$git_dirty" \
-  MANIFEST_OUTPUT_PATH="$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json" \
+  MANIFEST_OUTPUT_PATH="$SRS_ROSBAG_DIR/manifest.json" \
   python3 <<'PYEOF'
 import json
 import os
@@ -788,7 +923,7 @@ manifest = {
         if os.environ["MANIFEST_GIT_AVAILABLE"] == "true"
         else None
     ),
-    "source_dirty": (
+    "dirty_worktree": (
         os.environ["MANIFEST_GIT_DIRTY"] == "true"
         if os.environ["MANIFEST_GIT_AVAILABLE"] == "true"
         else None
@@ -800,6 +935,27 @@ with open(output_path, "w", encoding="utf-8") as manifest_file:
     json.dump(manifest, manifest_file, indent=2, sort_keys=True)
     manifest_file.write("\n")
 PYEOF
+}
+
+#!
+# @brief          Picks the QoS overrides for this run: the system's own
+#                 file when it ships one, the Alpha default for alpha
+#                 itself, otherwise a same-run rewrite of the Alpha default
+#                 with /alpha/ swapped for /${SYSTEM}/ (a stale /alpha key
+#                 would silently match nothing the recorder subscribes to).
+resolve_qos_overrides() {
+  local candidate="$ROOT/config/${SYSTEM}/rosbag_qos.yaml"
+  if [ -f "$candidate" ]; then
+    QOS_OVERRIDES_FILE="$candidate"
+    return 0
+  fi
+  if [ "$SYSTEM" = "alpha" ]; then
+    QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
+    return 0
+  fi
+  QOS_OVERRIDES_FILE="$RUN_LOGS_DIR/rosbag_qos_${SYSTEM}.yaml"
+  sed "s|/alpha/|/${SYSTEM}/|g" "$ROOT/config/alpha/rosbag_qos.yaml" \
+    > "$QOS_OVERRIDES_FILE"
 }
 
 #!
@@ -816,7 +972,8 @@ PYEOF
 # silently contain an empty ros/bags/ directory.
 start_recorder() {
   assemble_record_topics
-  BAG_DESTINATION="$LUNAR_SIMULATOR_ROSBAG_DIR/localisation"
+  resolve_qos_overrides
+  BAG_DESTINATION="$SRS_ROSBAG_DIR/localisation"
 
   local recording_profile="core"
   [ "$RECORD_IMAGES" = "1" ] && recording_profile="core+images"
@@ -960,7 +1117,7 @@ stop_recorder() {
 launch_ros_nodes() {
   msg "Launching '$SYSTEM' nodes (domain $ROS_DOMAIN_ID)"
 
-  ros2 launch lunar_simulator "${SYSTEM}_launch.py" \
+  ros2 launch space_robotics_simulator "${SYSTEM}_launch.py" \
     system_name:="$SYSTEM" use_sim_time:=true \
     ros_domain_id:="$ROS_DOMAIN_ID" \
     gz_partition:="$GZ_PARTITION" \
@@ -977,7 +1134,7 @@ launch_ros_nodes() {
 
 #!
 # @brief          Waits in the background for the start-up supervisor's
-#                 READY on /alpha/system/state and prints it (or a warning
+#                 READY on /<system>/system/state and prints it (or a warning
 #                 after READY_TIMEOUT_S). Commands are gated by the driver
 #                 either way; this only tells the operator when they will
 #                 be obeyed. Started before the foreground bridge, which
@@ -985,7 +1142,7 @@ launch_ros_nodes() {
 start_ready_watcher() {
   msg "Waiting for READY (commands blocked)"
   python3 "$SCRIPT_DIR/wait_for_system_ready.py" \
-    --timeout-s "$READY_TIMEOUT_S" --prefix "[MSG] " &
+    --system "$SYSTEM" --timeout-s "$READY_TIMEOUT_S" --prefix "[MSG] " &
   READY_WATCHER_PID=$!
 }
 

@@ -7,7 +7,7 @@ wheel speeds. Wheel arrays use front-left, front-right, centre-left,
 centre-right, rear-left, rear-right order, shared with `wheel_odometry`.
 
 Where: `src/control/ackermann_controller/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/ackermann_controller/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/ackermann_controller/)).
 
 ## Topics
 
@@ -23,17 +23,17 @@ Names verified from `AckermannControllerNodeClass.h` topic defaults
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `AckermannControllerNode` | `src/control/ackermann_controller/objects/AckermannControllerNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/ackermann_controller/objects/AckermannControllerNodeClass.h) |
-| Velocity callback | `src/control/ackermann_controller/methods/handleVelocityCommandCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/ackermann_controller/methods/handleVelocityCommandCallBack.cc) |
-| Steering geometry | `src/control/ackermann_controller/methods/computeSteeringAngle.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/ackermann_controller/methods/computeSteeringAngle.cc) |
-| Wheel speeds | `src/control/ackermann_controller/methods/computeWheelSpeed_radPs.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/ackermann_controller/methods/computeWheelSpeed_radPs.cc) |
+| `AckermannControllerNode` | `src/control/ackermann_controller/objects/AckermannControllerNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/ackermann_controller/objects/AckermannControllerNodeClass.h) |
+| Velocity callback | `src/control/ackermann_controller/methods/handleVelocityCommandCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/ackermann_controller/methods/handleVelocityCommandCallBack.cc) |
+| Steering geometry | `src/control/ackermann_controller/methods/computeSteeringAngle.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/ackermann_controller/methods/computeSteeringAngle.cc) |
+| Wheel speeds | `src/control/ackermann_controller/methods/computeWheelSpeed_radPs.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/ackermann_controller/methods/computeWheelSpeed_radPs.cc) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[ackermann_controller.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_control/ackermann_controller.yaml).
+[ackermann_controller.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_control/ackermann_controller.yaml).
 What each tunes: command/output topic names; wheel radius (m) and per-wheel
 positions (m, six-wheel order — keep in sync with the Alpha model and
 `wheel_odometry.yaml`); per-wheel drive-direction multipliers; maximum wheel

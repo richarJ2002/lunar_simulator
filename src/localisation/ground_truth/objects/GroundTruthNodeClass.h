@@ -7,8 +7,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
-#define LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
+#ifndef SRS_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
+#define SRS_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -89,8 +89,8 @@ class GroundTruthNode final : public rclcpp::Node
                                            "alpha/ground_truth_base_link");
 
         /* Read the raw path-length limit before validating it below. */
-        const int configuredMaximumPoses =
-            declare_parameter<int>("path_maximum_poses", 5000);
+        const std::int64_t configuredMaximumPoses =
+            declare_parameter<std::int64_t>("path_maximum_poses", 5000);
 
         /* Read the raw sample period before validating it below. */
         const double pathSamplePeriodS =
@@ -142,7 +142,7 @@ class GroundTruthNode final : public rclcpp::Node
 
         /* Topic wiring is already captured by the run's parameter
          * snapshot, so it is debug detail rather than operator output. */
-        LUNAR_LOG_DEBUG(get_logger(),
+        SRS_LOG_DEBUG(get_logger(),
                         "Ground truth: %s -> %s, %s in %s",
                         odometryTopic.c_str(),
                         outputOdometryTopic.c_str(),
@@ -301,4 +301,4 @@ class GroundTruthNode final : public rclcpp::Node
 
 } /* namespace localisation::ground_truth */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H */
+#endif /* SRS_LOCALISATION_GROUND_TRUTH_NODE_CLASS_H */

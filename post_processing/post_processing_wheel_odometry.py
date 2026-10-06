@@ -18,20 +18,24 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from python_tools.context import build_common_parser, build_report_context
+from python_tools.bag.topic_registry import topic_name_for
 from python_tools.data import alignment, metrics
 from python_tools.data.models import WHEEL_ORDER, JointStateSeries, ReportContext, ReportPage
 from python_tools.reporting import figures, html, style
 
-TOPIC_GROUND_TRUTH = "/alpha/localisation/ground_truth/odometry"
-TOPIC_ESTIMATE = "/alpha/localisation/wheel/odometry"
-TOPIC_RAW_JOINT_STATES = "/alpha/drivers/joint_states"
-TOPIC_NOISY_JOINT_STATES = "/alpha/joint_states"
-TOPIC_VELOCITY_COMMAND = "/alpha/control/cmd/velocity"
-TOPIC_PUBLIC_WHEEL_COMMAND = "/alpha/control/cmd/wheel_joint_states"
-TOPIC_DRIVER_WHEEL_COMMAND = "/alpha/drivers/cmd/wheel_joint_states"
-TOPIC_SLIP_RATIOS = "/alpha/localisation/wheel/slip_ratios"
-TOPIC_SLIP_OBSERVATION = "/alpha/localisation/wheel/slip_observation"
-TOPIC_KALMAN_SLIP = "/alpha/localisation/kalman_filter/wheel_slip_ratio"
+# Topic suffixes (without the /<system>/ prefix) this page reads; each is
+# resolved against the run's own system where the context is available, so
+# old runs read via the default system's names.
+SUFFIX_GROUND_TRUTH = "localisation/ground_truth/odometry"
+SUFFIX_ESTIMATE = "localisation/wheel/odometry"
+SUFFIX_RAW_JOINT_STATES = "drivers/joint_states"
+SUFFIX_NOISY_JOINT_STATES = "joint_states"
+SUFFIX_VELOCITY_COMMAND = "control/cmd/velocity"
+SUFFIX_PUBLIC_WHEEL_COMMAND = "control/cmd/wheel_joint_states"
+SUFFIX_DRIVER_WHEEL_COMMAND = "drivers/cmd/wheel_joint_states"
+SUFFIX_SLIP_RATIOS = "localisation/wheel/slip_ratios"
+SUFFIX_SLIP_OBSERVATION = "localisation/wheel/slip_observation"
+SUFFIX_KALMAN_SLIP = "localisation/kalman_filter/wheel_slip_ratio"
 
 # System name prefix this project's joint names always carry (findJoint.cc's
 # own fixed strings), e.g. "alpha/front_left_drive_joint".
@@ -78,6 +82,17 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
     warnings: list[str] = []
     sections: list[str] = []
     summary_stats: dict[str, str] = {}
+    system = context.run_metadata.system
+    topic_ground_truth = topic_name_for(system, SUFFIX_GROUND_TRUTH)
+    topic_estimate = topic_name_for(system, SUFFIX_ESTIMATE)
+    topic_raw_joint_states = topic_name_for(system, SUFFIX_RAW_JOINT_STATES)
+    topic_noisy_joint_states = topic_name_for(system, SUFFIX_NOISY_JOINT_STATES)
+    topic_velocity_command = topic_name_for(system, SUFFIX_VELOCITY_COMMAND)
+    topic_public_wheel_command = topic_name_for(system, SUFFIX_PUBLIC_WHEEL_COMMAND)
+    topic_driver_wheel_command = topic_name_for(system, SUFFIX_DRIVER_WHEEL_COMMAND)
+    topic_slip_ratios = topic_name_for(system, SUFFIX_SLIP_RATIOS)
+    topic_slip_observation = topic_name_for(system, SUFFIX_SLIP_OBSERVATION)
+    topic_kalman_slip = topic_name_for(system, SUFFIX_KALMAN_SLIP)
 
     params = context.parameters.get("wheel_odometry")
     wheel_radius_m = None
@@ -104,7 +119,7 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
                 figures.empty_state_card_html(
                     "estimate_slip_from_visual is false: no per-cycle slip "
                     "observations are computed by this node. Absent "
-                    f"{TOPIC_SLIP_OBSERVATION} samples reflect this "
+                    f"{topic_slip_observation} samples reflect this "
                     "configuration, not a failure.",
                     severity="warning",
                 )
@@ -121,8 +136,8 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
     else:
         warnings.append("wheel_odometry parameter snapshot not found")
 
-    raw_joints = context.bag.joint_states.get(TOPIC_RAW_JOINT_STATES)
-    noisy_joints = context.bag.joint_states.get(TOPIC_NOISY_JOINT_STATES)
+    raw_joints = context.bag.joint_states.get(topic_raw_joint_states)
+    noisy_joints = context.bag.joint_states.get(topic_noisy_joint_states)
 
     for label, joints, color in (
         ("Raw (Gazebo)", raw_joints, style.COLOR_RAW_SOURCE),
@@ -161,7 +176,7 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
 
     # Command chain: body velocity -> public per-wheel command -> noisy
     # driver command, so command generation and injected noise are visible.
-    velocity_command = context.bag.twist_commands.get(TOPIC_VELOCITY_COMMAND)
+    velocity_command = context.bag.twist_commands.get(topic_velocity_command)
     if velocity_command is not None:
         command_figure = figures.three_axis_time_series(
             velocity_command.times_s,
@@ -177,14 +192,14 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
         )
     else:
         warnings.append(
-            f"{TOPIC_VELOCITY_COMMAND} published no messages: the rover was "
+            f"{topic_velocity_command} published no messages: the rover was "
             "never commanded via the higher-level Twist interface this run"
         )
-    public_command = context.bag.wheel_actuators.get(TOPIC_PUBLIC_WHEEL_COMMAND)
-    driver_command = context.bag.wheel_actuators.get(TOPIC_DRIVER_WHEEL_COMMAND)
+    public_command = context.bag.wheel_actuators.get(topic_public_wheel_command)
+    driver_command = context.bag.wheel_actuators.get(topic_driver_wheel_command)
     for label, topic, command in (
-        ("Public wheel command", TOPIC_PUBLIC_WHEEL_COMMAND, public_command),
-        ("Noisy driver command", TOPIC_DRIVER_WHEEL_COMMAND, driver_command),
+        ("Public wheel command", topic_public_wheel_command, public_command),
+        ("Noisy driver command", topic_driver_wheel_command, driver_command),
     ):
         if command is None:
             warnings.append(f"{topic} published no messages: the rover was never commanded this run")
@@ -198,9 +213,9 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
         )
 
     # Slip: applied ratio, raw observation, Kalman feedback.
-    slip_ratios = context.bag.wheel_scalars.get(TOPIC_SLIP_RATIOS)
-    slip_observation = context.bag.wheel_scalars.get(TOPIC_SLIP_OBSERVATION)
-    kalman_slip = context.bag.wheel_scalars.get(TOPIC_KALMAN_SLIP)
+    slip_ratios = context.bag.wheel_scalars.get(topic_slip_ratios)
+    slip_observation = context.bag.wheel_scalars.get(topic_slip_observation)
+    kalman_slip = context.bag.wheel_scalars.get(topic_kalman_slip)
     if slip_ratios is not None:
         figure = figures.six_wheel_small_multiples(
             slip_ratios.times_s, slip_ratios.values, "Applied slip ratio"
@@ -222,7 +237,7 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
         # configured to compute these; the info card above already
         # explains the estimate_slip_from_visual=false case.
         warnings.append(
-            f"{TOPIC_SLIP_OBSERVATION} published no messages despite "
+            f"{topic_slip_observation} published no messages despite "
             "estimate_slip_from_visual being true"
         )
     if kalman_slip is not None:
@@ -236,8 +251,8 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
         )
 
     # Pose/twist comparison against ground truth.
-    truth = context.bag.odometry.get(TOPIC_GROUND_TRUTH)
-    estimate = context.bag.odometry.get(TOPIC_ESTIMATE)
+    truth = context.bag.odometry.get(topic_ground_truth)
+    estimate = context.bag.odometry.get(topic_estimate)
     if truth is not None and estimate is not None:
         position, orientation, linear_velocity, angular_velocity, valid = (
             alignment.interpolate_ground_truth(
@@ -285,8 +300,8 @@ def generate_wheel_odometry_report(context: ReportContext) -> ReportPage:
         )
     else:
         warnings.append(
-            f"Cannot compare against ground truth: {TOPIC_GROUND_TRUTH} or "
-            f"{TOPIC_ESTIMATE} published no messages"
+            f"Cannot compare against ground truth: {topic_ground_truth} or "
+            f"{topic_estimate} published no messages"
         )
 
     body = "".join(sections) if sections else figures.empty_state_card_html(

@@ -7,8 +7,8 @@
  * @date            16/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H
-#define LUNAR_SIMULATOR_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H
+#ifndef SRS_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H
+#define SRS_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H
 
 /* C++ Standard Library Includes */
 #include <array>
@@ -330,4 +330,4 @@ class ShiTomasiCornerDetector
 
 } /* namespace localisation::visual_odometry::feature_tracking */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H */
+#endif /* SRS_LOCALISATION_SHI_TOMASI_CORNER_DETECTOR_H */

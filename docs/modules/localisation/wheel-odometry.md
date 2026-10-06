@@ -10,7 +10,7 @@ order everywhere. The lateral (vy) channel is unobservable with near-parallel
 wheels and is floored to zero instead of amplifying steering-encoder noise.
 
 Where: `src/localisation/wheel_odometry/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/wheel_odometry/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/wheel_odometry/)).
 
 ## Topics
 
@@ -33,17 +33,17 @@ six-wheel order above.
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `WheelOdometryNode` | `src/localisation/wheel_odometry/objects/WheelOdometryNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/wheel_odometry/objects/WheelOdometryNodeClass.h) |
-| Joint-state callback | `src/localisation/wheel_odometry/methods/handleJointStateCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/wheel_odometry/methods/handleJointStateCallBack.cc) |
-| Slip observation | `src/localisation/wheel_odometry/methods/publishSlipObservation.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/wheel_odometry/methods/publishSlipObservation.cc) |
-| Odometry publish | `src/localisation/wheel_odometry/methods/publishOdometry.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/wheel_odometry/methods/publishOdometry.cc) |
+| `WheelOdometryNode` | `src/localisation/wheel_odometry/objects/WheelOdometryNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/wheel_odometry/objects/WheelOdometryNodeClass.h) |
+| Joint-state callback | `src/localisation/wheel_odometry/methods/handleJointStateCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/wheel_odometry/methods/handleJointStateCallBack.cc) |
+| Slip observation | `src/localisation/wheel_odometry/methods/publishSlipObservation.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/wheel_odometry/methods/publishSlipObservation.cc) |
+| Odometry publish | `src/localisation/wheel_odometry/methods/publishOdometry.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/wheel_odometry/methods/publishOdometry.cc) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[wheel_odometry.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_localisation/wheel_odometry.yaml).
+[wheel_odometry.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_localisation/wheel_odometry.yaml).
 What each tunes: joint-state/visual/slip topic names; odom and base frame
 names; wheel radius (m, keep in sync with the Alpha model and
 `ackermann_controller.yaml`); encoder/slip noise (rad/s, m/s); integration

@@ -9,7 +9,7 @@ software it runs as one `AlphaNode` process fusing four odometry producers
 through an Alpha-specific ESKF and gating motion on start-up readiness.
 
 Where: `src/systems/alpha/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/)).
 
 ## Single-process composition
 

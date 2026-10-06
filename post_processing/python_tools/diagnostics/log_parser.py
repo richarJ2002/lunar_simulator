@@ -1,10 +1,11 @@
 """!
 @brief  Parses the periodic "visual_diag" (visual_odometry) and
         "localisation_diag" (alpha_kalman_filter) five-second diagnostic
-        log records out of a node's ROS log file. Only runs captured before
-        WP-01 Phase 1 carry these lines; later runs record the same fields
-        on /alpha/diagnostics (see python_tools.diagnostics.bag_diagnostics)
-        and log only a short console health line.
+        log records out of a node's ROS log file. Only runs with console
+        diagnostic records carry these lines; runs with bag diagnostics
+        record the same fields on /<system>/diagnostics (see
+        python_tools.diagnostics.bag_diagnostics) and log only a short
+        console health line.
 
         Every parsed record's `time_s` is elapsed seconds
         since this log file's own first parsed record -- NOT the same axis
@@ -46,10 +47,10 @@ from python_tools.data.models import (
 # than letting a figure imply this is the bag's elapsed-time axis.
 DIAGNOSTIC_TIME_AXIS_TITLE = "Time since first log record (s) - not bag-elapsed time"
 
-# One rclcpp log line's prefix. Runs before WP-01 Phase 1 used the default
-# "[LEVEL] [sec.nanosec] [node]: message"; later runs use the compact
-# "[LEVEL] [node]: message", whose lines carry no time and so cannot be
-# placed on any time axis.
+# One rclcpp log line's prefix. Console-record runs use the default
+# "[LEVEL] [sec.nanosec] [node]: message"; bag-diagnostic runs use the
+# compact "[LEVEL] [node]: message", whose lines carry no time and so
+# cannot be placed on any time axis.
 _LOG_LINE_PATTERN = re.compile(
     r"^\[(?P<level>\w+)\] (?:\[(?P<timestamp>\d+\.\d+)\] )?\[(?P<node>[^\]]+)\]: (?P<message>.*)$"
 )
@@ -80,8 +81,8 @@ _VISUAL_DIAG_PATTERN = re.compile(
 
 # One-time (not periodic) marker: inertial_odometry's handleImuCallBack.cc
 # logs this exactly once, the instant its startup stationary calibration
-# window completes. WP-01 Phase 1 shortened "IMU stationary calibration
-# complete" to fit the 40-character console limit; both spellings match.
+# window completes. The 40-character console limit shortened "IMU
+# stationary calibration complete"; both spellings match.
 _INERTIAL_CALIBRATION_COMPLETE_PATTERN = re.compile(
     r"^IMU (?:stationary )?calibration complete \((?P<sample_count>\d+) samples\)$"
 )
@@ -101,8 +102,8 @@ _LOCALISATION_DIAG_PATTERN = re.compile(
     rf"quaternion_norm=(?P<quaternion_norm>{_FLOAT}) "
     rf"accel_bias_body_mps2=\[(?P<accel_bias_x>{_FLOAT}),(?P<accel_bias_y>{_FLOAT}),(?P<accel_bias_z>{_FLOAT})\] "
     rf"gyro_bias_body_radps=\[(?P<gyro_bias_x>{_FLOAT}),(?P<gyro_bias_y>{_FLOAT}),(?P<gyro_bias_z>{_FLOAT})\]"
-    # Optional reason-specific age-rejection split, appended by WP-01 Phase
-    # 0; absent from older runs' logs, which must keep parsing.
+    # Optional reason-specific age-rejection split, present in newer
+    # runs; absent from older runs' logs, which must keep parsing.
     r"(?: pre_init=(?P<pre_init>\d+) negative_age=(?P<negative_age>\d+) "
     r"too_old=(?P<too_old>\d+) state_gap=(?P<state_gap>\d+) "
     r"rollback_failed=(?P<rollback_failed>\d+) predict_failed=(?P<predict_failed>\d+))?$"

@@ -83,7 +83,7 @@ void AlphaStartupSupervisorNode::publishSystemStateCallBack()
     {
         if (decision.state == SystemState::SYSTEM_STATE_HOLD)
         {
-            LUNAR_LOG_WARN(get_logger(),
+            SRS_LOG_WARN(get_logger(),
                            "%s (%s); commands blocked",
                            summary.c_str(),
                            decision.blockingReason.c_str());
@@ -91,11 +91,11 @@ void AlphaStartupSupervisorNode::publishSystemStateCallBack()
         else if (decision.state == SystemState::SYSTEM_STATE_READY ||
                  decision.blockingComponent.empty())
         {
-            LUNAR_LOG_INFO(get_logger(), "%s", summary.c_str());
+            SRS_LOG_INFO(get_logger(), "%s", summary.c_str());
         }
         else
         {
-            LUNAR_LOG_INFO(get_logger(),
+            SRS_LOG_INFO(get_logger(),
                            "%s (%s)",
                            summary.c_str(),
                            decision.blockingReason.c_str());

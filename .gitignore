@@ -18,6 +18,7 @@ site/
 
 # Blender ignores
 *.blend
+*.blend1
 
 # ROS general ignores
 rosbag**/*

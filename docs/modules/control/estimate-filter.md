@@ -7,7 +7,7 @@ downstream consumers. Output goes to `/alpha/control/filtered_odometry` and
 is **never fed back into the ESKF** — the filter loop stays open by design.
 
 Where: `src/control/estimate_filter/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/estimate_filter/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/estimate_filter/)).
 
 ## Topics
 
@@ -23,17 +23,17 @@ Names verified from `EstimateLowPassFilterNodeClass.h` topic defaults
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `EstimateLowPassFilterNode` | `src/control/estimate_filter/objects/EstimateLowPassFilterNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/estimate_filter/objects/EstimateLowPassFilterNodeClass.h) |
-| Filter core | `src/control/estimate_filter/objects/EstimateLowPassFilterClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/estimate_filter/objects/EstimateLowPassFilterClass.h) |
-| Filter step | `src/control/estimate_filter/methods/EstimateLowPassFilter/update.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/estimate_filter/methods/EstimateLowPassFilter/update.cc) |
-| Odometry callback | `src/control/estimate_filter/methods/EstimateLowPassFilterNode/handleOdometryCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/estimate_filter/methods/EstimateLowPassFilterNode/handleOdometryCallBack.cc) |
+| `EstimateLowPassFilterNode` | `src/control/estimate_filter/objects/EstimateLowPassFilterNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/estimate_filter/objects/EstimateLowPassFilterNodeClass.h) |
+| Filter core | `src/control/estimate_filter/objects/EstimateLowPassFilterClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/estimate_filter/objects/EstimateLowPassFilterClass.h) |
+| Filter step | `src/control/estimate_filter/methods/EstimateLowPassFilter/update.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/estimate_filter/methods/EstimateLowPassFilter/update.cc) |
+| Odometry callback | `src/control/estimate_filter/methods/EstimateLowPassFilterNode/handleOdometryCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/estimate_filter/methods/EstimateLowPassFilterNode/handleOdometryCallBack.cc) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[estimate_low_pass_filter.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_control/estimate_low_pass_filter.yaml).
+[estimate_low_pass_filter.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_control/estimate_low_pass_filter.yaml).
 What each tunes: input/output topic names; velocity, position, and attitude
 cutoff frequencies (Hz, per-channel smoothing); maximum accepted message gap
 (s, guards against stale-sample smoothing).

@@ -7,9 +7,9 @@ and wheel odometry into one pose/twist estimate, while the reusable linear
 algebra lives in the model-agnostic engine.
 
 Where: `src/systems/alpha/alpha_localisation/alpha_kalman_filter/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/));
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/));
 engine: `src/localisation/kalman_filter/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/localisation/kalman_filter/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/localisation/kalman_filter/)).
 
 ## Topics
 
@@ -31,10 +31,10 @@ Twist is expressed in the child body frame.
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `AlphaKalmanFilterNode` | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/objects/AlphaKalmanFilterNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/objects/AlphaKalmanFilterNodeClass.h) |
-| IMU callback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleImuCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleImuCallBack.cc) |
-| Measurement callback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleMeasurementCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleMeasurementCallBack.cc) |
-| Replay after rollback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/replayMeasurementsAfter.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/replayMeasurementsAfter.cc) |
+| `AlphaKalmanFilterNode` | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/objects/AlphaKalmanFilterNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/objects/AlphaKalmanFilterNodeClass.h) |
+| IMU callback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleImuCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleImuCallBack.cc) |
+| Measurement callback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleMeasurementCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/handleMeasurementCallBack.cc) |
+| Replay after rollback | `src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/replayMeasurementsAfter.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_localisation/alpha_kalman_filter/methods/replayMeasurementsAfter.cc) |
 
 No function signatures in v1 — see source.
 
@@ -42,7 +42,7 @@ No function signatures in v1 — see source.
 
 Full authority (note the top-level key is `continuous_ekf`, not the
 directory name):
-[alpha_kalman_filter.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_localisation/alpha_kalman_filter.yaml).
+[alpha_kalman_filter.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_localisation/alpha_kalman_filter.yaml).
 What each group tunes: topic/frame names; prediction rate; measurement age
 and future-stamp limits; visual/wheel fusion modes and NIS thresholds
 (zero selects the automatic chi-square gate); process and measurement

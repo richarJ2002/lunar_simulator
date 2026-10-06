@@ -19,7 +19,7 @@ an edit to ``scripts/launch_simulator.sh``.
 
 Standalone use (starts Gazebo and the bridge itself)::
 
-    ros2 launch lunar_simulator alpha_launch.py
+    ros2 launch space_robotics_simulator alpha_launch.py
 
 ``scripts/launch_simulator.sh`` instead handles Gazebo spawn/pause/unpause
 itself and delegates only node startup here with ``launch_gazebo:=false
@@ -44,7 +44,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    pkg_share = FindPackageShare('lunar_simulator')
+    pkg_share = FindPackageShare('space_robotics_simulator')
     ros_gz_sim_share = FindPackageShare('ros_gz_sim')
 
     system_name_arg = DeclareLaunchArgument(
@@ -65,14 +65,18 @@ def generate_launch_description():
     gz_partition_arg = DeclareLaunchArgument(
         'gz_partition',
         default_value=EnvironmentVariable(
-            'GZ_PARTITION', default_value='lunar_simulator_73'
+            'GZ_PARTITION',
+            default_value=[
+                'space_robotics_simulator_',
+                EnvironmentVariable('ROS_DOMAIN_ID', default_value='73'),
+            ],
         ),
         description='Gazebo Transport partition isolating the simulator clock.',
     )
     world_arg = DeclareLaunchArgument(
         'world',
-        default_value='lunar_surface.sdf',
-        description='World file under share/lunar_simulator/worlds/.',
+        default_value='crater_field.sdf',
+        description='World file under share/space_robotics_simulator/environment/lunar/crater_field/.',
     )
     launch_gazebo_arg = DeclareLaunchArgument(
         'launch_gazebo',
@@ -89,7 +93,7 @@ def generate_launch_description():
         default_value='false',
         description='Open RViz with src/systems/alpha/alpha.rviz.',
     )
-    # WP-01 console rule: a short fixed prefix and no 20-digit timestamp, so
+    # Console rule: a short fixed prefix and no 20-digit timestamp, so
     # each wrapped node line carries at most 40 characters of text after
     # it. rcl uses the same format for the node's file log; per-line wall
     # timestamps remain in the launch log, which prefixes every line.
@@ -115,7 +119,9 @@ def generate_launch_description():
     ]
 
     gz_args = [
-        PathJoinSubstitution([pkg_share, 'worlds', LaunchConfiguration('world')]),
+        PathJoinSubstitution(
+            [pkg_share, 'environment', 'lunar', 'crater_field', LaunchConfiguration('world')]
+        ),
         ' -v4',
     ]
     gz_sim = IncludeLaunchDescription(
@@ -127,7 +133,7 @@ def generate_launch_description():
     )
 
     alpha_node = Node(
-        package='lunar_simulator',
+        package='space_robotics_simulator',
         executable='alpha_node',
         parameters=alpha_parameters + [
             {'system_name': LaunchConfiguration('system_name')},
@@ -141,16 +147,16 @@ def generate_launch_description():
         },
     )
 
-    # The bridge reads share/lunar_simulator/config/alpha_ros_gz_bridge.yaml
-    # (DIRECTORY config installs to share/.../config/, not share/.../alpha/).
-    # It is not an rclcpp time-user, so no use_sim_time here.
+    # The bridge reads share/.../config/alpha/ros_gz_bridge.yaml
+    # (DIRECTORY config installs to share/.../config/). It is not an
+    # rclcpp time-user, so no use_sim_time here.
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         name='ros_gz_bridge',
         parameters=[{
             'config_file': PathJoinSubstitution(
-                [pkg_share, 'config', 'alpha_ros_gz_bridge.yaml']
+                [pkg_share, 'config/alpha/ros_gz_bridge.yaml']
             ),
         }],
         condition=IfCondition(LaunchConfiguration('launch_bridge')),
@@ -188,7 +194,13 @@ def generate_launch_description():
         SetEnvironmentVariable(
             name='GZ_SIM_RESOURCE_PATH',
             value=[
-                PathJoinSubstitution([pkg_share, 'worlds']),
+                PathJoinSubstitution(
+                    [pkg_share, 'environment', 'lunar', 'crater_field']
+                ),
+                ':',
+                PathJoinSubstitution(
+                    [pkg_share, 'environment', 'martian', 'plain_stub']
+                ),
                 ':',
                 PathJoinSubstitution([pkg_share, 'alpha_model']),
             ],

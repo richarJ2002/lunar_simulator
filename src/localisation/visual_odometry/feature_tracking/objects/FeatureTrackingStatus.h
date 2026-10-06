@@ -7,8 +7,8 @@
  * @date            16/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_STATUS_H
-#define LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_STATUS_H
+#ifndef SRS_LOCALISATION_FEATURE_TRACKING_STATUS_H
+#define SRS_LOCALISATION_FEATURE_TRACKING_STATUS_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -52,4 +52,4 @@ enum class FeatureTrackingStatus : std::uint8_t
 
 } /* namespace localisation::visual_odometry::feature_tracking */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_STATUS_H */
+#endif /* SRS_LOCALISATION_FEATURE_TRACKING_STATUS_H */

@@ -11,9 +11,13 @@ import argparse
 import time
 from typing import Optional, Sequence
 
-# Topic the supervisor publishes its latched state on (see
+# Topic-namespace default: the supervisor publishes its latched state on
+# /<system>/system/state (see
 # parameters/systems/alpha/alpha_supervisor/startup_supervisor.yaml).
-DEFAULT_TOPIC = "/alpha/system/state"
+# "alpha" is the default-system example; old runs and bags without a
+# system name keep reading /alpha/system/state via this default.
+DEFAULT_SYSTEM = "alpha"
+DEFAULT_TOPIC = f"/{DEFAULT_SYSTEM}/system/state"
 
 # Wall-clock seconds to wait before giving up.
 DEFAULT_TIMEOUT_S = 120.0
@@ -88,7 +92,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
-    ready_s = wait_for_ready(args.topic, args.timeout_s)
+    topic = args.topic if args.topic is not None else f"/{args.system}/system/state"
+    ready_s = wait_for_ready(topic, args.timeout_s)
     # Launcher-style lines, each within the 40-character console rule.
     if ready_s is None:
         print(f"{args.prefix}Not READY after {args.timeout_s:.0f} s", flush=True)
@@ -107,7 +112,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Wait until the start-up supervisor reports READY."
     )
     parser.add_argument(
-        "--topic", default=DEFAULT_TOPIC, help=f"System state topic (default: {DEFAULT_TOPIC})."
+        "--system",
+        default=DEFAULT_SYSTEM,
+        help=f"Rover system whose state to wait for; the topic defaults to /<system>/system/state (default: {DEFAULT_SYSTEM}).",
+    )
+    parser.add_argument(
+        "--topic",
+        default=None,
+        help=f"System state topic, overriding --system (default: /<system>/system/state).",
     )
     parser.add_argument(
         "--timeout-s",

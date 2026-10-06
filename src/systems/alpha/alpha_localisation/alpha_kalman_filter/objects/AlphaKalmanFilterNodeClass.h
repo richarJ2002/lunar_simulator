@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
+#ifndef SRS_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
+#define SRS_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H
 
 /* Function Includes */
 #include "console/console.h"
@@ -162,8 +162,8 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
                                            "alpha/base_link");
 
         /* Read the raw path-length limit before validating it below. */
-        const int configuredMaximumPoses =
-            declare_parameter<int>("path_maximum_poses", 5000);
+        const std::int64_t configuredMaximumPoses =
+            declare_parameter<std::int64_t>("path_maximum_poses", 5000);
 
         /* Read the raw sample period before validating it below. */
         const double pathSamplePeriodS =
@@ -463,7 +463,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
         /* The resolved configuration is in the run's parameter snapshot, so
          * it is debug detail rather than operator output. */
-        LUNAR_LOG_DEBUG(get_logger(),
+        SRS_LOG_DEBUG(get_logger(),
                         "Bias-aware ESKF fusing raw IMU, visual and wheel "
                         "measurements; publishing at most %.1f Hz",
                         safeRateHz);
@@ -484,7 +484,7 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
         if (status != FilterStatus::FILTER_STATUS_SUCCESS)
         {
             /* Log at error severity since this indicates a lifecycle bug. */
-            LUNAR_LOG_ERROR(get_logger(), "EKF termination failed");
+            SRS_LOG_ERROR(get_logger(), "EKF termination failed");
         }
     }
 
@@ -1811,4 +1811,4 @@ class AlphaKalmanFilterNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_localisation::alpha_kalman_filter */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H */
+#endif /* SRS_ALPHA_ALPHA_KALMAN_FILTER_NODE_CLASS_H */

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sdf version="1.8">
-    <world name="lunar_surface">
+    <world name="crater_field">
         <gravity>0 0 -1.62</gravity>
         <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics" />
         <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands" />

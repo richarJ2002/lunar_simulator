@@ -21,7 +21,7 @@ graph TD
 
 - Alpha today composes localisation producers plus the Kalman engine,
   Ackermann control, and common helpers, with its own driver, ESKF model,
-  and supervisor, into one process on `lunar_surface`. See
+  and supervisor, into one process on `crater_field`. See
   [Systems/Alpha](systems/alpha/index.md) for its architecture.
 - A future system would reuse the same modules with its own model, driver,
   parameters, and launch on the same or a new environment, without changing

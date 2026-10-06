@@ -50,11 +50,12 @@ fi
 # ---------------------------------------------------------------------------- #
 
 required=(
-  "worlds/lunar_surface.sdf"
+  "environment/lunar/crater_field/crater_field.sdf"
+  "environment/martian/plain_stub/plain_stub.sdf"
   "src/systems/alpha/alpha_model/model.sdf"
   "src/systems/alpha/alpha_model/model.config"
   "launch/alpha_launch.py"
-  "config/alpha_ros_gz_bridge.yaml"
+  "config/alpha/ros_gz_bridge.yaml"
   "parameters/systems/alpha/alpha_drivers/alpha_drivers.yaml"
   "parameters/systems/alpha/alpha_localisation/alpha_kalman_filter.yaml"
   "parameters/systems/alpha/alpha_localisation/ground_truth.yaml"
@@ -83,7 +84,7 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 
-bridge = yaml.safe_load(open(root / "config/alpha_ros_gz_bridge.yaml"))
+bridge = yaml.safe_load(open(root / "config/alpha/ros_gz_bridge.yaml"))
 names = sorted(e["ros_topic_name"] for e in bridge)
 expected = sorted([
     "/clock",
@@ -152,7 +153,7 @@ bash -c '
   [ -d "$TEST_RUN_DIR/post_processing" ]
   [ "$COLCON_LOG_PATH" = "$TEST_RUN_DIR/ros/build_logs" ]
   [ "$ROS_LOG_DIR" = "$TEST_RUN_DIR/ros/logs" ]
-  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
+  [ "$SRS_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
   start_terminal_capture
   [ "$INTERACTIVE_RUN" -eq 0 ]
   printf "terminal-capture-marker\n"
@@ -165,21 +166,21 @@ bash -c '
   [ "$TEST_RUN_DIR" = "$timestamp_test_run_dir" ]
   # A recorded run has already written manifest.json naming the bag under
   # the timestamp-only directory; the rename must carry that path along.
-  BAG_DESTINATION="$LUNAR_SIMULATOR_ROSBAG_DIR/localisation"
-  printf "{\"bag_destination\": \"%s\", \"world\": \"lunar_surface\"}\n" \
-    "$BAG_DESTINATION" > "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
+  BAG_DESTINATION="$SRS_ROSBAG_DIR/localisation"
+  printf "{\"bag_destination\": \"%s\", \"world\": \"crater_field\"}\n" \
+    "$BAG_DESTINATION" > "$SRS_ROSBAG_DIR/manifest.json"
   rename_test_run "straight-drive"
   [ "$BAG_DESTINATION" = "$TEST_RUN_DIR/ros/bags/localisation" ]
   python3 -c "
 import json, sys
 manifest = json.load(open(sys.argv[1]))
 assert manifest[\"bag_destination\"] == sys.argv[2], manifest
-assert manifest[\"world\"] == \"lunar_surface\", manifest
+assert manifest[\"world\"] == \"crater_field\", manifest
 " "$TEST_RUN_DIR/ros/bags/manifest.json" "$TEST_RUN_DIR/ros/bags/localisation"
   [[ "$(basename "$TEST_RUN_DIR")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-straight-drive$ ]]
   [ "$COLCON_LOG_PATH" = "$TEST_RUN_DIR/ros/build_logs" ]
   [ "$ROS_LOG_DIR" = "$TEST_RUN_DIR/ros/logs" ]
-  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
+  [ "$SRS_ROSBAG_DIR" = "$TEST_RUN_DIR/ros/bags" ]
   printf "terminal-capture-after-rename\n"
 ' _ "$LAUNCH_SH" "$run_root" >/dev/null || fail "test-run artifact layout"
 run_directories=("$run_root"/test_runs/*)
@@ -194,12 +195,51 @@ grep -q "terminal-capture-after-rename" "$terminal_log" || fail "renamed termina
 pass "test-run artifact layout"
 
 # ---------------------------------------------------------------------------- #
+# 5b. Rosbag-dir shim: SRS_ROSBAG_DIR is canonical; a legacy
+#     LUNAR_SIMULATOR_ROSBAG_DIR export is honoured once with a warning.
+#     (This block must name the legacy variable to exercise the shim, the
+#     same reason section 7 excludes this file from its own gates.)
+# ---------------------------------------------------------------------------- #
+
+shim_probes="$(mktemp -d --tmpdir launch_test_rosbag_shim.XXXXXX)"
+bash -c '
+  set -euo pipefail
+  source "$1"
+  RUN_ROS_DIR="$2/ros"
+  unset SRS_ROSBAG_DIR
+  LUNAR_SIMULATOR_ROSBAG_DIR="$2/ros/bags"
+  export LUNAR_SIMULATOR_ROSBAG_DIR
+  resolve_rosbag_dir > "$3/legacy_warn.txt" 2>&1
+  [ "$SRS_ROSBAG_DIR" = "$2/ros/bags" ]
+  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$SRS_ROSBAG_DIR" ]
+' _ "$LAUNCH_SH" "$shim_probes" "$shim_probes" || fail "legacy rosbag dir fallback"
+grep -q "deprecated" "$shim_probes/legacy_warn.txt" || fail "legacy rosbag dir warns"
+bash -c '
+  set -euo pipefail
+  source "$1"
+  RUN_ROS_DIR="$2/ros"
+  SRS_ROSBAG_DIR="$2/ros/bags"
+  export SRS_ROSBAG_DIR
+  LUNAR_SIMULATOR_ROSBAG_DIR="/stale/legacy"
+  export LUNAR_SIMULATOR_ROSBAG_DIR
+  resolve_rosbag_dir > "$3/canonical_quiet.txt" 2>&1
+  [ "$SRS_ROSBAG_DIR" = "$2/ros/bags" ]
+  [ "$LUNAR_SIMULATOR_ROSBAG_DIR" = "$SRS_ROSBAG_DIR" ]
+' _ "$LAUNCH_SH" "$shim_probes" "$shim_probes" || fail "canonical rosbag dir wins"
+if grep -q "deprecated" "$shim_probes/canonical_quiet.txt"; then
+  fail "canonical rosbag dir must not warn"
+fi
+rm -rf -- "$shim_probes"
+pass "rosbag dir shim (SRS canonical, legacy fallback warns)"
+
+# ---------------------------------------------------------------------------- #
 # 6. Three negative cases, all non-zero without Gazebo
 # ---------------------------------------------------------------------------- #
 
 "$LAUNCH_SH" --no-such-flag >/dev/null 2>&1 && fail "unknown flag accepted" || pass "unknown flag non-zero"
 "$LAUNCH_SH" a b c >/dev/null 2>&1 && fail "3 positionals accepted" || pass ">2 positionals non-zero"
-"$LAUNCH_SH" lunar_surface no_such_system_xyz >/dev/null 2>&1 && fail "bad system accepted" || pass "bad system non-zero"
+"$LAUNCH_SH" crater_field no_such_system_xyz >/dev/null 2>&1 && fail "bad system accepted" || pass "bad system non-zero"
+"$LAUNCH_SH" no_such_env_xyz alpha >/dev/null 2>&1 && fail "bad environment accepted" || pass "bad environment non-zero"
 
 # ---------------------------------------------------------------------------- #
 # 7. Rename gates over working-tree text.
@@ -249,7 +289,7 @@ bridge_hits="$(rg --no-messages --glob '!build/**' --glob '!install/**' \
 if [ -z "$bridge_hits" ]; then
   fail "bridge filename unreferenced"
 fi
-bad_bridge="$(printf '%s\n' "$bridge_hits" | grep -v '\.bak:' | grep -v 'alpha_ros_gz_bridge' | grep -v 'SYSTEM}_ros_gz_bridge' || true)"
+bad_bridge="$(printf '%s\n' "$bridge_hits" | grep -v '\.bak:' | grep -v 'config/alpha/ros_gz_bridge' | grep -v 'SYSTEM}/ros_gz_bridge' | grep -v '<system>/ros_gz_bridge' || true)"
 if [ -n "$bad_bridge" ]; then
   echo "$bad_bridge" >&2
   fail "bridge filename only new+.bak"
@@ -289,34 +329,36 @@ images_from_bash="$(bash -c 'source "$1"; RECORD_IMAGES=1; assemble_record_topic
 pass "core+images topic list matches python_tools registry"
 
 # ---------------------------------------------------------------------------- #
-# 8b. Console width: every launcher message line carries at most 40
-#     characters of text after its "[MSG] " style prefix (WP-01).
+# 8b. Console style: snippet template (plain msg/wrn/err, no wrapping).
+#     The 40-char wrap rule lives in the C++ SRS_LOG_* macros only;
+#     bash stays snippet-plain, so even long paths log as one line.
 # ---------------------------------------------------------------------------- #
 
 bash -c '
   set -euo pipefail
   source "$1"
-  ROOT="/home/example/lunar_simulator"
-  msg "Run: $(rel_path "$ROOT/test_runs/2026-09-24-21-31-06-a-long-run-name")"
-  wrn "a b c"
-  err "Recorder exited without metadata.yaml: test_runs/2026-09-24-21-31-06/ros/bags/localisation" 2>&1
-  msg ""
-' _ "$LAUNCH_SH" > "$stub_dir/console_width.txt" || fail "console width helpers"
-python3 - "$stub_dir/console_width.txt" <<'PYEOF' || fail "launcher lines exceed 40 characters of text"
+  msg "hello world"
+  wrn "watch out"
+  msg "Run: test_runs/2026-09-24-21-31-06-a-long-run-name-extra-text-here"
+  err "boom"
+' _ "$LAUNCH_SH" > "$stub_dir/console_style.txt" 2> "$stub_dir/console_style_err.txt" \
+  || fail "console style helpers"
+python3 - "$stub_dir/console_style.txt" "$stub_dir/console_style_err.txt" <<'PYEOF' \
+  || fail "launcher messages must be plain single lines"
 import sys
-lines = open(sys.argv[1]).read().splitlines()
-# A word that cannot share the first line moves to an indented continuation
-# line and is split there; no text is lost.
-assert lines[0] == "[MSG] Run:", lines
-assert lines[1] == "[MSG]   test_runs/2026-09-24-21-31-06-a-long-r", lines
-assert lines[2] == "[MSG]   un-name", lines
-assert "[WRN] a b c" in lines, lines
-for line in lines:
-    prefix, text = line[:6], line[6:]
-    assert prefix in ("[MSG] ", "[WRN] ", "[ERR] "), line
-    assert len(text) <= 40, line
+out_lines = open(sys.argv[1]).read().splitlines()
+err_lines = open(sys.argv[2]).read().splitlines()
+assert out_lines == [
+    "[MSG] hello world",
+    "[WRN] watch out",
+    "[MSG] Run: test_runs/2026-09-24-21-31-06-a-long-run-name-extra-text-here",
+], out_lines
+assert err_lines == ["[ERR] boom"], err_lines
 PYEOF
-pass "launcher messages wrap at 40 characters of text"
+if grep -Eq 'print_wrapped|CONSOLE_TEXT_WIDTH' "$LAUNCH_SH"; then
+  fail "launcher must not wrap console output (bash snippet style)"
+fi
+pass "launcher messages are plain single lines (msg/wrn/err)"
 
 # ---------------------------------------------------------------------------- #
 # 9. Recorder lifecycle: bag destination, manifest, PID-scoped SIGTERM+wait,
@@ -411,25 +453,25 @@ PATH="$stub_dir:$PATH" timeout -k 5 20 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags"
+  SRS_ROSBAG_DIR="$3/bags"
   RECORDER_SHUTDOWN_TIMEOUT_S=3
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
 
   start_recorder
-  [ "$BAG_DESTINATION" = "$LUNAR_SIMULATOR_ROSBAG_DIR/localisation" ]
+  [ "$BAG_DESTINATION" = "$SRS_ROSBAG_DIR/localisation" ]
   [ -d "$BAG_DESTINATION" ]
-  [ -f "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json" ]
+  [ -f "$SRS_ROSBAG_DIR/manifest.json" ]
   python3 -c "
 import json, sys
 manifest = json.load(open(sys.argv[1]))
-assert manifest[\"world\"] == \"lunar_surface\", manifest
+assert manifest[\"world\"] == \"crater_field\", manifest
 assert manifest[\"system\"] == \"alpha\", manifest
 assert manifest[\"recording_profile\"] == \"core\", manifest
 assert manifest[\"storage_identifier\"] == \"mcap\", manifest
 assert len(manifest[\"topics\"]) == 23, manifest
 assert manifest[\"bag_destination\"].endswith(\"/localisation\"), manifest
-" "$LUNAR_SIMULATOR_ROSBAG_DIR/manifest.json"
+" "$SRS_ROSBAG_DIR/manifest.json"
   # The recorder is still alive and has not yet finalized its metadata.
   kill -0 "$RECORDER_PID"
   [ ! -f "$BAG_DESTINATION/metadata.yaml" ]
@@ -454,9 +496,9 @@ PATH="$stub_dir:$PATH" timeout -k 5 10 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags"
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  SRS_ROSBAG_DIR="$3/bags"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   start_recorder
   kill -TERM "$RECORDER_PID"
   for _ in $(seq 1 50); do kill -0 "$RECORDER_PID" 2>/dev/null || break; sleep 0.1; done
@@ -474,10 +516,10 @@ PATH="$stub_dir:$PATH" timeout -k 5 15 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags-STUB_RECORDER_IGNORE_FIRST_TERM"
+  SRS_ROSBAG_DIR="$3/bags-STUB_RECORDER_IGNORE_FIRST_TERM"
   RECORDER_SHUTDOWN_TIMEOUT_S=3
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   start_recorder
   stop_recorder
   [ -f "$BAG_DESTINATION/metadata.yaml" ]
@@ -495,10 +537,10 @@ PATH="$stub_dir:$PATH" timeout -k 5 15 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags-STUB_RECORDER_NEVER_EXITS"
+  SRS_ROSBAG_DIR="$3/bags-STUB_RECORDER_NEVER_EXITS"
   RECORDER_SHUTDOWN_TIMEOUT_S=2
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   start_recorder
   survivor_pid="$RECORDER_PID"
   if stop_recorder; then
@@ -533,10 +575,10 @@ for signal_name in INT TERM; do
     source "$1"
     ROOT="$2"
     RUN_LOGS_DIR="$3/logs"
-    LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags"
+    SRS_ROSBAG_DIR="$3/bags"
     RECORDER_SHUTDOWN_TIMEOUT_S=3
-    mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-    QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+    mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+    QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
     trap finalize_test_run EXIT
     start_recorder
     handle_termination_signal "$4"
@@ -562,10 +604,10 @@ PATH="$stub_dir:$PATH" timeout -k 5 15 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags"
+  SRS_ROSBAG_DIR="$3/bags"
   RECORDER_SHUTDOWN_TIMEOUT_S=3
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   trap "handle_termination_signal INT" INT
   trap "handle_termination_signal TERM" TERM
   trap finalize_test_run EXIT
@@ -650,11 +692,11 @@ source "$1"
 ROOT="$2"
 RUN_DIR="$3"
 RUN_LOGS_DIR="$RUN_DIR/logs"
-LUNAR_SIMULATOR_ROSBAG_DIR="$RUN_DIR/bags"
+SRS_ROSBAG_DIR="$RUN_DIR/bags"
 TEST_RUN_DIR="$RUN_DIR"
 RECORDER_SHUTDOWN_TIMEOUT_S=3
-mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
 
 # Mirrors main()'s actual trap/redirection setup and ordering, including the
 # tee logging topology the 9b tests above never exercise.
@@ -792,10 +834,10 @@ PATH="$stub_dir:$PATH" timeout -k 5 10 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags"
+  SRS_ROSBAG_DIR="$3/bags"
   RECORDER_SHUTDOWN_TIMEOUT_S=3
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   start_recorder
   # First invocation performs real cleanup, in a subshell so its `exit`
   # only ends the subshell, letting this test continue.
@@ -819,9 +861,9 @@ PATH="$stub_dir:$PATH" timeout -k 5 10 bash -c '
   source "$1"
   ROOT="$2"
   RUN_LOGS_DIR="$3/logs"
-  LUNAR_SIMULATOR_ROSBAG_DIR="$3/bags-STUB_RECORDER_FAIL"
-  mkdir -p "$RUN_LOGS_DIR" "$LUNAR_SIMULATOR_ROSBAG_DIR"
-  QOS_OVERRIDES_FILE="$ROOT/config/alpha_rosbag_qos.yaml"
+  SRS_ROSBAG_DIR="$3/bags-STUB_RECORDER_FAIL"
+  mkdir -p "$RUN_LOGS_DIR" "$SRS_ROSBAG_DIR"
+  QOS_OVERRIDES_FILE="$ROOT/config/alpha/rosbag_qos.yaml"
   start_recorder
 ' _ "$LAUNCH_SH" "$ROOT" "$failure_root" >/dev/null 2>&1 \
   && fail "recorder immediate-exit accepted" || pass "recorder immediate-exit is non-zero"

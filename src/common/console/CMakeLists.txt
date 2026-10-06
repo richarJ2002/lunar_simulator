@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Wrapped console logging: every project node logs through the LUNAR_LOG_*
+# Wrapped console logging: every project node logs through the SRS_LOG_*
 # macros in console.h, which format, wrap at 40 characters and emit one
 # record per line. Consumers include "console/console.h", so the include
 # root is this module's parent directory.

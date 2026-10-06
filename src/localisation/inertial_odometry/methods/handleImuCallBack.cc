@@ -62,7 +62,7 @@ void InertialOdometryNode::handleImuCallBack(
          * messages, simulation reset) would corrupt the integrators below,
          * so the sample is discarded rather than integrated.
          */
-        LUNAR_LOG_WARN_THROTTLE(get_logger(),
+        SRS_LOG_WARN_THROTTLE(get_logger(),
                                 *get_clock(),
                                 2000,
                                 "IMU dt %.3f s invalid; sample ignored",
@@ -143,7 +143,7 @@ void InertialOdometryNode::handleImuCallBack(
                     gravity_mPs2);
             if (gravitySpecificForceFixed_mPs2.length2() <= 1.0e-24)
             {
-                LUNAR_LOG_ERROR(get_logger(),
+                SRS_LOG_ERROR(get_logger(),
                                 "IMU calibration found no gravity");
                 calibrationSampleCount = 0;
                 accelerationCalibrationSum = {0.0, 0.0, 0.0};
@@ -165,7 +165,7 @@ void InertialOdometryNode::handleImuCallBack(
             /* Record calibration completion once, for the operator log and
              * the recorded calibration status. */
             calibrationCompleteStamp_s = stamp_s;
-            LUNAR_LOG_INFO(get_logger(),
+            SRS_LOG_INFO(get_logger(),
                            "IMU calibration complete (%d samples)",
                            calibrationSampleTarget);
         }

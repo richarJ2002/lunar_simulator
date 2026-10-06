@@ -9,7 +9,7 @@ and this file's own Activation Declaration (§9).
 
 ## 1. Applicability
 
-- Project: `lunar_simulator` (ROS 2 Jazzy + Gazebo lunar rover simulator).
+- Project: `space_robotics_simulator` (ROS 2 Jazzy + Gazebo lunar rover simulator).
 - Profile owner: `TODO(project)` — no named individual/role has accepted
   ownership of this profile yet; see §9.
 - Authoritative JSF AV rule source and revision: *Joint Strike Fighter Air

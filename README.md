@@ -1,6 +1,6 @@
-# Lunar Simulator
+# Space Robotics Simulator (SRS)
 
-`lunar_simulator` is a proving ground for Mars-mission rover architectures:
+`space_robotics_simulator` is a proving ground for Mars-mission rover architectures:
 autonomy stacks (localisation, control, supervision) developed and tested in
 simulation first, on the Moon today and on Mars surfaces next.
 
@@ -11,12 +11,13 @@ simulation first, on the Moon today and on Mars surfaces next.
 
 | System | Environment | Launch command | Status |
 |--------|-------------|----------------|--------|
-| Alpha | `lunar_surface` | `./scripts/launch_simulator.sh lunar_surface alpha` | Supported |
+| Alpha | `crater_field` | `./scripts/launch_simulator.sh crater_field alpha` | Supported |
 | Alpha | Mars | TODO | Planned, not present |
 
 Alpha is the only system: an ExoMars-scale rover (triple-bogie, six
 independently driven/steered wheels, front/mast stereo cameras) composed as a
-single `alpha_node` process. The only world is `worlds/lunar_surface.sdf`
+single `alpha_node` process. The default environment is
+`environment/lunar/crater_field/crater_field.sdf`
 (low gravity, 1.62 m/s²).
 
 ## Prerequisites
@@ -25,7 +26,7 @@ Use the same isolation values in every terminal (defaults shown):
 
 ```bash
 export ROS_DOMAIN_ID=73
-export GZ_PARTITION=lunar_simulator_73
+export GZ_PARTITION=space_robotics_simulator_${ROS_DOMAIN_ID}
 ```
 
 `ROS_DOMAIN_ID` isolates the global `/clock` topic; `GZ_PARTITION`
@@ -39,10 +40,10 @@ Three commands, from the repository root:
 ```bash
 # 1. Build
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-select lunar_simulator
+colcon build --packages-select space_robotics_simulator
 
-# 2. Launch (Alpha on lunar_surface; a bare call is equivalent)
-./scripts/launch_simulator.sh lunar_surface alpha
+# 2. Launch (Alpha on crater_field; a bare call is equivalent)
+./scripts/launch_simulator.sh crater_field alpha
 
 # 3. Wait for READY before commanding motion
 python3 scripts/wait_for_system_ready.py --timeout-s 120
@@ -75,7 +76,7 @@ Full documentation lives in `docs/` (MkDocs Material site):
 | TODO (Mars, second system) | [docs/todo.md](docs/todo.md) |
 | Contributing docs | [docs/contributing-docs.md](docs/contributing-docs.md) |
 
-Project site: <https://richarJ2002.github.io/lunar_simulator> (live).
+Project site: <https://richarJ2002.github.io/space_robotics_simulator> (live).
 
 ## What moved
 

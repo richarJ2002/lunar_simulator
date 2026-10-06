@@ -189,7 +189,7 @@ void VisualOdometryNode::publishPipelineDiagnosticsCallBack()
             : 0.0;
     if (consoleInterval_s > 0.0)
     {
-        LUNAR_LOG_INFO(
+        SRS_LOG_INFO(
             get_logger(),
             "VO %.1fHz inl %zu fail %llu",
             calculateRateHz(acceptedPoseCount - previousConsoleAcceptedCount,

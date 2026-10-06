@@ -2,7 +2,7 @@
 
 > Code is truth — everything below is planned, not present.
 
-- Mars environment (`worlds/` second world + launch path).
+- Mars environment (grow `environment/martian/plain_stub/` into a full world + launch path).
 - Second system (beta/gamma alongside Alpha).
 - ECSS rewrite of the `feature_tracking/` compliance evidence.
 - Doxygen / API generation, only if handwritten pages stop sufficing.

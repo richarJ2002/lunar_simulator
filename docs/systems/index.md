@@ -8,7 +8,7 @@ this page is the checklist for adding the next one (e.g. gamma), trimmed
 from README "Adding New Systems".
 
 Where: `src/systems/alpha/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/)).
 
 ## How to add gamma
 
@@ -23,8 +23,8 @@ Where: `src/systems/alpha/`
 4. Give gamma its own `parameters/systems/gamma/` tree, bridge config,
    and model; update the README systems table.
 
-Full authority: [README "Adding New Systems"](https://github.com/richarJ2002/lunar_simulator/blob/main/README.md)
-and [`src/systems/alpha/alpha_node/`](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_node/).
+Full authority: [README "Adding New Systems"](https://github.com/richarJ2002/space_robotics_simulator/blob/main/README.md)
+and [`src/systems/alpha/alpha_node/`](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_node/).
 
 ## `system_name` limits
 

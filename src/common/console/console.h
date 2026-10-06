@@ -1,7 +1,7 @@
 /*!
  * @file            console.h
  *
- * @brief           Public entry point of the console module: the LUNAR_LOG_*
+ * @brief           Public entry point of the console module: the SRS_LOG_*
  *                  macros every project node uses instead of RCLCPP_*.
  *
  *                  Every message is formatted, word-wrapped to at most
@@ -23,8 +23,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_COMMON_CONSOLE_CONSOLE_H
-#define LUNAR_SIMULATOR_COMMON_CONSOLE_CONSOLE_H
+#ifndef SRS_COMMON_CONSOLE_CONSOLE_H
+#define SRS_COMMON_CONSOLE_CONSOLE_H
 
 /* C++ Standard Library Includes */
 #include <cstdint>
@@ -50,14 +50,14 @@
  * @param           ...
  *                  printf-style format string and its arguments.
  */
-#define LUNAR_LOG(logger, severity, ...)                                       \
+#define SRS_LOG(logger, severity, ...)                                         \
     do                                                                         \
     {                                                                          \
-        const ::rclcpp::Logger &lunarLogLogger = (logger);                     \
-        if (::common::console::isSeverityEnabled(lunarLogLogger, (severity)))  \
+        const ::rclcpp::Logger &srsLogLogger = (logger);                       \
+        if (::common::console::isSeverityEnabled(srsLogLogger, (severity)))    \
         {                                                                      \
             ::common::console::logWrapped(                                     \
-                lunarLogLogger,                                                \
+                srsLogLogger,                                                  \
                 (severity),                                                    \
                 ::common::console::formatText(__VA_ARGS__));                   \
         }                                                                      \
@@ -79,58 +79,57 @@
  * @param           ...
  *                  printf-style format string and its arguments.
  */
-#define LUNAR_LOG_THROTTLE(logger, severity, clock, periodMs, ...)             \
+#define SRS_LOG_THROTTLE(logger, severity, clock, periodMs, ...)               \
     do                                                                         \
     {                                                                          \
-        static ::common::console::ThrottleGate lunarLogThrottleGate;           \
-        constexpr std::int64_t LUNAR_LOG_NANOSECONDS_PER_MILLISECOND =         \
-            1000000;                                                           \
-        if (lunarLogThrottleGate.shouldEmit(                                   \
+        static ::common::console::ThrottleGate srsLogThrottleGate;             \
+        constexpr std::int64_t SRS_LOG_NANOSECONDS_PER_MILLISECOND = 1000000;  \
+        if (srsLogThrottleGate.shouldEmit(                                     \
                 (clock).now().nanoseconds(),                                   \
                 static_cast<std::int64_t>(periodMs) *                          \
-                    LUNAR_LOG_NANOSECONDS_PER_MILLISECOND))                    \
+                    SRS_LOG_NANOSECONDS_PER_MILLISECOND))                      \
         {                                                                      \
-            LUNAR_LOG((logger), (severity), __VA_ARGS__);                      \
+            SRS_LOG((logger), (severity), __VA_ARGS__);                        \
         }                                                                      \
     } while (false)
 
 /*!
- * @brief           Wrapped DEBUG message; see LUNAR_LOG.
+ * @brief           Wrapped DEBUG message; see SRS_LOG.
  */
-#define LUNAR_LOG_DEBUG(logger, ...)                                           \
-    LUNAR_LOG((logger),                                                        \
-              ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_DEBUG,      \
-              __VA_ARGS__)
+#define SRS_LOG_DEBUG(logger, ...)                                             \
+    SRS_LOG((logger),                                                          \
+            ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_DEBUG,        \
+            __VA_ARGS__)
 
 /*!
- * @brief           Wrapped INFO message; see LUNAR_LOG.
+ * @brief           Wrapped INFO message; see SRS_LOG.
  */
-#define LUNAR_LOG_INFO(logger, ...)                                            \
-    LUNAR_LOG((logger),                                                        \
-              ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_INFO,       \
-              __VA_ARGS__)
+#define SRS_LOG_INFO(logger, ...)                                              \
+    SRS_LOG((logger),                                                          \
+            ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_INFO,         \
+            __VA_ARGS__)
 
 /*!
- * @brief           Wrapped WARN message; see LUNAR_LOG.
+ * @brief           Wrapped WARN message; see SRS_LOG.
  */
-#define LUNAR_LOG_WARN(logger, ...)                                            \
-    LUNAR_LOG((logger),                                                        \
-              ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_WARN,       \
-              __VA_ARGS__)
+#define SRS_LOG_WARN(logger, ...)                                              \
+    SRS_LOG((logger),                                                          \
+            ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_WARN,         \
+            __VA_ARGS__)
 
 /*!
- * @brief           Wrapped ERROR message; see LUNAR_LOG.
+ * @brief           Wrapped ERROR message; see SRS_LOG.
  */
-#define LUNAR_LOG_ERROR(logger, ...)                                           \
-    LUNAR_LOG((logger),                                                        \
-              ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_ERROR,      \
-              __VA_ARGS__)
+#define SRS_LOG_ERROR(logger, ...)                                             \
+    SRS_LOG((logger),                                                          \
+            ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_ERROR,        \
+            __VA_ARGS__)
 
 /*!
- * @brief           Throttled wrapped INFO message; see LUNAR_LOG_THROTTLE.
+ * @brief           Throttled wrapped INFO message; see SRS_LOG_THROTTLE.
  */
-#define LUNAR_LOG_INFO_THROTTLE(logger, clock, periodMs, ...)                  \
-    LUNAR_LOG_THROTTLE(                                                        \
+#define SRS_LOG_INFO_THROTTLE(logger, clock, periodMs, ...)                    \
+    SRS_LOG_THROTTLE(                                                          \
         (logger),                                                              \
         ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_INFO,             \
         clock,                                                                 \
@@ -138,10 +137,10 @@
         __VA_ARGS__)
 
 /*!
- * @brief           Throttled wrapped WARN message; see LUNAR_LOG_THROTTLE.
+ * @brief           Throttled wrapped WARN message; see SRS_LOG_THROTTLE.
  */
-#define LUNAR_LOG_WARN_THROTTLE(logger, clock, periodMs, ...)                  \
-    LUNAR_LOG_THROTTLE(                                                        \
+#define SRS_LOG_WARN_THROTTLE(logger, clock, periodMs, ...)                    \
+    SRS_LOG_THROTTLE(                                                          \
         (logger),                                                              \
         ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_WARN,             \
         clock,                                                                 \
@@ -149,14 +148,14 @@
         __VA_ARGS__)
 
 /*!
- * @brief           Throttled wrapped ERROR message; see LUNAR_LOG_THROTTLE.
+ * @brief           Throttled wrapped ERROR message; see SRS_LOG_THROTTLE.
  */
-#define LUNAR_LOG_ERROR_THROTTLE(logger, clock, periodMs, ...)                 \
-    LUNAR_LOG_THROTTLE(                                                        \
+#define SRS_LOG_ERROR_THROTTLE(logger, clock, periodMs, ...)                   \
+    SRS_LOG_THROTTLE(                                                          \
         (logger),                                                              \
         ::common::console::ConsoleSeverity::CONSOLE_SEVERITY_ERROR,            \
         clock,                                                                 \
         periodMs,                                                              \
         __VA_ARGS__)
 
-#endif /* LUNAR_SIMULATOR_COMMON_CONSOLE_CONSOLE_H */
+#endif /* SRS_COMMON_CONSOLE_CONSOLE_H */

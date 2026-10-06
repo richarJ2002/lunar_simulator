@@ -8,7 +8,7 @@ sensor topics; wheel commands travel the reverse path through a
 READY-gated stop-or-forward gate.
 
 Where: `src/systems/alpha/alpha_drivers/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_drivers/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_drivers/)).
 
 ## Topics
 
@@ -34,17 +34,17 @@ camera topics.
 
 | Class / unit | Path | GitHub |
 |---|---|---|
-| `AlphaDriverNode` | `src/systems/alpha/alpha_drivers/objects/AlphaDriverNodeClass.h` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_drivers/objects/AlphaDriverNodeClass.h) |
-| Gate decision | `src/systems/alpha/alpha_drivers/methods/evaluateCommandGate.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/evaluateCommandGate.cc) |
-| State receipt | `src/systems/alpha/alpha_drivers/methods/handleSystemStateCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/handleSystemStateCallBack.cc) |
-| Gated publish | `src/systems/alpha/alpha_drivers/methods/publishNoisyWheelCommandCallBack.cc` | [link](https://github.com/richarJ2002/lunar_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/publishNoisyWheelCommandCallBack.cc) |
+| `AlphaDriverNode` | `src/systems/alpha/alpha_drivers/objects/AlphaDriverNodeClass.h` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_drivers/objects/AlphaDriverNodeClass.h) |
+| Gate decision | `src/systems/alpha/alpha_drivers/methods/evaluateCommandGate.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/evaluateCommandGate.cc) |
+| State receipt | `src/systems/alpha/alpha_drivers/methods/handleSystemStateCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/handleSystemStateCallBack.cc) |
+| Gated publish | `src/systems/alpha/alpha_drivers/methods/publishNoisyWheelCommandCallBack.cc` | [link](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/systems/alpha/alpha_drivers/methods/publishNoisyWheelCommandCallBack.cc) |
 
 No function signatures in v1 — see source.
 
 ## Parameters
 
 Full authority:
-[alpha_drivers.yaml](https://github.com/richarJ2002/lunar_simulator/blob/main/parameters/systems/alpha/alpha_drivers/alpha_drivers.yaml).
+[alpha_drivers.yaml](https://github.com/richarJ2002/space_robotics_simulator/blob/main/parameters/systems/alpha/alpha_drivers/alpha_drivers.yaml).
 What each group tunes: raw/public topic names; IMU, joint-state, and
 wheel-command noise (stddevs, biases, seed); joint-state publish rate;
 heartbeat/readiness ages; wheel-speed clamp. Never paste numbers as

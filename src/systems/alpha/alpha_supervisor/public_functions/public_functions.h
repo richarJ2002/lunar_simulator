@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H
+#ifndef SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H
+#define SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H
 
 /* C++ Standard Library Includes */
 #include <optional>
@@ -92,4 +92,4 @@ std::optional<SystemState> parseSystemState(const std::string &stateName_in);
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H */
+#endif /* SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_PUBLIC_FUNCTIONS_H */

@@ -7,8 +7,8 @@
  * @date            16/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_LIMITS_H
-#define LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_LIMITS_H
+#ifndef SRS_LOCALISATION_FEATURE_TRACKING_LIMITS_H
+#define SRS_LOCALISATION_FEATURE_TRACKING_LIMITS_H
 
 /* C++ Standard Library Includes */
 #include <cstddef>
@@ -47,4 +47,4 @@ inline constexpr int MAXIMUM_SUPPORTED_PYRAMID_LEVELS = 8;
 
 } /* namespace localisation::visual_odometry::feature_tracking */
 
-#endif /* LUNAR_SIMULATOR_LOCALISATION_FEATURE_TRACKING_LIMITS_H */
+#endif /* SRS_LOCALISATION_FEATURE_TRACKING_LIMITS_H */

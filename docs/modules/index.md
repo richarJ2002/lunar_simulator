@@ -14,13 +14,13 @@ confusion, so fix the mental model first:
   package). A system composes modules: Alpha composes them today as the
   current physical system, and a future system would compose the same or
   extended ones. Systems own the ESKF model, the driver, and the supervisor.
-- **Environment** — one world under `worlds/` (see Environments — later
-  work package). Modules and systems never hardcode an environment.
+- **Environment** — one world under `environment/` (see Environments).
+  Modules and systems never hardcode an environment.
 
 ```mermaid
 graph TD
     mod[Modules: localisation / control / common] --> sys[Physical system: alpha]
-    env[Environment: lunar_surface] --> sys
+    env[Environment: crater_field] --> sys
     sys --> run[One composed AlphaNode process]
 ```
 

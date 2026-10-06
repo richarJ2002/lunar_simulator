@@ -25,8 +25,8 @@ void AlphaDriverNode::configureWheelCommandInterface(
         "/" + systemName_in + "/control/cmd/wheel_joint_states");
 
     /*!
-     * Output topic: the raw Gazebo actuator bridge, matching this system's
-     * config/alpha_ros_gz_bridge.yaml and alpha_model/model.sdf.
+     * Output topic: the raw Gazebo actuator bridge, matching this
+     * system's config/<system>/ros_gz_bridge.yaml and model.sdf.
      */
     const std::string rawWheelCommandTopic = declare_parameter<std::string>(
         "raw_wheel_joint_states_topic",
@@ -59,7 +59,7 @@ void AlphaDriverNode::configureWheelCommandInterface(
             subscriptionOptions);
 
     /* Topic wiring is already captured by the run's parameter snapshot. */
-    LUNAR_LOG_DEBUG(get_logger(),
+    SRS_LOG_DEBUG(get_logger(),
                     "Alpha driver: wheel command %s -> %s",
                     wheelCommandTopic.c_str(),
                     rawWheelCommandTopic.c_str());

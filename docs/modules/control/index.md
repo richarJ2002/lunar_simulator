@@ -8,7 +8,7 @@ Control never estimates — it consumes the ESKF output, and the smoothed copy
 is never fed back into the ESKF.
 
 Where: `src/control/`
-([GitHub](https://github.com/richarJ2002/lunar_simulator/blob/main/src/control/)).
+([GitHub](https://github.com/richarJ2002/space_robotics_simulator/blob/main/src/control/)).
 
 ```mermaid
 graph LR

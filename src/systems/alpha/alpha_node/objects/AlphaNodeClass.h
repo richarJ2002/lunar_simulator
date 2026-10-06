@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H
-#define LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H
+#ifndef SRS_ALPHA_ALPHA_NODE_CLASS_H
+#define SRS_ALPHA_ALPHA_NODE_CLASS_H
 
 /* Function Includes */
 /* None */
@@ -211,4 +211,4 @@ class AlphaNode final
 
 } /* namespace systems::alpha::alpha_node */
 
-#endif /* LUNAR_SIMULATOR_ALPHA_ALPHA_NODE_CLASS_H */
+#endif /* SRS_ALPHA_ALPHA_NODE_CLASS_H */

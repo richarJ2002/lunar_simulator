@@ -7,8 +7,8 @@
  * @date            24/09/2026
  */
 
-#ifndef LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
-#define LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
+#ifndef SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
+#define SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H
 
 /* C++ Standard Library Includes */
 #include <chrono>
@@ -131,7 +131,7 @@ class AlphaStartupSupervisorNode final : public rclcpp::Node
             create_timer(std::chrono::milliseconds(250),
                          [this]() { publishSystemStateCallBack(); });
 
-        LUNAR_LOG_INFO(get_logger(),
+        SRS_LOG_INFO(get_logger(),
                        "INIT 0/%zu: commands blocked",
                        components.size());
     }
@@ -287,5 +287,5 @@ class AlphaStartupSupervisorNode final : public rclcpp::Node
 
 } /* namespace systems::alpha::alpha_supervisor */
 
-#endif /* LUNAR_SIMULATOR_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H \
+#endif /* SRS_SYSTEMS_ALPHA_ALPHA_SUPERVISOR_ALPHA_STARTUP_SUPERVISOR_NODE_CLASS_H \
         */

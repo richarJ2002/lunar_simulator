@@ -8,8 +8,6 @@
 # Topics default under the owning system's namespace via system_name.
 ackermann_controller:
   ros__parameters:
-    velocity_topic: /alpha/control/cmd/velocity
-    wheel_joint_states_topic: /alpha/control/cmd/wheel_joint_states
     wheel_radius_m: 0.1425
     maximum_wheel_speed_radps: 0.14
     wheel_x_m: [0.64, 0.64, 0.0, 0.0, -0.72, -0.72]
