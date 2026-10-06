@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# commit-msg hook: enforce the "[<scope>] <description>" subject style
+# (see AGENTS.md "Commits" and `git log --oneline` for scopes).
+#
+# Source of truth lives here; the enforced copy is installed at
+# .git/hooks/commit-msg (re-install after a fresh clone, hooks are not
+# tracked). Never bypass this hook to land a failing message.
+set -euo pipefail
+
+subject="$(sed -n '1p' "$1")"
+if ! printf '%s' "$subject" | grep -Eq '^\[[a-z0-9][a-z0-9-]*\] [^ ]'; then
+  echo "commit-msg: subject must look like '[<scope>] <description>'" >&2
+  echo "got: '${subject}'" >&2
+  exit 1
+fi
