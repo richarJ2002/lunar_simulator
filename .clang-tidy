@@ -1,4 +1,4 @@
-# clang-tidy configuration for lunar_simulator.
+# clang-tidy configuration for space_robotics_simulator.
 #
 # This is a real static-analysis pass, not a certification claim: per
 # CPP_CODING_STANDARD.md Section 15.4, clang-tidy is NOT a certified MISRA
