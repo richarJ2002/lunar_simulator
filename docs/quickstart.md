@@ -3,12 +3,20 @@
 > Code is truth — commands below describe; the launcher scripts and launch
 > files on `main` win on conflict.
 
-## Systems x environments
+## Systems
 
-| System | Environment | Launch command | Status |
-|--------|-------------|----------------|--------|
-| Alpha | `crater_field` | `./scripts/launch_simulator.sh crater_field alpha` | Supported |
-| Alpha | Mars | TODO | Planned, not present |
+| System | Status |
+|--------|--------|
+| Alpha | Supported |
+
+## Environments
+
+| Environment | Status |
+|-------------|--------|
+| `crater_field` | Supported |
+| Mars | Planned, not present |
+
+Launches use `./scripts/launch_simulator.sh [environment] [system]` with defaults `crater_field` + `alpha`, so a bare call is equivalent. See Three commands below.
 
 ## Prerequisites
 
